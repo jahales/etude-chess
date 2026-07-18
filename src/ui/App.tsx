@@ -7,6 +7,12 @@ import { explain, factBundleToText, type FactBundle } from '../domain/factBundle
 import { summarize, type Attempt } from '../domain/session'
 import { useGuessSession } from '../app/useGuessSession'
 import {
+  STRENGTH_PRESETS,
+  MULTIPV_OPTIONS,
+  presetIdForNodes,
+  type AnalysisSettings,
+} from '../app/settings'
+import {
   currentItem,
   displayFen as selectDisplayFen,
   isLast,
@@ -33,6 +39,7 @@ const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '
 export function App() {
   const s = useGuessSession()
   const { state } = s
+  const [showSettings, setShowSettings] = useState(false)
 
   return (
     <div className="app">
@@ -42,10 +49,23 @@ export function App() {
           <span className="dot">·</span>
           <b>chess</b>
         </button>
-        <span className={`engine-pill ${s.engineReady ? 'on' : ''}`}>
-          {s.engineError ? 'engine error' : s.engineReady ? 'engine ready' : 'engine loading…'}
-        </span>
+        <div className="top-right">
+          <button
+            className="settings-btn"
+            type="button"
+            onClick={() => setShowSettings((v) => !v)}
+            aria-label="Analysis settings"
+            aria-expanded={showSettings}
+          >
+            ⚙
+          </button>
+          <span className={`engine-pill ${s.engineReady ? 'on' : ''}`}>
+            {s.engineError ? 'engine error' : s.engineReady ? 'engine ready' : 'engine loading…'}
+          </span>
+        </div>
       </header>
+
+      {showSettings && <SettingsPanel settings={s.settings} onChange={s.setSettings} />}
 
       <main className="main">
         {state.screen === 'home' && (
@@ -73,6 +93,51 @@ export function App() {
           />
         )}
       </main>
+    </div>
+  )
+}
+
+// ---------- Settings ----------
+
+function SettingsPanel({
+  settings,
+  onChange,
+}: {
+  settings: AnalysisSettings
+  onChange: (s: AnalysisSettings) => void
+}) {
+  return (
+    <div className="settings-panel">
+      <label>
+        Engine strength
+        <select
+          value={presetIdForNodes(settings.nodes)}
+          onChange={(e) => {
+            const preset = STRENGTH_PRESETS.find((p) => p.id === e.target.value)
+            if (preset) onChange({ ...settings, nodes: preset.nodes })
+          }}
+        >
+          {STRENGTH_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Lines shown
+        <select
+          value={settings.multipv}
+          onChange={(e) => onChange({ ...settings, multipv: Number(e.target.value) })}
+        >
+          {MULTIPV_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="settings-hint">Stronger = slower, more accurate grading.</span>
     </div>
   )
 }
