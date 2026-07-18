@@ -15,7 +15,9 @@
 `spec → context → plan → implement (small batches, TDD) → verify → review the diff → commit`
 - **TDD for pure logic**: write/adjust tests first in `src/domain/**` and the pure parsers
   (`src/engine/uci.ts`). The engine and UI are exercised behind interfaces / with fakes.
-- **Verify locally before every commit**: `npm test && npm run typecheck && npm run build`.
+- **Verify locally before every commit**: `npm run verify` (typecheck → lint → test, ~4s,
+  cheapest-first so it fails fast). `npm run build` and the Playwright E2E run in CI. See
+  [testing.md](testing.md).
 - **Commit only explainable changes.** Human-readable subject line describing the change; end
   the message with the model trailer:
 
@@ -28,12 +30,13 @@
 - **Link the issue**: put `Closes #N` (or `Refs #N`) in the body so the merge auto-closes it.
 - PR body says **what changed, why, and how it was verified** (test counts; screenshots/notes
   for UI). Call out **dependency changes** explicitly — they're a distinct approval point.
-- **Agent PRs are never self-merged.** The repo owner reviews and merges. The review gate is the
-  point of the workflow; opening a PR hands it over, it does not close the loop.
+- **The agent manages the full process, including merging** (owner delegated this 2026-07-18).
+  Still open a PR per change for traceability, and let **CI + `npm run verify` gate the merge**
+  (green before merge). Prefer squash-merge and delete the branch.
 
 ## CI
-- GitHub Actions (`.github/workflows/ci.yml`) runs **test + typecheck + build** on every PR and
-  on pushes to `main`. Green before merge.
+- GitHub Actions (`.github/workflows/ci.yml`) runs **typecheck → lint → test → build** on every
+  PR and on pushes to `main`. Green before merge.
 
 ## Issues
 - Track everything as GitHub issues with a **priority** (`P0`/`P1`/`P2`) and an **area** label

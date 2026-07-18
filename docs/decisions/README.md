@@ -22,5 +22,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0012](0012-llm-grounded-explainer.md) | LLM is a grounded explainer/grader over engine facts, never an evaluator | Accepted (usage deferred) |
 | [0013](0013-v0.1.0-play-vs-maia.md) | Play-vs-Maia coaching loop; Maia runs client-side | Superseded in timing (→ v0.2.0) |
 | [0014](0014-v0.1.0-guess-the-move.md) | v0.1.0 is coached guess-the-move on master games | Accepted |
+| [0015](0015-pragmatic-hexagonal.md) | Pragmatic hexagonal architecture (ports & adapters) | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.
