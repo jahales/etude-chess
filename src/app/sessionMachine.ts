@@ -97,6 +97,26 @@ export function isLast(state: SessionState): boolean {
 
 // ---------- reducer ----------
 
+/**
+ * Resolve `from`→`to` in a position into a legal PendingMove, or null. Pure and
+ * exported so the reducer and the drag handler (which needs a synchronous
+ * accept/reject) share one definition of move legality.
+ */
+export function resolveMove(
+  fen: string,
+  from: string,
+  to: string,
+  promotion = 'q',
+): PendingMove | null {
+  const chess = new Chess(fen)
+  try {
+    const mv = chess.move({ from, to, promotion })
+    return { san: mv.san, from, to, afterFen: chess.fen(), promotion }
+  } catch {
+    return null
+  }
+}
+
 /** Apply `from`→`to` to the current item's position; returns the pending move or null. */
 function tryPending(
   state: SessionState,
@@ -105,14 +125,7 @@ function tryPending(
   promotion = 'q',
 ): PendingMove | null {
   const item = currentItem(state)
-  if (!item) return null
-  const chess = new Chess(item.fen)
-  try {
-    const mv = chess.move({ from, to, promotion })
-    return { san: mv.san, from, to, afterFen: chess.fen(), promotion }
-  } catch {
-    return null
-  }
+  return item ? resolveMove(item.fen, from, to, promotion) : null
 }
 
 /** True if the pending move is a pawn promotion (SAN carries "="). */
