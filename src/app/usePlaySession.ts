@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { Color } from '../domain/types'
 import { coachVerdict } from '../domain/coach'
 import { whiteWinPercent } from '../domain/winPercent'
+import { whiteScoreLabel } from '../domain/notation'
 import { evaluateAndGrade } from '../engine/grading'
 import { MaiaOnnxOpponent, maiaModelUrl } from '../engine/maia/maiaOpponent'
 import { DEFAULT_LEVEL, type MaiaLevel } from '../engine/maia/opponent'
@@ -17,20 +18,23 @@ import {
   type PlayState,
 } from './playMachine'
 
-// How adventurously Maia plays: 0 ≈ its single most-likely human move; higher samples
-// the policy for natural variety. Modest sampling keeps it human-like across games.
+// Modest sampling keeps Maia human-like with variety across games.
 const MAIA_TEMPERATURE = 0.5
-// Grading nodes: enough for a reliable A/B/C tier, kept snappy for move-by-move play.
-const GRADE_NODES = 500_000
-// Cheap "who's ahead" refresh for the live eval bar.
-const LIVE_NODES = 120_000
+// Grade your move for a reliable A/B/C tier; keep it snappy for move-by-move play.
+const GRADE_NODES = 400_000
+// Cheap "who's ahead" refresh for the eval bar + move scores.
+const EVAL_NODES = 120_000
+// "Show me" engine lines (a few, deeper) — computed only on request.
+const LINES_NODES = 500_000
+const LINES_MULTIPV = 3
 
 // Binds the pure play reducer to Maia (opponent, lazy per level) and Stockfish (the
-// shared referee, from App) — every one of your moves is graded before Maia replies
-// (ADR 0017). Mirrors useGuessSession; the Maia worker/wasm load only when a game starts.
+// shared referee) for the ambient in-game coach (ADR 0017): you move → Maia replies →
+// your move is graded and (optionally) every position is scored. Mirrors useGuessSession.
 export function usePlaySession(engine: AnalyserState) {
   const { analyser } = engine
   const [state, dispatch] = useReducer(playReducer, initialPlayState)
+  const [showEval, setShowEval] = useState(true)
   const opponentRef = useRef<MaiaOnnxOpponent | null>(null)
   const levelRef = useRef<MaiaLevel | null>(null)
   const [maiaReady, setMaiaReady] = useState(false)
@@ -51,51 +55,56 @@ export function usePlaySession(engine: AnalyserState) {
     return opp
   }, [])
 
+  const gradeKeyRef = useRef('')
+
   const newGame = useCallback(
     (opts: { yourColor: Color; level: MaiaLevel }) => {
       ensureOpponent(opts.level)
+      gradeKeyRef.current = ''
       dispatch({ type: 'NEW_GAME', yourColor: opts.yourColor, level: opts.level, gameId: `m${Date.now()}` })
     },
     [ensureOpponent],
   )
 
-  // Grade each of your moves (the coach). Runs once per staged pending move.
+  // Coach: grade your move as soon as it's committed. Keyed to the move (ply+SAN), NOT
+  // to status — Maia often replies before the grade finishes, and cancelling on that
+  // status change would drop the verdict. The reducer ignores a stale result; gradeKeyRef
+  // dedupes so a move is graded once (reset on take-back / new game).
   useEffect(() => {
-    if (state.status !== 'grading' || !state.pending) return
-    if (!analyser) {
-      // Engine failed to start → don't strand the move on "grading"; play on uncoached.
-      if (engine.error) dispatch({ type: 'GRADING_FAILED' })
-      return
-    }
-    const fenBefore = currentFen(state)
-    const userSan = state.pending.san
+    const len = state.sanHistory.length
+    if (len === 0 || !analyser) return
+    const ply = len - 1
+    const isYours = (ply % 2 === 0) === (state.yourColor === 'w')
+    if (!isYours) return
+    const yourSan = state.sanHistory[ply]!
+    const key = `${ply}:${yourSan}`
+    if (gradeKeyRef.current === key) return
+    gradeKeyRef.current = key
+    const fenBefore = state.positions[ply]!
     const yourColor = state.yourColor
-    let cancelled = false
-    evaluateAndGrade(analyser, fenBefore, userSan, { nodes: GRADE_NODES })
+    evaluateAndGrade(analyser, fenBefore, yourSan, { nodes: GRADE_NODES })
       .then((graded) => {
-        if (cancelled) return
-        const verdict = coachVerdict({
-          fen: fenBefore,
-          userMoveSan: userSan,
-          grade: graded.grade,
-          bestMoveUci: graded.bestMoveUci,
-        })
         dispatch({
           type: 'COACH_RESULT',
-          verdict,
-          evalWhitePct: whiteWinPercent(graded.playedScoreMover, yourColor),
+          ply,
+          fenBefore,
+          yourMoveSan: yourSan,
+          verdict: coachVerdict({ fen: fenBefore, userMoveSan: yourSan, grade: graded.grade, bestMoveUci: graded.bestMoveUci }),
+        })
+        dispatch({
+          type: 'SET_EVAL',
+          ply,
+          eval: {
+            whitePct: whiteWinPercent(graded.playedScoreMover, yourColor),
+            label: whiteScoreLabel(graded.playedScoreMover, yourColor),
+          },
         })
       })
-      .catch(() => {
-        if (!cancelled) dispatch({ type: 'GRADING_FAILED' })
-      })
-    return () => {
-      cancelled = true
-    }
+      .catch(() => {}) // engine hiccup: no verdict, game plays on
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.pending?.afterFen, analyser, engine.error])
+  }, [state.sanHistory.length, analyser, state.yourColor])
 
-  // When it's Maia's turn, ask the worker for a move.
+  // Maia's reply.
   useEffect(() => {
     if (state.status !== 'thinking' || !opponentRef.current) return
     const opp = opponentRef.current
@@ -105,8 +114,6 @@ export function usePlaySession(engine: AnalyserState) {
       .move(fen, { temperature: MAIA_TEMPERATURE, history: historyForMaia(state) })
       .then((m) => {
         if (cancelled) return
-        // Safety net: decodePolicy only emits legal moves, but never freeze on 'thinking'
-        // if that ever fails — surface it instead of silently hanging.
         if (!isLegalMove(fen, m.uci.slice(0, 2), m.uci.slice(2, 4), m.uci[4] ?? 'q')) {
           setMaiaError(`Maia returned an unexpected move (${m.uci})`)
           return
@@ -120,25 +127,31 @@ export function usePlaySession(engine: AnalyserState) {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.ply])
+  }, [state.status, state.sanHistory.length])
 
-  // Live "who's ahead" for the current position when it's your move.
+  // Score the current position for the eval bar/list — only when eval is shown.
   useEffect(() => {
-    if (state.status !== 'yourTurn' || !analyser || !state.gameId) return
-    const fen = currentFen(state)
+    const len = state.sanHistory.length
+    if (state.status !== 'yourTurn' || len === 0 || !showEval || !analyser) return
+    const ply = len - 1
     const perspective = sideToMove(state)
     let cancelled = false
     analyser
-      .evaluate(fen, { nodes: LIVE_NODES })
-      .then((ev) => {
-        if (!cancelled) dispatch({ type: 'SET_EVAL', whitePct: whiteWinPercent(ev.score, perspective) })
+      .evaluate(currentFen(state), { nodes: EVAL_NODES })
+      .then((r) => {
+        if (!cancelled)
+          dispatch({
+            type: 'SET_EVAL',
+            ply,
+            eval: { whitePct: whiteWinPercent(r.score, perspective), label: whiteScoreLabel(r.score, perspective) },
+          })
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.ply, analyser])
+  }, [state.status, state.sanHistory.length, showEval, analyser])
 
   // Persist a finished game once (best-effort).
   const savedRef = useRef('')
@@ -158,11 +171,33 @@ export function usePlaySession(engine: AnalyserState) {
 
   useEffect(() => () => opponentRef.current?.dispose(), [])
 
+  // "Show me": fetch the engine's lines for the position you moved from, on request.
+  const revealLines = useCallback(async () => {
+    if (state.lines.length) {
+      dispatch({ type: 'SET_LINES', lines: state.lines }) // re-open without re-analysing
+      return
+    }
+    if (!analyser || !state.lastCoach) return
+    try {
+      const lines = await analyser.analyseLines(state.lastCoach.fenBefore, {
+        nodes: LINES_NODES,
+        multipv: LINES_MULTIPV,
+      })
+      dispatch({ type: 'SET_LINES', lines })
+    } catch {
+      /* leave collapsed */
+    }
+  }, [analyser, state.lastCoach, state.lines])
+
+  const hideLines = useCallback(() => dispatch({ type: 'HIDE_LINES' }), [])
   const goHome = useCallback(() => dispatch({ type: 'GO_HOME' }), [])
   const selectSquare = useCallback((square: string) => dispatch({ type: 'SELECT_SQUARE', square }), [])
-  const takeBack = useCallback(() => dispatch({ type: 'TAKE_BACK' }), [])
-  const continueMove = useCallback(() => dispatch({ type: 'CONTINUE' }), [])
+  const takeBack = useCallback(() => {
+    gradeKeyRef.current = '' // allow the replayed move to be graded again
+    dispatch({ type: 'TAKE_BACK' })
+  }, [])
   const resign = useCallback(() => dispatch({ type: 'RESIGN' }), [])
+  const drawGame = useCallback(() => dispatch({ type: 'DRAW_GAME' }), [])
 
   const tryMove = useCallback(
     (from: string, to: string): boolean => {
@@ -179,12 +214,16 @@ export function usePlaySession(engine: AnalyserState) {
     maiaError,
     engineReady: engine.ready,
     defaultLevel: DEFAULT_LEVEL,
+    showEval,
+    setShowEval,
     newGame,
     goHome,
     selectSquare,
     tryMove,
     takeBack,
-    continueMove,
     resign,
+    drawGame,
+    revealLines,
+    hideLines,
   } satisfies { state: PlayState } & Record<string, unknown>
 }

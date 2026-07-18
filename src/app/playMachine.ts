@@ -1,15 +1,17 @@
 import { Chess, type Square } from 'chess.js'
 import type { Color, Tier } from '../domain/types'
 import type { CoachVerdict } from '../domain/coach'
+import type { AnalysisLine } from '../engine/analyser'
 import type { MaiaLevel } from '../engine/maia/opponent'
+import { detectOpening } from '../content/openings'
 
-// Application layer for **play vs Maia** with the in-game coach (ADR 0017): a *pure*
-// reducer. Every one of your moves is graded before Maia replies —
-//   yourTurn → (you move) → grading → coached (verdict + take-back/continue) → thinking
-// Async work (Stockfish grade, Maia move) lives in usePlaySession and dispatches
-// COACH_RESULT / MAIA_MOVED back here. No engine/I/O/Date.now — mirrors sessionMachine.
+// Application layer for **play vs Maia** with the ambient in-game coach (ADR 0017): a
+// *pure* reducer. You move → Maia replies immediately → the coach shows feedback on your
+// move (take back the pair if you want); no acknowledge gate. Async work (Stockfish
+// grade + per-position eval, Maia's move, on-demand engine lines) lives in
+// usePlaySession and dispatches back here. No engine/I/O/Date.now — mirrors sessionMachine.
 
-export type PlayStatus = 'yourTurn' | 'grading' | 'coached' | 'thinking' | 'over'
+export type PlayStatus = 'yourTurn' | 'thinking' | 'over'
 export type GameOutcome = 'you' | 'maia' | 'draw'
 export type EndReason =
   | 'checkmate'
@@ -18,22 +20,28 @@ export type EndReason =
   | 'threefold'
   | 'fifty-move'
   | 'resignation'
+  | 'agreement'
 
 export interface PlayResult {
   outcome: GameOutcome
   reason: EndReason
 }
 
-/** Your move, applied to a temp position but not yet committed to the game. */
-export interface PendingPlayMove {
-  from: string
-  to: string
-  san: string
-  afterFen: string
-  promotion: string
+/** A position's engine eval (White's perspective) for the bar + move-list scores. */
+export interface PositionEval {
+  whitePct: number
+  label: string
 }
 
-/** One coached move of yours, for the running log + post-game review. */
+/** Coach feedback on your most recent move, shown while it's your turn again. */
+export interface LastCoach {
+  ply: number
+  fenBefore: string
+  yourMoveSan: string
+  verdict: CoachVerdict
+}
+
+/** One coached move of yours, for the move-list tiers + post-game review. */
 export interface CoachEntry {
   ply: number
   san: string
@@ -45,21 +53,19 @@ export interface PlayState {
   screen: 'home' | 'play'
   yourColor: Color
   level: MaiaLevel
-  /** FEN after each committed ply; positions[0] is the start, last is current. */
   positions: string[]
-  /** SAN of each committed move, in order. */
   sanHistory: string[]
   status: PlayStatus
   selected: string | null
-  pending: PendingPlayMove | null
-  verdict: CoachVerdict | null
-  /** "Who's ahead" for the displayed position, White's perspective (0–100). */
-  evalWhitePct: number | null
+  lastCoach: LastCoach | null
   coachLog: CoachEntry[]
+  /** Eval after each committed move, indexed by sanHistory move index (White's view). */
+  evalByPly: (PositionEval | undefined)[]
+  /** "Show me": engine lines for lastCoach.fenBefore, revealed only on request. */
+  showMe: boolean
+  lines: AnalysisLine[]
   result: PlayResult | null
   gameId: string
-  /** Increments on every committed move; a change signals the hook to act. */
-  ply: number
 }
 
 const START_FEN = new Chess().fen()
@@ -72,13 +78,13 @@ export const initialPlayState: PlayState = {
   sanHistory: [],
   status: 'yourTurn',
   selected: null,
-  pending: null,
-  verdict: null,
-  evalWhitePct: null,
+  lastCoach: null,
   coachLog: [],
+  evalByPly: [],
+  showMe: false,
+  lines: [],
   result: null,
   gameId: '',
-  ply: 0,
 }
 
 export type PlayAction =
@@ -86,40 +92,45 @@ export type PlayAction =
   | { type: 'GO_HOME' }
   | { type: 'SELECT_SQUARE'; square: string }
   | { type: 'MOVE'; from: string; to: string; promotion?: string }
-  | { type: 'COACH_RESULT'; verdict: CoachVerdict; evalWhitePct: number | null }
-  | { type: 'GRADING_FAILED' }
-  | { type: 'TAKE_BACK' }
-  | { type: 'CONTINUE' }
   | { type: 'MAIA_MOVED'; uci: string }
+  | { type: 'COACH_RESULT'; ply: number; fenBefore: string; yourMoveSan: string; verdict: CoachVerdict }
+  | { type: 'SET_EVAL'; ply: number; eval: PositionEval }
+  | { type: 'SET_LINES'; lines: AnalysisLine[] }
+  | { type: 'HIDE_LINES' }
+  | { type: 'TAKE_BACK' }
   | { type: 'RESIGN' }
-  | { type: 'SET_EVAL'; whitePct: number | null }
+  | { type: 'DRAW_GAME' }
 
 // ---------- selectors ----------
 
 export function currentFen(state: PlayState): string {
   return state.positions[state.positions.length - 1] ?? START_FEN
 }
-/** Board to show: your pending move while it's being coached, else the live position. */
+/** Board to show (no pending move in the ambient flow — always the live position). */
 export function displayFen(state: PlayState): string {
-  return state.pending ? state.pending.afterFen : currentFen(state)
+  return currentFen(state)
 }
 export function sideToMove(state: PlayState): Color {
   return new Chess(currentFen(state)).turn()
 }
-/** Side to move in the *displayed* position (accounts for a pending, uncommitted move). */
-export function shownSideToMove(state: PlayState): Color {
-  return new Chess(displayFen(state)).turn()
-}
 export function maiaColor(state: PlayState): Color {
   return state.yourColor === 'w' ? 'b' : 'w'
 }
-/**
- * Prior positions, most-recent-first, for Maia's history planes (excludes current).
- * Capped at 7 — the encoder fills 8 frames (current + up to 7 history), so sending
- * the whole game each move would just be wasted serialization.
- */
+/** Prior positions, most-recent-first, for Maia's history planes (capped at 7). */
 export function historyForMaia(state: PlayState): string[] {
   return state.positions.slice(-8, -1).reverse()
+}
+/** Engine eval of the current position, or undefined if not computed / eval hidden. */
+export function currentEval(state: PlayState): PositionEval | undefined {
+  return state.evalByPly[state.sanHistory.length - 1]
+}
+/** Whether the last pair (your move + Maia's reply) can be taken back. */
+export function canTakeBack(state: PlayState): boolean {
+  return state.status === 'yourTurn' && state.sanHistory.length >= 2
+}
+/** Named opening for the moves played so far, if recognised. */
+export function openingName(state: PlayState): string | null {
+  return detectOpening(state.sanHistory)
 }
 
 // ---------- move helpers ----------
@@ -143,14 +154,27 @@ export function isLegalMove(fen: string, from: string, to: string, promotion = '
   }
 }
 
-/** Resolve your move into a pending move (not committed), or null if illegal. */
-function resolvePending(fen: string, from: string, to: string, promotion = 'q'): PendingPlayMove | null {
-  const chess = new Chess(fen)
+/** Apply your move immediately (no pending), handing the turn to Maia. Null if illegal. */
+function commitYourMove(state: PlayState, from: string, to: string, promotion = 'q'): PlayState | null {
+  if (state.status !== 'yourTurn') return null
+  const chess = new Chess(currentFen(state))
+  let san: string
   try {
-    const mv = chess.move({ from, to, promotion })
-    return { from, to, san: mv.san, afterFen: chess.fen(), promotion }
+    san = chess.move({ from, to, promotion }).san
   } catch {
     return null
+  }
+  const result = resultAfter(chess, state.yourColor, state.yourColor)
+  return {
+    ...state,
+    positions: [...state.positions, chess.fen()],
+    sanHistory: [...state.sanHistory, san],
+    selected: null,
+    status: result ? 'over' : 'thinking',
+    result,
+    lastCoach: null, // feedback on the *previous* move is now stale
+    showMe: false,
+    lines: [],
   }
 }
 
@@ -171,11 +195,8 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
     case 'GO_HOME':
       return { ...initialPlayState }
 
-    case 'MOVE': {
-      if (state.status !== 'yourTurn') return state
-      const pending = resolvePending(currentFen(state), action.from, action.to, action.promotion)
-      return pending ? { ...state, pending, selected: null, status: 'grading' } : state
-    }
+    case 'MOVE':
+      return commitYourMove(state, action.from, action.to, action.promotion) ?? state
 
     case 'SELECT_SQUARE': {
       if (state.status !== 'yourTurn') return state
@@ -184,46 +205,11 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
       const owns = (sq: string) => chess.get(sq as Square)?.color === state.yourColor
       if (state.selected) {
         if (square === state.selected) return { ...state, selected: null }
-        const pending = resolvePending(currentFen(state), state.selected, square)
-        if (pending) return { ...state, pending, selected: null, status: 'grading' }
+        const moved = commitYourMove(state, state.selected, square)
+        if (moved) return moved
         return { ...state, selected: owns(square) ? square : null }
       }
       return { ...state, selected: owns(square) ? square : null }
-    }
-
-    case 'COACH_RESULT':
-      if (state.status !== 'grading') return state
-      return { ...state, status: 'coached', verdict: action.verdict, evalWhitePct: action.evalWhitePct }
-
-    case 'GRADING_FAILED':
-      if (state.status !== 'grading') return state
-      return { ...state, status: 'coached', verdict: null }
-
-    case 'TAKE_BACK':
-      if (state.status !== 'coached') return state
-      return { ...state, pending: null, verdict: null, status: 'yourTurn' }
-
-    case 'CONTINUE': {
-      if (state.status !== 'coached' || !state.pending) return state
-      const chess = new Chess(state.pending.afterFen)
-      const result = resultAfter(chess, state.yourColor, state.yourColor)
-      const entry: CoachEntry = {
-        ply: state.ply,
-        san: state.pending.san,
-        tier: state.verdict?.tier,
-        swing: state.verdict?.swing,
-      }
-      return {
-        ...state,
-        positions: [...state.positions, state.pending.afterFen],
-        sanHistory: [...state.sanHistory, state.pending.san],
-        coachLog: [...state.coachLog, entry],
-        pending: null,
-        verdict: null,
-        status: result ? 'over' : 'thinking',
-        result,
-        ply: state.ply + 1,
-      }
     }
 
     case 'MAIA_MOVED': {
@@ -246,22 +232,68 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
         sanHistory: [...state.sanHistory, san],
         status: result ? 'over' : 'yourTurn',
         result,
-        ply: state.ply + 1,
+      }
+    }
+
+    case 'COACH_RESULT': {
+      // Ignore a late grade for a move that's since been taken back / replaced.
+      if (state.sanHistory[action.ply] !== action.yourMoveSan) return state
+      const entry: CoachEntry = {
+        ply: action.ply,
+        san: action.yourMoveSan,
+        tier: action.verdict.tier,
+        swing: action.verdict.swing,
+      }
+      return {
+        ...state,
+        lastCoach: {
+          ply: action.ply,
+          fenBefore: action.fenBefore,
+          yourMoveSan: action.yourMoveSan,
+          verdict: action.verdict,
+        },
+        coachLog: [...state.coachLog.filter((e) => e.ply !== action.ply), entry],
+        showMe: false,
+        lines: [],
+      }
+    }
+
+    case 'SET_EVAL': {
+      if (action.ply < 0 || action.ply >= state.sanHistory.length) return state // stale
+      const evalByPly = state.evalByPly.slice()
+      evalByPly[action.ply] = action.eval
+      return { ...state, evalByPly }
+    }
+
+    case 'SET_LINES':
+      return { ...state, lines: action.lines, showMe: true }
+
+    case 'HIDE_LINES':
+      return { ...state, showMe: false }
+
+    case 'TAKE_BACK': {
+      if (!canTakeBack(state)) return state
+      const newLen = state.sanHistory.length - 2 // undo your move + Maia's reply
+      return {
+        ...state,
+        positions: state.positions.slice(0, newLen + 1),
+        sanHistory: state.sanHistory.slice(0, newLen),
+        coachLog: state.coachLog.filter((e) => e.ply < newLen),
+        evalByPly: state.evalByPly.slice(0, newLen),
+        lastCoach: null,
+        showMe: false,
+        lines: [],
+        status: 'yourTurn',
       }
     }
 
     case 'RESIGN':
       if (state.status === 'over') return state
-      return {
-        ...state,
-        pending: null,
-        verdict: null,
-        status: 'over',
-        result: { outcome: 'maia', reason: 'resignation' },
-      }
+      return { ...state, selected: null, status: 'over', result: { outcome: 'maia', reason: 'resignation' } }
 
-    case 'SET_EVAL':
-      return { ...state, evalWhitePct: action.whitePct }
+    case 'DRAW_GAME':
+      if (state.status === 'over') return state
+      return { ...state, selected: null, status: 'over', result: { outcome: 'draw', reason: 'agreement' } }
 
     default:
       return state

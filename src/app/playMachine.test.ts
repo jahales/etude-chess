@@ -4,12 +4,13 @@ import {
   playReducer,
   initialPlayState,
   currentFen,
-  displayFen,
+  currentEval,
+  canTakeBack,
+  openingName,
   historyForMaia,
   isLegalMove,
-  shownSideToMove,
-  sideToMove,
   type PlayState,
+  type PositionEval,
 } from './playMachine'
 
 const newGame = (yourColor: 'w' | 'b' = 'w'): PlayState =>
@@ -23,12 +24,12 @@ const verdict = (tier: 'A' | 'B' | 'C' = 'A', swing = 0): CoachVerdict => ({
   bestMoveSan: null,
   hanging: [],
 })
+const ev = (whitePct: number): PositionEval => ({ whitePct, label: `${whitePct}` })
 
-/** Drive a full coached move of yours: move → coach verdict → continue. */
-function yourMove(state: PlayState, from: string, to: string, v = verdict()): PlayState {
-  let s = playReducer(state, { type: 'MOVE', from, to })
-  s = playReducer(s, { type: 'COACH_RESULT', verdict: v, evalWhitePct: 50 })
-  return playReducer(s, { type: 'CONTINUE' })
+/** Your move + Maia's reply (the ambient flow: no acknowledge gate). */
+function pair(state: PlayState, from: string, to: string, maiaUci: string): PlayState {
+  const thinking = playReducer(state, { type: 'MOVE', from, to })
+  return playReducer(thinking, { type: 'MAIA_MOVED', uci: maiaUci })
 }
 
 describe('NEW_GAME', () => {
@@ -38,149 +39,156 @@ describe('NEW_GAME', () => {
   })
 })
 
-describe('the coached move flow', () => {
-  it('MOVE stages a pending move and asks for a grade (does not commit)', () => {
+describe('ambient move flow (no acknowledge gate)', () => {
+  it('your move applies immediately and hands the turn to Maia', () => {
     const s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    expect(s.status).toBe('grading')
-    expect(s.pending?.san).toBe('e4')
-    expect(s.positions).toHaveLength(1) // not committed yet
-    expect(displayFen(s)).toBe(s.pending?.afterFen) // board shows your pending move
-    expect(currentFen(s)).toBe(s.positions[0]) // live position unchanged
-  })
-
-  it('COACH_RESULT reveals the verdict; CONTINUE commits and hands Maia the turn', () => {
-    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    s = playReducer(s, { type: 'COACH_RESULT', verdict: verdict('B', 8), evalWhitePct: 55 })
-    expect(s.status).toBe('coached')
-    expect(s.verdict?.tier).toBe('B')
-    expect(s.evalWhitePct).toBe(55)
-
-    s = playReducer(s, { type: 'CONTINUE' })
     expect(s.status).toBe('thinking')
-    expect(s.sanHistory).toEqual(['e4'])
+    expect(s.sanHistory).toEqual(['e4']) // committed right away — no pending
     expect(s.positions).toHaveLength(2)
-    expect(s.coachLog).toEqual([{ ply: 0, san: 'e4', tier: 'B', swing: 8 }])
-    expect(s.pending).toBeNull()
   })
 
-  it('TAKE_BACK reverts your move without committing it', () => {
-    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    s = playReducer(s, { type: 'COACH_RESULT', verdict: verdict('C', 30), evalWhitePct: 20 })
-    s = playReducer(s, { type: 'TAKE_BACK' })
-    expect(s.status).toBe('yourTurn')
-    expect(s.pending).toBeNull()
-    expect(s.sanHistory).toEqual([])
-    expect(s.coachLog).toEqual([])
-  })
-
-  it('GRADING_FAILED still lets you continue (engine hiccup never blocks play)', () => {
-    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    s = playReducer(s, { type: 'GRADING_FAILED' })
-    expect(s.status).toBe('coached')
-    expect(s.verdict).toBeNull()
-    s = playReducer(s, { type: 'CONTINUE' })
-    expect(s.status).toBe('thinking')
-    expect(s.sanHistory).toEqual(['e4'])
-  })
-
-  it('ignores an illegal move and a move out of turn', () => {
-    const s = newGame('w')
-    expect(playReducer(s, { type: 'MOVE', from: 'e2', to: 'e5' })).toBe(s)
-    const grading = playReducer(s, { type: 'MOVE', from: 'e2', to: 'e4' })
-    expect(playReducer(grading, { type: 'MOVE', from: 'd2', to: 'd4' })).toBe(grading)
-  })
-
-  it('auto-queens a promotion by default', () => {
-    const fen = '8/P7/8/8/8/8/8/k6K w - - 0 1'
-    const s: PlayState = { ...newGame('w'), positions: [fen], status: 'yourTurn' }
-    const moved = playReducer(s, { type: 'MOVE', from: 'a7', to: 'a8' })
-    expect(moved.pending?.san).toBe('a8=Q+')
-  })
-})
-
-describe("Maia's move", () => {
-  it('applies a UCI reply and returns the turn to you', () => {
-    let s = yourMove(newGame('w'), 'e2', 'e4')
-    s = playReducer(s, { type: 'MAIA_MOVED', uci: 'c7c5' })
+  it('Maia replies and it becomes your turn again', () => {
+    const s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
     expect(s.sanHistory).toEqual(['e4', 'c5'])
     expect(s.status).toBe('yourTurn')
-    expect(s.coachLog).toHaveLength(1) // Maia's move is not coached
   })
 
-  it('ignores a Maia move when it is your turn', () => {
+  it('ignores an illegal or out-of-turn move', () => {
     const s = newGame('w')
-    expect(playReducer(s, { type: 'MAIA_MOVED', uci: 'e2e4' })).toBe(s)
+    expect(playReducer(s, { type: 'MOVE', from: 'e2', to: 'e5' })).toBe(s)
+    const thinking = playReducer(s, { type: 'MOVE', from: 'e2', to: 'e4' })
+    expect(playReducer(thinking, { type: 'MOVE', from: 'd7', to: 'd5' })).toBe(thinking)
   })
-})
 
-describe('click-to-move', () => {
-  it('selects your piece, then stages the move on the second click', () => {
+  it('click-to-move applies immediately on the second click', () => {
     const sel = playReducer(newGame('w'), { type: 'SELECT_SQUARE', square: 'e2' })
     expect(sel.selected).toBe('e2')
     const moved = playReducer(sel, { type: 'SELECT_SQUARE', square: 'e4' })
-    expect(moved.status).toBe('grading')
-    expect(moved.pending?.san).toBe('e4')
+    expect(moved.status).toBe('thinking')
+    expect(moved.sanHistory).toEqual(['e4'])
+  })
+})
+
+describe('coach feedback', () => {
+  it('COACH_RESULT records the verdict and logs the move', () => {
+    const thinking = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    const s = playReducer(thinking, {
+      type: 'COACH_RESULT',
+      ply: 0,
+      fenBefore: initialPlayState.positions[0]!,
+      yourMoveSan: 'e4',
+      verdict: verdict('B', 8),
+    })
+    expect(s.lastCoach?.verdict.tier).toBe('B')
+    expect(s.lastCoach?.fenBefore).toBe(initialPlayState.positions[0])
+    expect(s.coachLog).toEqual([{ ply: 0, san: 'e4', tier: 'B', swing: 8 }])
   })
 
-  it('reselects another of your pieces; deselects on the same square', () => {
-    const sel = playReducer(newGame('w'), { type: 'SELECT_SQUARE', square: 'e2' })
-    expect(playReducer(sel, { type: 'SELECT_SQUARE', square: 'd2' }).selected).toBe('d2')
-    expect(playReducer(sel, { type: 'SELECT_SQUARE', square: 'e2' }).selected).toBeNull()
+  it('ignores a stale grade for a move no longer at that ply', () => {
+    const s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    const taken = playReducer(s, { type: 'TAKE_BACK' }) // removes e4 + c5
+    const late = playReducer(taken, {
+      type: 'COACH_RESULT',
+      ply: 0,
+      fenBefore: 'x',
+      yourMoveSan: 'e4',
+      verdict: verdict('C', 30),
+    })
+    expect(late).toBe(taken) // no stale coach applied
+  })
+
+  it('SET_LINES reveals engine lines; HIDE_LINES collapses them', () => {
+    const thinking = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    const shown = playReducer(thinking, { type: 'SET_LINES', lines: [{ multipv: 1, score: { type: 'cp', value: 20 }, pv: ['e2e4'] }] })
+    expect(shown.showMe).toBe(true)
+    expect(shown.lines).toHaveLength(1)
+    expect(playReducer(shown, { type: 'HIDE_LINES' }).showMe).toBe(false)
+  })
+
+  it('a new move clears stale coach + revealed lines', () => {
+    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    s = playReducer(s, { type: 'SET_LINES', lines: [{ multipv: 1, score: { type: 'cp', value: 0 }, pv: [] }] })
+    s = playReducer(s, { type: 'MAIA_MOVED', uci: 'c7c5' })
+    s = playReducer(s, { type: 'MOVE', from: 'd2', to: 'd4' })
+    expect(s.showMe).toBe(false)
+    expect(s.lines).toEqual([])
+    expect(s.lastCoach).toBeNull()
+  })
+})
+
+describe('position eval', () => {
+  it('SET_EVAL stores by ply and currentEval reads the latest', () => {
+    let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    s = playReducer(s, { type: 'SET_EVAL', ply: 0, eval: ev(56) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 1, eval: ev(52) })
+    expect(s.evalByPly[0]).toEqual(ev(56))
+    expect(currentEval(s)).toEqual(ev(52))
+  })
+
+  it('ignores a stale eval for a ply beyond the game', () => {
+    const s = playReducer(newGame('w'), { type: 'SET_EVAL', ply: 5, eval: ev(50) })
+    expect(s.evalByPly[5]).toBeUndefined()
+  })
+})
+
+describe('take back', () => {
+  it('undoes your move + Maia’s reply and clears their coach/eval', () => {
+    let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    s = playReducer(s, { type: 'COACH_RESULT', ply: 0, fenBefore: 'x', yourMoveSan: 'e4', verdict: verdict('C', 30) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 0, eval: ev(40) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 1, eval: ev(45) })
+    const back = playReducer(s, { type: 'TAKE_BACK' })
+    expect(back.sanHistory).toEqual([])
+    expect(back.positions).toHaveLength(1)
+    expect(back.coachLog).toEqual([])
+    expect(back.evalByPly).toEqual([])
+    expect(back.lastCoach).toBeNull()
+    expect(back.status).toBe('yourTurn')
+  })
+
+  it('canTakeBack only once a full pair exists', () => {
+    expect(canTakeBack(newGame('w'))).toBe(false)
+    const thinking = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    expect(canTakeBack(thinking)).toBe(false) // Maia hasn't replied
+    expect(canTakeBack(pair(newGame('w'), 'e2', 'e4', 'c7c5'))).toBe(true)
   })
 })
 
 describe('game end', () => {
   it('detects checkmate delivered by Maia (fools mate, you lose)', () => {
-    let s = yourMove(newGame('w'), 'f2', 'f3')
-    s = playReducer(s, { type: 'MAIA_MOVED', uci: 'e7e5' })
-    s = yourMove(s, 'g2', 'g4')
+    let s = pair(newGame('w'), 'f2', 'f3', 'e7e5')
+    s = playReducer(s, { type: 'MOVE', from: 'g2', to: 'g4' })
     s = playReducer(s, { type: 'MAIA_MOVED', uci: 'd8h4' }) // Qh4#
     expect(s.status).toBe('over')
     expect(s.result).toEqual({ outcome: 'maia', reason: 'checkmate' })
   })
 
-  it('detects checkmate delivered by you on CONTINUE (you win, playing black)', () => {
+  it('detects checkmate delivered by you (playing black)', () => {
     let s = newGame('b')
     s = playReducer(s, { type: 'MAIA_MOVED', uci: 'f2f3' })
-    s = yourMove(s, 'e7', 'e5')
-    s = playReducer(s, { type: 'MAIA_MOVED', uci: 'g2g4' })
-    s = yourMove(s, 'd8', 'h4') // Qh4#
+    s = pair(s, 'e7', 'e5', 'g2g4')
+    s = playReducer(s, { type: 'MOVE', from: 'd8', to: 'h4' }) // Qh4#
     expect(s.status).toBe('over')
     expect(s.result).toEqual({ outcome: 'you', reason: 'checkmate' })
   })
 
-  it('resigning loses the game', () => {
-    const s = playReducer(newGame('w'), { type: 'RESIGN' })
-    expect(s.status).toBe('over')
-    expect(s.result).toEqual({ outcome: 'maia', reason: 'resignation' })
+  it('resign loses; draw is agreed', () => {
+    expect(playReducer(newGame('w'), { type: 'RESIGN' }).result).toEqual({ outcome: 'maia', reason: 'resignation' })
+    expect(playReducer(newGame('w'), { type: 'DRAW_GAME' }).result).toEqual({ outcome: 'draw', reason: 'agreement' })
   })
 })
 
 describe('selectors', () => {
-  it('historyForMaia is prior positions, most-recent-first, excluding current', () => {
-    let s = yourMove(newGame('w'), 'e2', 'e4')
-    s = playReducer(s, { type: 'MAIA_MOVED', uci: 'c7c5' })
-    const hist = historyForMaia(s)
-    expect(hist).toHaveLength(2)
-    expect(hist[0]).toBe(s.positions[1])
-  })
-
-  it('SET_EVAL updates the who-is-ahead reading', () => {
-    expect(playReducer(newGame('w'), { type: 'SET_EVAL', whitePct: 63 }).evalWhitePct).toBe(63)
-  })
-
-  it('shownSideToMove follows your pending move (board), not the committed position', () => {
-    const grading = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    expect(sideToMove(grading)).toBe('w') // committed position: still your turn
-    expect(shownSideToMove(grading)).toBe('b') // displayed board: your move made
+  it('names the opening from the moves played', () => {
+    const s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    expect(openingName(s)).toBe('Sicilian Defense')
   })
 
   it('historyForMaia is capped at 7 prior positions, most-recent-first', () => {
     const positions = Array.from({ length: 10 }, (_, i) => `fen${i}`)
-    const s: PlayState = { ...newGame('w'), positions }
-    const hist = historyForMaia(s)
+    const hist = historyForMaia({ ...newGame('w'), positions })
     expect(hist).toHaveLength(7)
-    expect(hist[0]).toBe('fen8') // most recent prior (fen9 is current, excluded)
+    expect(hist[0]).toBe('fen8')
     expect(hist).not.toContain('fen9')
   })
 
@@ -188,5 +196,10 @@ describe('selectors', () => {
     const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
     expect(isLegalMove(fen, 'e2', 'e4')).toBe(true)
     expect(isLegalMove(fen, 'e2', 'e5')).toBe(false)
+  })
+
+  it('currentFen tracks the latest position', () => {
+    const s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    expect(currentFen(s)).toBe(s.positions[2])
   })
 })

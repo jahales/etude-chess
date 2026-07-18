@@ -44,6 +44,9 @@ export function coachVerdict(input: CoachInput): CoachVerdict {
   const bestMoveSan = input.bestMoveUci ? uciToSan(input.fen, input.bestMoveUci) : null
   const matchedBest = !!bestMoveSan && bestMoveSan === applied.san
 
+  // The always-visible "why" describes *your* move (tier, what it dropped, the cost) but
+  // never names the better move — that's the answer, revealed only via "Show me" (ADR 0017,
+  // so a live verdict doesn't bias your next decision). bestMoveSan is exposed for that panel.
   const parts: string[] = []
   if (input.grade.tier === 'A') {
     if (matchedBest) parts.push("That's the engine's top choice.")
@@ -53,7 +56,6 @@ export function coachVerdict(input: CoachInput): CoachVerdict {
       const name = PIECE_NAME[h.piece] ?? 'piece'
       parts.push(`It leaves your ${name} on ${h.square} hanging (about ${h.loss} point${h.loss === 1 ? '' : 's'}).`)
     }
-    if (bestMoveSan) parts.push(`The engine prefers ${bestMoveSan}.`)
     parts.push(`That's about ${Math.round(input.grade.swing)}% of your winning chances.`)
   }
 

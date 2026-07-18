@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js'
-import type { Score } from './types'
+import type { Color, Score } from './types'
+import { negate } from './winPercent'
 
 /** Render a UCI principal variation as SAN moves, from the given position. */
 export function pvToSan(fen: string, pv: string[], maxPlies = 6): string[] {
@@ -28,4 +29,9 @@ export function formatScore(score: Score): string {
   }
   const pawns = score.value / 100
   return `${pawns >= 0 ? '+' : '−'}${Math.abs(pawns).toFixed(2)}`
+}
+
+/** Score label from White's perspective (+ = White better), e.g. "+0.80", "−1.20", "M3". */
+export function whiteScoreLabel(score: Score, sideToMove: Color): string {
+  return formatScore(sideToMove === 'w' ? score : negate(score))
 }
