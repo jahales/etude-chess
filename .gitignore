@@ -1,0 +1,36 @@
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Node / web (for when app code lands)
+node_modules/
+dist/
+build/
+.cache/
+*.log
+.env
+.env.local
+
+# Python (for the future data-prep pipeline)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Chess data & engines — large binaries/datasets, don't commit
+# (Lichess DB dumps, Stockfish/Maia binaries, Syzygy tablebases, generated item pools)
+data/
+*.pgn
+*.pgn.zst
+*.bin
+*.nnue
+syzygy/
+scratch/
