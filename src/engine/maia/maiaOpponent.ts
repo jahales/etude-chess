@@ -15,35 +15,53 @@ type Pending = { resolve: (m: MaiaMove[]) => void; reject: (e: Error) => void }
 export class MaiaOnnxOpponent implements MaiaOpponent {
   private worker: Worker
   private readyPromise: Promise<void>
+  private readyResolve!: () => void
+  private readyReject!: (e: Error) => void
+  private readySettled = false
   private pending = new Map<number, Pending>()
   private seq = 0
 
   constructor(private modelUrl: string = DEFAULT_MAIA_MODEL_URL) {
+    this.readyPromise = new Promise((resolve, reject) => {
+      this.readyResolve = resolve
+      this.readyReject = reject
+    })
     this.worker = new Worker(new URL('./maiaWorker.ts', import.meta.url), { type: 'module' })
     this.worker.addEventListener('message', (e) => this.onMessage(e))
-    this.readyPromise = new Promise((resolve, reject) => {
-      const onReady = (e: MessageEvent) => {
-        if (e.data?.type === 'ready') {
-          this.worker.removeEventListener('message', onReady)
-          resolve()
-        } else if (e.data?.type === 'error' && e.data.id === undefined) {
-          this.worker.removeEventListener('message', onReady)
-          reject(new Error(e.data.message))
-        }
-      }
-      this.worker.addEventListener('message', onReady)
-    })
+    // A worker *load* failure (bad bundle, blocked wasm) fires 'error', not a message —
+    // without this, ready() and in-flight requests would hang forever.
+    this.worker.addEventListener('error', (e) => this.failAll(new Error(e.message || 'Maia worker error')))
     this.worker.postMessage({ type: 'init', modelUrl: this.modelUrl })
   }
 
   private onMessage(e: MessageEvent): void {
     const m = e.data
-    if (m?.id === undefined) return
+    if (m?.type === 'ready') {
+      if (!this.readySettled) {
+        this.readySettled = true
+        this.readyResolve()
+      }
+      return
+    }
+    if (m?.id === undefined) {
+      if (m?.type === 'error') this.failAll(new Error(m.message)) // init failure
+      return
+    }
     const p = this.pending.get(m.id)
     if (!p) return
     this.pending.delete(m.id)
     if (m.type === 'policy') p.resolve(m.moves as MaiaMove[])
     else if (m.type === 'error') p.reject(new Error(m.message))
+  }
+
+  /** Reject ready() (if unsettled) and every in-flight request — used on any fatal worker failure. */
+  private failAll(err: Error): void {
+    if (!this.readySettled) {
+      this.readySettled = true
+      this.readyReject(err)
+    }
+    for (const p of this.pending.values()) p.reject(err)
+    this.pending.clear()
   }
 
   ready(): Promise<void> {
