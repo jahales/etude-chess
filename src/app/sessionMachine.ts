@@ -1,5 +1,6 @@
 import { Chess, type Square } from 'chess.js'
 import type { PackGame } from '../content/games'
+import { detectOpening } from '../content/openings'
 import { parseGame, heroColorFromResult, buildQuiz, type QuizItem } from '../domain/harness'
 import { buildFactBundle, type FactBundle } from '../domain/factBundle'
 import type { Attempt } from '../domain/session'
@@ -18,6 +19,7 @@ export interface Session {
   game: PackGame
   quiz: QuizItem[]
   heroColor: Color
+  opening: string | null
 }
 export interface PendingMove {
   san: string
@@ -131,10 +133,11 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       const parsed = parseGame(action.game.pgn)
       const heroColor = heroColorFromResult(parsed.result) ?? 'w'
       const quiz = buildQuiz(parsed.sanMoves, { heroColor, startPly: OPENING_CUTOFF_PLY })
+      const opening = detectOpening(parsed.sanMoves)
       return {
         ...initialState,
         screen: 'play',
-        session: { game: action.game, quiz, heroColor },
+        session: { game: action.game, quiz, heroColor, opening },
         sessionId: action.sessionId,
       }
     }

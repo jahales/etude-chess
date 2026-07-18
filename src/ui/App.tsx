@@ -271,6 +271,7 @@ function Play({
       <div className="side-col">
         <div className="game-head">
           <h2>{session.game.title}</h2>
+          {session.opening && <p className="opening mono">{session.opening}</p>}
           <p className="playing-as">
             You are playing <b>{sideName(session.heroColor)}</b>.
           </p>
