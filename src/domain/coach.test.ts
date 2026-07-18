@@ -24,11 +24,12 @@ describe('coachVerdict', () => {
     expect(v.detail).toBe('')
   })
 
-  it('explains a mistake with the engine pick and the swing', () => {
+  it('explains a mistake by cost, and exposes the better move only as a field (not in the text)', () => {
     const v = coachVerdict({ fen: START, userMoveSan: 'a4', grade: grade('C', 22), bestMoveUci: 'e2e4' })
     expect(v.headline).toBe('Mistake.')
-    expect(v.detail).toContain('engine prefers e4')
     expect(v.detail).toContain('22%')
+    expect(v.detail).not.toContain('e4') // the answer stays behind "Show me"
+    expect(v.bestMoveSan).toBe('e4') // available for the Show-me panel
   })
 
   it('reports a genuinely hanging piece', () => {

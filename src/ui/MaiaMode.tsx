@@ -2,19 +2,23 @@ import { useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { materialBalance } from '../domain/material'
 import type { Color, Tier } from '../domain/types'
-import type { CoachVerdict } from '../domain/coach'
 import { SHIPPED_LEVELS, type MaiaLevel } from '../engine/maia/opponent'
-import { displayFen, shownSideToMove, type PendingPlayMove, type PlayResult } from '../app/playMachine'
+import {
+  currentEval,
+  canTakeBack,
+  displayFen,
+  openingName,
+  sideToMove,
+  type LastCoach,
+  type PlayResult,
+  type PlayState,
+} from '../app/playMachine'
 import type { usePlaySession } from '../app/usePlaySession'
 import { useBoardWidth } from './useBoardWidth'
-import { EvalBar, MaterialStrip } from './Analysis'
+import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
 import { sideName, TIER_CLASS, TIER_TEXT } from './format'
 
-const LEVEL_BLURB: Record<number, string> = {
-  1100: 'beginner',
-  1300: 'improver',
-  1500: 'club player',
-}
+const LEVEL_BLURB: Record<number, string> = { 1100: 'beginner', 1300: 'improver', 1500: 'club player' }
 
 type PlaySession = ReturnType<typeof usePlaySession>
 
@@ -39,21 +43,16 @@ export function MaiaSetup({
     <div className="maia-setup">
       <h2>Play a human-like opponent — with a coach on every move</h2>
       <p className="maia-setup-lede">
-        Maia plays like a real player at its rating. After each of your moves the coach grades
-        it and shows why — take it back and rethink, or play on. It makes the mistakes you&apos;ll
-        actually face.
+        Maia plays like a real player at its rating. After each move the coach grades it and
+        shows why — take it back and rethink, or play on. Ask &ldquo;show me&rdquo; when you want the
+        engine&apos;s answer.
       </p>
       <div className="maia-controls">
         <fieldset className="maia-field">
           <legend>You play</legend>
           <div className="seg">
             {(['w', 'b', 'random'] as const).map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`seg-btn ${color === c ? 'active' : ''}`}
-                onClick={() => setColor(c)}
-              >
+              <button key={c} type="button" className={`seg-btn ${color === c ? 'active' : ''}`} onClick={() => setColor(c)}>
                 {c === 'w' ? 'White' : c === 'b' ? 'Black' : 'Random'}
               </button>
             ))}
@@ -63,13 +62,7 @@ export function MaiaSetup({
           <legend>Maia level</legend>
           <div className="seg">
             {SHIPPED_LEVELS.map((l) => (
-              <button
-                key={l}
-                type="button"
-                className={`seg-btn ${level === l ? 'active' : ''}`}
-                onClick={() => setLevel(l)}
-                title={LEVEL_BLURB[l]}
-              >
+              <button key={l} type="button" className={`seg-btn ${level === l ? 'active' : ''}`} onClick={() => setLevel(l)} title={LEVEL_BLURB[l]}>
                 {l}
               </button>
             ))}
@@ -94,120 +87,116 @@ function describeResult(result: PlayResult): string {
     threefold: 'by repetition',
     'fifty-move': 'by the fifty-move rule',
     resignation: 'by resignation',
+    agreement: 'by agreement',
   }
   const tail = REASON[result.reason] ?? ''
   if (result.outcome === 'draw') return `Draw ${tail}`.trim()
   if (result.outcome === 'you') return `You won ${tail}`.trim()
-  if (result.reason === 'resignation') return `You resigned — Maia wins`
+  if (result.reason === 'resignation') return 'You resigned — Maia wins'
   return `Maia won ${tail}`.trim()
 }
 
-/** The coach's verdict on your staged move, with take-back / continue. */
-function CoachCard({
-  verdict,
-  pending,
-  onTakeBack,
-  onContinue,
+/** Ambient feedback on your last move: verdict + cost, with the answer behind "Show me". */
+function CoachPanel({
+  coach,
+  showMe,
+  lines,
+  onReveal,
+  onHide,
 }: {
-  verdict: CoachVerdict | null
-  pending: PendingPlayMove
-  onTakeBack: () => void
-  onContinue: () => void
+  coach: LastCoach
+  showMe: boolean
+  lines: PlayState['lines']
+  onReveal: () => void
+  onHide: () => void
 }) {
+  const v = coach.verdict
   return (
     <div className="coach-card">
-      {verdict ? (
-        <>
-          <div className={`coach-verdict ${TIER_CLASS[verdict.tier]}`}>
-            <span className="tier-badge">{verdict.headline}</span>
-            <span className="mono">
-              you played {pending.san}
-              {verdict.tier !== 'A' && <> · −{Math.round(verdict.swing)}%</>}
-            </span>
-          </div>
-          {verdict.detail && <p className="coach-why">{verdict.detail}</p>}
-        </>
-      ) : (
-        <p className="coach-why">Couldn&apos;t grade this move — playing on.</p>
-      )}
-      <div className="coach-actions">
-        <button className="btn ghost" type="button" onClick={onTakeBack}>
-          ← Take back
-        </button>
-        <button className="btn primary" type="button" onClick={onContinue}>
-          Continue →
-        </button>
+      <div className={`coach-verdict ${TIER_CLASS[v.tier]}`}>
+        <span className="tier-badge">{v.headline}</span>
+        <span className="mono">
+          your {coach.yourMoveSan}
+          {v.tier !== 'A' && <> · −{Math.round(v.swing)}%</>}
+        </span>
       </div>
+      {v.detail && <p className="coach-why">{v.detail}</p>}
+      {!showMe ? (
+        <button className="btn ghost show-me" type="button" onClick={onReveal}>
+          Show me the best move →
+        </button>
+      ) : (
+        <div className="lines-reveal">
+          {v.bestMoveSan && (
+            <p className="best-move">
+              Engine&apos;s pick: <b className="mono">{v.bestMoveSan}</b>
+            </p>
+          )}
+          <LinesPanel fen={coach.fenBefore} lines={lines} />
+          <button className="btn ghost" type="button" onClick={onHide}>
+            Hide
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
+interface Cell {
+  san: string
+  tier?: Tier
+  score?: string
+}
 interface MoveRow {
   n: number
-  w?: { san: string; tier?: Tier }
-  b?: { san: string; tier?: Tier }
+  w?: Cell
+  b?: Cell
 }
 
-/** Pair SAN moves into numbered rows, tagging your moves with their coached tier. */
-function buildRows(san: string[], tierByPly: (Tier | undefined)[]): MoveRow[] {
+function buildRows(state: PlayState, showEval: boolean): MoveRow[] {
+  const { sanHistory, coachLog, evalByPly } = state
+  const tierAt = new Map(coachLog.map((e) => [e.ply, e.tier]))
+  const cell = (i: number): Cell | undefined =>
+    sanHistory[i] === undefined
+      ? undefined
+      : { san: sanHistory[i]!, tier: tierAt.get(i), score: showEval ? evalByPly[i]?.label : undefined }
   const rows: MoveRow[] = []
-  for (let i = 0; i < san.length; i += 2) {
-    rows.push({
-      n: i / 2 + 1,
-      w: san[i] !== undefined ? { san: san[i]!, tier: tierByPly[i] } : undefined,
-      b: san[i + 1] !== undefined ? { san: san[i + 1]!, tier: tierByPly[i + 1] } : undefined,
-    })
-  }
+  for (let i = 0; i < sanHistory.length; i += 2) rows.push({ n: i / 2 + 1, w: cell(i), b: cell(i + 1) })
   return rows
 }
 
-function MoveCell({ move }: { move?: { san: string; tier?: Tier } }) {
+function MoveCell({ move }: { move?: Cell }) {
   if (!move) return <span />
   return (
-    <span className="mono mv-cell">
+    <span className="mv-cell mono">
       {move.tier && <span className={`tier-dot ${TIER_CLASS[move.tier]}`} title={TIER_TEXT[move.tier]} />}
       {move.san}
+      {move.score && <span className="mv-score">{move.score}</span>}
     </span>
   )
 }
 
-export function MaiaPlay({
-  play,
-  onNewGame,
-  onHome,
-}: {
-  play: PlaySession
-  onNewGame: () => void
-  onHome: () => void
-}) {
+export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNewGame: () => void; onHome: () => void }) {
   const { ref, width } = useBoardWidth()
   const [flipped, setFlipped] = useState(false)
-  const { state, maiaReady, maiaError } = play
+  const { state, maiaReady, maiaError, showEval } = play
   const fen = displayFen(state)
   const yourColor = state.yourColor
   const whiteBottom = yourColor === 'w' ? !flipped : flipped
   const yourTurn = state.status === 'yourTurn'
+  const over = state.status === 'over'
 
   const squareStyles =
-    state.selected && yourTurn
-      ? { [state.selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
-      : undefined
-
-  // Map each committed ply to the coached tier of your moves (Maia's stay blank).
-  // coachLog entries carry their ply, so this doesn't rely on log ordering.
-  const tierByPly = useMemo(() => {
-    const arr: (Tier | undefined)[] = new Array(state.sanHistory.length).fill(undefined)
-    for (const e of state.coachLog) if (e.ply < arr.length) arr[e.ply] = e.tier
-    return arr
-  }, [state.sanHistory.length, state.coachLog])
-
-  const rows = useMemo(() => buildRows(state.sanHistory, tierByPly), [state.sanHistory, tierByPly])
+    state.selected && yourTurn ? { [state.selected]: { background: 'rgba(53, 96, 73, 0.35)' } } : undefined
+  const opening = useMemo(() => openingName(state), [state])
+  const rows = useMemo(() => buildRows(state, showEval), [state, showEval])
+  const score = currentEval(state)
 
   return (
     <section className="play">
       <div className="board-col">
         <div className="board-row">
-          <EvalBar whitePct={state.evalWhitePct} whiteBottom={whiteBottom} />
+          {showEval && <EvalBar whitePct={score?.whitePct ?? null} whiteBottom={whiteBottom} />}
           <div className="board-frame" ref={ref}>
             <Chessboard
               id="maia-board"
@@ -224,14 +213,17 @@ export function MaiaPlay({
         </div>
         <MaterialStrip material={materialBalance(fen)} />
         <div className="turn-line">
-          <span className="mono">{sideName(shownSideToMove(state))} to move</span>
+          <span className="mono">{sideName(sideToMove(state))} to move</span>
+          {showEval && score && <span className="score-chip mono">{score.label}</span>}
           <button
-            className="btn ghost flip"
+            className={`btn ghost eval-toggle ${showEval ? 'on' : ''}`}
             type="button"
-            onClick={() => setFlipped((f) => !f)}
-            aria-label="Flip board"
-            title="Flip board"
+            onClick={() => play.setShowEval((v) => !v)}
+            title="Show or hide the engine evaluation"
           >
+            {showEval ? 'Eval: on' : 'Eval: off'}
+          </button>
+          <button className="btn ghost flip" type="button" onClick={() => setFlipped((f) => !f)} aria-label="Flip board" title="Flip board">
             ⇅ Flip
           </button>
         </div>
@@ -240,6 +232,7 @@ export function MaiaPlay({
       <div className="side-col">
         <div className="game-head">
           <h2>Maia {state.level}</h2>
+          {opening && <p className="opening mono">{opening}</p>}
           <p className="playing-as">
             You are <b>{sideName(yourColor)}</b>.
           </p>
@@ -249,7 +242,7 @@ export function MaiaPlay({
           <div className="maia-status">
             <span className="banner error">Maia failed to load: {maiaError}</span>
           </div>
-        ) : state.status === 'over' && state.result ? (
+        ) : over && state.result ? (
           <div className="maia-status over" role="status">
             <span className="maia-result">{describeResult(state.result)}</span>
           </div>
@@ -257,23 +250,25 @@ export function MaiaPlay({
           <div className="maia-status" role="status">
             Loading Maia {state.level}…
           </div>
-        ) : state.status === 'coached' && state.pending ? (
-          <CoachCard
-            verdict={state.verdict}
-            pending={state.pending}
-            onTakeBack={play.takeBack}
-            onContinue={play.continueMove}
-          />
         ) : (
-          <div className="maia-status" role="status">
-            {state.status === 'grading' ? (
-              <span className="thinking">Coach is checking your move…</span>
-            ) : state.status === 'thinking' ? (
-              <span className="thinking">Maia is thinking…</span>
-            ) : (
-              <span className="your-turn">Your move.</span>
+          <>
+            <div className="maia-status" role="status">
+              {state.status === 'thinking' ? (
+                <span className="thinking">Maia is thinking…</span>
+              ) : (
+                <span className="your-turn">Your move.</span>
+              )}
+            </div>
+            {state.lastCoach && (
+              <CoachPanel
+                coach={state.lastCoach}
+                showMe={state.showMe}
+                lines={state.lines}
+                onReveal={play.revealLines}
+                onHide={play.hideLines}
+              />
             )}
-          </div>
+          </>
         )}
 
         <ol className="movelist" aria-label="Moves">
@@ -287,7 +282,7 @@ export function MaiaPlay({
         </ol>
 
         <div className="maia-actions">
-          {state.status === 'over' ? (
+          {over ? (
             <>
               <button className="btn ghost" type="button" onClick={onHome}>
                 Home
@@ -297,11 +292,17 @@ export function MaiaPlay({
               </button>
             </>
           ) : (
-            state.status !== 'coached' && (
+            <>
+              <button className="btn ghost" type="button" onClick={play.takeBack} disabled={!canTakeBack(state)}>
+                ← Take back
+              </button>
+              <button className="btn ghost" type="button" onClick={play.drawGame} disabled={!maiaReady}>
+                Draw
+              </button>
               <button className="btn ghost" type="button" onClick={play.resign} disabled={!maiaReady}>
                 Resign
               </button>
-            )
+            </>
           )}
         </div>
       </div>
