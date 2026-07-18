@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { Chess } from 'chess.js'
 import type { PackGame } from '../content/games'
 import { gradeAfterMove } from '../engine/grading'
-import { DEFAULT_NODES } from '../engine/analyser'
 import { whiteWinPercent } from '../domain/winPercent'
 import { saveAttempt } from '../persist/db'
 import { useAnalyser } from '../ui/useAnalyser'
 import { sessionReducer, initialState, currentItem, type SessionState } from './sessionMachine'
+import { DEFAULT_SETTINGS, liveEvalNodes, type AnalysisSettings } from './settings'
 
 // Binds the pure session reducer to the engine and persistence. Components read
 // `state` and call the returned handlers; all async/side-effecting work is here.
 export function useGuessSession() {
   const { analyser, ready, error } = useAnalyser()
   const [state, dispatch] = useReducer(sessionReducer, initialState)
+  const [settings, setSettings] = useState<AnalysisSettings>(DEFAULT_SETTINGS)
 
   // Live "who's ahead" eval for the current position (fast, low node budget).
   useEffect(() => {
@@ -22,7 +23,7 @@ export function useGuessSession() {
     let cancelled = false
     dispatch({ type: 'SET_POSITION_EVAL', whitePct: null })
     analyser
-      .evaluate(item.fen, { nodes: 250_000 })
+      .evaluate(item.fen, { nodes: liveEvalNodes(settings) })
       .then((ev) => {
         if (!cancelled) dispatch({ type: 'SET_POSITION_EVAL', whitePct: whiteWinPercent(ev.score, item.sideToMove) })
       })
@@ -30,7 +31,7 @@ export function useGuessSession() {
     return () => {
       cancelled = true
     }
-  }, [state.screen, state.session, state.index, analyser, ready])
+  }, [state.screen, state.session, state.index, analyser, ready, settings])
 
   // Persist each newly recorded attempt (best-effort).
   const persistedRef = useRef(0)
@@ -78,13 +79,16 @@ export function useGuessSession() {
     if (!item || !state.pending || !analyser) return
     dispatch({ type: 'START_GRADING' })
     try {
-      const lines = await analyser.analyseLines(item.fen, { nodes: DEFAULT_NODES, multipv: 3 })
+      const lines = await analyser.analyseLines(item.fen, {
+        nodes: settings.nodes,
+        multipv: settings.multipv,
+      })
       const first = lines[0]
       const best = first
         ? { score: first.score, bestMove: first.pv[0] ?? null }
         : { score: { type: 'cp' as const, value: 0 }, bestMove: null }
       const graded = await gradeAfterMove(analyser, item.fen, state.pending.san, best, {
-        nodes: DEFAULT_NODES,
+        nodes: settings.nodes,
       })
       dispatch({
         type: 'GRADE_RESULT',
@@ -96,10 +100,12 @@ export function useGuessSession() {
       console.error('grading failed', e)
       dispatch({ type: 'GRADING_FAILED' })
     }
-  }, [state, analyser])
+  }, [state, analyser, settings])
 
   return {
     state,
+    settings,
+    setSettings,
     engineReady: ready,
     engineError: error,
     startGame,
