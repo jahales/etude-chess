@@ -1,0 +1,29 @@
+import type { EngineEvaluation } from '../domain/types'
+
+// The engine abstraction (docs/decisions/0010): grading logic depends only on
+// this interface, never on the Worker. StockfishAnalyser (stockfish.ts) is the
+// v0.1.0 implementation; a native or Maia adapter can drop in later.
+
+export interface AnalyseOptions {
+  nodes?: number
+  depth?: number
+  movetime?: number
+}
+
+export interface Analyser {
+  /** Evaluate a position. `score` is from the side-to-move's perspective. */
+  evaluate(fen: string, opts?: AnalyseOptions): Promise<EngineEvaluation>
+  dispose(): void
+}
+
+// Fixed nodes → reproducible grades across machines (never movetime for grading).
+export const DEFAULT_NODES = 700_000
+export const DEFAULT_ENGINE_URL = '/engine/stockfish-18-lite-single.js'
+
+/** Build the UCI `go` limit clause. Nodes/depth are reproducible; movetime is not. */
+export function limitString(opts: AnalyseOptions): string {
+  if (opts.nodes) return `nodes ${opts.nodes}`
+  if (opts.depth) return `depth ${opts.depth}`
+  if (opts.movetime) return `movetime ${opts.movetime}`
+  return `nodes ${DEFAULT_NODES}`
+}
