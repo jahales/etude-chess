@@ -16,8 +16,8 @@ async function run() {
   const readyMs = Math.round(performance.now() - t0)
 
   const best = await maia.move(START)
-  const whiteTop = (await maia.policy(START, 1)).slice(0, 5)
-  const blackTop = (await maia.policy(AFTER_E4, 1)).slice(0, 5)
+  const whiteTop = (await maia.policy(START, { temperature: 1 })).slice(0, 5)
+  const blackTop = (await maia.policy(AFTER_E4, { temperature: 1 })).slice(0, 5)
 
   el.textContent = JSON.stringify(
     {

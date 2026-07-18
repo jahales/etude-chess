@@ -582,3 +582,130 @@ button {
     align-items: flex-start;
   }
 }
+
+/* ---------- Play vs Maia ---------- */
+.maia-setup {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.3rem 1.4rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  margin-top: 1.4rem;
+}
+.maia-setup h2 {
+  font-size: 1.25rem;
+}
+.maia-setup-lede {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin: 0.4rem 0 1.1rem;
+  max-width: 60ch;
+}
+.maia-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  margin-bottom: 1.2rem;
+}
+.maia-field {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.maia-field legend {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-bottom: 0.4rem;
+  padding: 0;
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.seg-btn {
+  border: none;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+.seg-btn:last-child {
+  border-right: none;
+}
+.seg-btn:hover {
+  background: color-mix(in srgb, var(--green) 12%, var(--surface));
+}
+.seg-btn.active {
+  background: var(--green);
+  color: #fff;
+}
+.maia-level-blurb {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+.home-guess {
+  margin-top: 2.4rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--line);
+}
+.home-guess h2 {
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  font-family: var(--serif);
+}
+
+.maia-status {
+  margin-top: 1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.95rem;
+  min-height: 1.4rem;
+}
+.maia-status .thinking {
+  color: var(--warn);
+}
+.maia-status .your-turn {
+  color: var(--green);
+}
+.maia-status.over {
+  border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+}
+.maia-result {
+  font-weight: 600;
+}
+.movelist {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.92rem;
+}
+.movelist li {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr 1fr;
+  gap: 0.5rem;
+  padding: 0.12rem 0;
+}
+.movelist .mv-no {
+  color: var(--ink-faint);
+}
+.maia-actions {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 1.1rem;
+}

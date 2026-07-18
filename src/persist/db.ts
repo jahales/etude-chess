@@ -13,11 +13,25 @@ export interface StoredAttempt extends Attempt {
   createdAt: number
 }
 
+/** A finished play-vs-Maia game (v0.2), stored for later review + leak analytics. */
+export interface StoredGame {
+  id?: number
+  gameId: string
+  yourColor: 'w' | 'b'
+  level: number
+  sanHistory: string[]
+  outcome: 'you' | 'maia' | 'draw'
+  reason: string
+  createdAt: number
+}
+
 class EtudeDb extends Dexie {
   attempts!: Table<StoredAttempt, number>
+  games!: Table<StoredGame, number>
   constructor() {
     super('etude-chess')
     this.version(1).stores({ attempts: '++id, gameId, sessionId, tier, createdAt' })
+    this.version(2).stores({ games: '++id, gameId, outcome, level, createdAt' })
   }
 }
 
@@ -44,6 +58,16 @@ export async function saveAttempt(a: StoredAttempt): Promise<void> {
     await d.attempts.add(a)
   } catch (e) {
     console.warn('etude-chess: could not persist attempt', e)
+  }
+}
+
+export async function saveGame(g: StoredGame): Promise<void> {
+  const d = getDb()
+  if (!d) return
+  try {
+    await d.games.add(g)
+  } catch (e) {
+    console.warn('etude-chess: could not persist game', e)
   }
 }
 

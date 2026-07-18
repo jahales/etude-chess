@@ -51,6 +51,7 @@ self.onmessage = async (e: MessageEvent) => {
     fen?: string
     modelUrl: string
     temperature?: number
+    history?: string[]
   }
   try {
     if (msg.type === 'init') {
@@ -58,7 +59,8 @@ self.onmessage = async (e: MessageEvent) => {
       post({ type: 'ready' })
     } else if (msg.type === 'policy') {
       const session = await getSession(msg.modelUrl)
-      const input = new ort.Tensor('float32', encodeFen(msg.fen!), INPUT_SHAPE as unknown as number[])
+      const planes = encodeFen(msg.fen!, msg.history ?? [])
+      const input = new ort.Tensor('float32', planes, INPUT_SHAPE as unknown as number[])
       const out = await session.run({ '/input/planes': input })
       const policy = out['/output/policy']?.data as Float32Array
       const moves = decodePolicy(policy, msg.fen!, { temperature: msg.temperature ?? 1 })
