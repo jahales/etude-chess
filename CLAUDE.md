@@ -46,7 +46,28 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
   plus agents. State honest caveats inline rather than hiding them.
 - Dates are absolute (YYYY-MM-DD), not "recently."
 
+## The app (v0.1.0 — coached guess-the-move)
+A client-side React + Vite + TypeScript app at the repo root. Layout:
+- `src/domain/` — pure, fully-unit-tested logic (winPercent, grade tiers, harness, factBundle,
+  session). No React, no engine, no I/O. **Add tests here first (TDD).**
+- `src/engine/` — the `Analyser` interface + `StockfishAnalyser` (WASM Worker) + `grading.ts`.
+  Grading depends only on the interface, so it's tested with a fake analyser.
+- `src/content/games.ts` — the public-domain game pack (validated by `games.test.ts`).
+- `src/persist/db.ts` — best-effort IndexedDB (Dexie); never throws.
+- `src/ui/` — React components + hooks + styles.
+- `public/engine/` — vendored Stockfish 18 WASM (GPLv3, arm's-length; see its `NOTICE.md`).
+
+### Commands
+- `npm run dev` — Vite dev server (port 5173).
+- `npm test` — Vitest (run once). `npm run test:watch` to watch.
+- `npm run typecheck` — `tsc --noEmit`. `npm run build` — typecheck + production build.
+
+### Conventions
+- Keep engine access behind the `Analyser` interface; never import the Worker into domain code.
+- Grade by **win% swing** and tier A/B/C; a move as good as best is Tier A (never "match the
+  master"). No speed metric (constitution §9).
+- The LLM "why" is rules-based over the fact bundle for now; the bundle format is the eventual
+  LLM input (ADR 0012) — don't let the LLM compute chess facts.
+
 ## Environment notes
 - Windows / PowerShell primary shell; a POSIX Bash tool is also available.
-- When app code eventually lands, this file should grow build/test/run instructions. Until
-  then, there are no build or test commands.

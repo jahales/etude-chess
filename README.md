@@ -5,10 +5,22 @@ system organized around the *decision type* a position demands, with the mode
 deliberately hidden in a mixed queue so it trains the one skill every other
 trainer gives away for free: *noticing what kind of position you're in.*
 
-> **Status: planning / exploratory (as of 2026-07-17).** No application code yet.
-> This repo currently holds design documents and decision records. Everything
-> here is provisional and expected to change as we learn. See
-> [docs/open-questions.md](docs/open-questions.md) for what is still unresolved.
+> **Status: v0.1.0 in development (as of 2026-07-18).** The first release — coached
+> guess-the-move on master games — is being built (client-side React + Stockfish WASM).
+> Design docs and decision records live in [docs/](docs/); everything remains provisional.
+> See [docs/open-questions.md](docs/open-questions.md) for what's unresolved.
+
+## Running it
+
+```
+npm install
+npm run dev      # http://localhost:5173
+npm test         # 65 unit tests
+npm run build    # typecheck + production build
+```
+
+Fully client-side — no backend, no accounts. Stockfish runs as a WASM Web Worker from
+`public/engine/` (GPLv3, arm's-length). See [docs/v0.1.0-plan.md](docs/v0.1.0-plan.md).
 
 ## The one-paragraph pitch
 
