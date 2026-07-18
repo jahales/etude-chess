@@ -83,7 +83,7 @@ describe('promotion', () => {
     const s0: SessionState = {
       ...initialState,
       screen: 'play',
-      session: { game: opera, quiz: [promoItem], heroColor: 'w' },
+      session: { game: opera, quiz: [promoItem], heroColor: 'w', opening: null },
       sessionId: 's',
     }
     const s1 = sessionReducer(s0, { type: 'TRY_MOVE', from: 'a7', to: 'a8' })

@@ -391,6 +391,11 @@ button {
 .game-head h2 {
   font-size: 1.25rem;
 }
+.game-head .opening {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--green);
+}
 .playing-as {
   color: var(--ink-soft);
   margin: 0.3rem 0 1.2rem;
