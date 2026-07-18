@@ -35,10 +35,19 @@ repeated failures:
 - `read_page`, `navigate`, and console reads stayed reliable; only screenshot and heavy
   `javascript_tool` calls were flaky.
 
-**Conclusion:** the interactive pane is fine for a quick look, but **not** a dependable
-verification harness — especially for a page that runs a WASM engine Worker. The fix is a proper
-**headless Playwright E2E** in CI that we control and can re-run deterministically. Manual
-eyeballing via `npm run dev` remains a useful sanity check, never the gate.
+**Root cause (confirmed 2026-07-18):** the biggest factor was a **stale, long-running dev
+server**. A Vite dev server left up for hours accumulates broken HMR state (a failed
+`App.tsx` reload leaves the module graph wedged) and the page leaks Stockfish Workers across
+reloads — so the engine never reaches "ready". Proof: the Playwright E2E *failed* against the
+reused old server ("engine ready" never appeared), then **passed in 2.7s against a fresh
+server**. The engine and app are fine; the harness was the problem.
+
+**Conclusions:**
+- The interactive pane is fine for a quick look, never the gate.
+- **Verify against a fresh server.** Playwright starts its own (`reuseExistingServer` is off in
+  CI); locally, don't point it at a dev server that's been up for hours — restart it.
+- The **headless Playwright E2E** is the dependable, deterministic verification for the full
+  Worker + board + React flow.
 
 ## Engine sanity (ad hoc)
 The engine's UCI output format is validated by unit tests over `uci.ts` against captured real
