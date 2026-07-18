@@ -69,5 +69,13 @@ A client-side React + Vite + TypeScript app at the repo root. Layout:
 - The LLM "why" is rules-based over the fact bundle for now; the bundle format is the eventual
   LLM input (ADR 0012) — don't let the LLM compute chess facts.
 
+## Workflow (see [docs/dev-workflow.md](docs/dev-workflow.md))
+- **Trunk-based**: `main` stays green; do work on short-lived `feat/…`·`fix/…`·`chore/…`·`docs/…`
+  branches, one per issue.
+- **TDD** the pure logic; **verify before every commit** with `npm test && npm run typecheck &&
+  npm run build`.
+- **Open a PR, don't self-merge.** Link the issue (`Closes #N`); the repo owner reviews and merges.
+- Track work as GitHub issues with `P0/P1/P2` + `area:*` labels.
+
 ## Environment notes
 - Windows / PowerShell primary shell; a POSIX Bash tool is also available.

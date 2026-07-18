@@ -81,6 +81,23 @@ ship license + corresponding source. Treat compliance as mandatory, not theoreti
   *(Arm's-length = FSF's well-established interpretation, not court-tested for the Worker
   boundary — but it's the standard pattern.)*
 
+### A5. Positional breakdown for explanations (classical eval / older engines)
+Modern Stockfish (NNUE-only since SF16) gives a strong *number* but no interpretable
+term-by-term breakdown (A1). Stockfish's **classical / hand-crafted evaluation** — material,
+imbalance, mobility, king safety, pawn structure (isolated/backward/passed/doubled), space,
+outposts, threats — existed through ~SF15/16 and is what the `eval` command used to print as a
+table. Options to recover a human-readable positional signal *for explanations only*:
+- An **older/classical Stockfish** build (≤ SF16 classical, the `SF_classical` tag, or SF11) run
+  as a second engine; its `eval` output is the term table.
+- The **[Stockfish Evaluation Guide](https://hxim.github.io/Stockfish-Evaluation-Guide/)** — an
+  in-browser JS reimplementation of the classical eval that already surfaces every term; usable
+  as a pure feature source with no extra engine binary.
+
+**Recommendation:** treat this as a **two-engine pattern — modern SF18 for the grade (strength),
+classical for the readable "why."** It's an *enrichment* of the fact bundle (and future LLM
+input), not a grader. Don't block the analysis-view work on it: MultiPV lines from the modern
+engine already give strong concrete "why" (the actual sequences). Tracked as a GitHub issue.
+
 ## Part B — Maia (the human-like opponent, Phase 3)
 
 ### B1. Three generations exist now
