@@ -1,14 +1,15 @@
 import { Chess, type Square } from 'chess.js'
-import type { Color } from '../domain/types'
+import type { Color, Tier } from '../domain/types'
+import type { CoachVerdict } from '../domain/coach'
 import type { MaiaLevel } from '../engine/maia/opponent'
 
-// Application layer for **play vs Maia** (v0.2): a *pure* reducer for a full game
-// against the human-like opponent. No engine calls, no I/O, no Date.now — the async
-// Maia move lives in usePlaySession and dispatches MAIA_MOVED back here. Mirrors
-// sessionMachine (ADR 0015). Unlike guess-the-move there's no commit/reason step:
-// you just play; the coached review happens after the game (ADR 0013).
+// Application layer for **play vs Maia** with the in-game coach (ADR 0017): a *pure*
+// reducer. Every one of your moves is graded before Maia replies —
+//   yourTurn → (you move) → grading → coached (verdict + take-back/continue) → thinking
+// Async work (Stockfish grade, Maia move) lives in usePlaySession and dispatches
+// COACH_RESULT / MAIA_MOVED back here. No engine/I/O/Date.now — mirrors sessionMachine.
 
-export type PlayStatus = 'yourTurn' | 'thinking' | 'over'
+export type PlayStatus = 'yourTurn' | 'grading' | 'coached' | 'thinking' | 'over'
 export type GameOutcome = 'you' | 'maia' | 'draw'
 export type EndReason =
   | 'checkmate'
@@ -23,19 +24,41 @@ export interface PlayResult {
   reason: EndReason
 }
 
+/** Your move, applied to a temp position but not yet committed to the game. */
+export interface PendingPlayMove {
+  from: string
+  to: string
+  san: string
+  afterFen: string
+  promotion: string
+}
+
+/** One coached move of yours, for the running log + post-game review. */
+export interface CoachEntry {
+  ply: number
+  san: string
+  tier?: Tier
+  swing?: number
+}
+
 export interface PlayState {
   screen: 'home' | 'play'
   yourColor: Color
   level: MaiaLevel
-  /** FEN after each ply; positions[0] is the start position, last is current. */
+  /** FEN after each committed ply; positions[0] is the start, last is current. */
   positions: string[]
-  /** SAN of each move played, in order. */
+  /** SAN of each committed move, in order. */
   sanHistory: string[]
   status: PlayStatus
   selected: string | null
+  pending: PendingPlayMove | null
+  verdict: CoachVerdict | null
+  /** "Who's ahead" for the displayed position, White's perspective (0–100). */
+  evalWhitePct: number | null
+  coachLog: CoachEntry[]
   result: PlayResult | null
   gameId: string
-  /** Increments on every applied move; a change signals the hook to act. */
+  /** Increments on every committed move; a change signals the hook to act. */
   ply: number
 }
 
@@ -49,6 +72,10 @@ export const initialPlayState: PlayState = {
   sanHistory: [],
   status: 'yourTurn',
   selected: null,
+  pending: null,
+  verdict: null,
+  evalWhitePct: null,
+  coachLog: [],
   result: null,
   gameId: '',
   ply: 0,
@@ -59,13 +86,22 @@ export type PlayAction =
   | { type: 'GO_HOME' }
   | { type: 'SELECT_SQUARE'; square: string }
   | { type: 'MOVE'; from: string; to: string; promotion?: string }
+  | { type: 'COACH_RESULT'; verdict: CoachVerdict; evalWhitePct: number | null }
+  | { type: 'GRADING_FAILED' }
+  | { type: 'TAKE_BACK' }
+  | { type: 'CONTINUE' }
   | { type: 'MAIA_MOVED'; uci: string }
   | { type: 'RESIGN' }
+  | { type: 'SET_EVAL'; whitePct: number | null }
 
 // ---------- selectors ----------
 
 export function currentFen(state: PlayState): string {
   return state.positions[state.positions.length - 1] ?? START_FEN
+}
+/** Board to show: your pending move while it's being coached, else the live position. */
+export function displayFen(state: PlayState): string {
+  return state.pending ? state.pending.afterFen : currentFen(state)
 }
 export function sideToMove(state: PlayState): Color {
   return new Chess(currentFen(state)).turn()
@@ -78,7 +114,7 @@ export function historyForMaia(state: PlayState): string[] {
   return state.positions.slice(0, -1).reverse()
 }
 
-// ---------- move application ----------
+// ---------- move helpers ----------
 
 function resultAfter(chess: Chess, mover: Color, yourColor: Color): PlayResult | null {
   if (!chess.isGameOver()) return null
@@ -89,7 +125,7 @@ function resultAfter(chess: Chess, mover: Color, yourColor: Color): PlayResult |
   return { outcome: 'draw', reason: 'fifty-move' }
 }
 
-/** Is `from`→`to` a legal move for the side to move? (Synchronous drag validation.) */
+/** Is `from`→`to` legal for the side to move? (Synchronous drag validation.) */
 export function isLegalMove(fen: string, from: string, to: string, promotion = 'q'): boolean {
   try {
     new Chess(fen).move({ from, to, promotion })
@@ -99,35 +135,14 @@ export function isLegalMove(fen: string, from: string, to: string, promotion = '
   }
 }
 
-/** Apply one move (from either side) to `state`, or return null if illegal / wrong turn. */
-function applyMove(state: PlayState, from: string, to: string, promotion = 'q'): PlayState | null {
-  if (state.status !== 'yourTurn' && state.status !== 'thinking') return null
-  const fen = currentFen(state)
+/** Resolve your move into a pending move (not committed), or null if illegal. */
+function resolvePending(fen: string, from: string, to: string, promotion = 'q'): PendingPlayMove | null {
   const chess = new Chess(fen)
-  const mover = chess.turn()
-  // Guard turn ownership: only your move on yourTurn, only Maia's on thinking.
-  if (state.status === 'yourTurn' && mover !== state.yourColor) return null
-  if (state.status === 'thinking' && mover === state.yourColor) return null
-  let san: string
   try {
-    san = chess.move({ from, to, promotion }).san
+    const mv = chess.move({ from, to, promotion })
+    return { from, to, san: mv.san, afterFen: chess.fen(), promotion }
   } catch {
     return null
-  }
-  const result = resultAfter(chess, mover, state.yourColor)
-  const status: PlayStatus = result
-    ? 'over'
-    : mover === state.yourColor
-      ? 'thinking'
-      : 'yourTurn'
-  return {
-    ...state,
-    positions: [...state.positions, chess.fen()],
-    sanHistory: [...state.sanHistory, san],
-    selected: null,
-    status,
-    result,
-    ply: state.ply + 1,
   }
 }
 
@@ -148,15 +163,11 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
     case 'GO_HOME':
       return { ...initialPlayState }
 
-    case 'MOVE':
+    case 'MOVE': {
       if (state.status !== 'yourTurn') return state
-      return applyMove(state, action.from, action.to, action.promotion) ?? state
-
-    case 'MAIA_MOVED':
-      if (state.status !== 'thinking') return state
-      return (
-        applyMove(state, action.uci.slice(0, 2), action.uci.slice(2, 4), action.uci[4] ?? 'q') ?? state
-      )
+      const pending = resolvePending(currentFen(state), action.from, action.to, action.promotion)
+      return pending ? { ...state, pending, selected: null, status: 'grading' } : state
+    }
 
     case 'SELECT_SQUARE': {
       if (state.status !== 'yourTurn') return state
@@ -165,16 +176,84 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
       const owns = (sq: string) => chess.get(sq as Square)?.color === state.yourColor
       if (state.selected) {
         if (square === state.selected) return { ...state, selected: null }
-        const moved = applyMove(state, state.selected, square)
-        if (moved) return moved
+        const pending = resolvePending(currentFen(state), state.selected, square)
+        if (pending) return { ...state, pending, selected: null, status: 'grading' }
         return { ...state, selected: owns(square) ? square : null }
       }
       return { ...state, selected: owns(square) ? square : null }
     }
 
+    case 'COACH_RESULT':
+      if (state.status !== 'grading') return state
+      return { ...state, status: 'coached', verdict: action.verdict, evalWhitePct: action.evalWhitePct }
+
+    case 'GRADING_FAILED':
+      if (state.status !== 'grading') return state
+      return { ...state, status: 'coached', verdict: null }
+
+    case 'TAKE_BACK':
+      if (state.status !== 'coached') return state
+      return { ...state, pending: null, verdict: null, status: 'yourTurn' }
+
+    case 'CONTINUE': {
+      if (state.status !== 'coached' || !state.pending) return state
+      const chess = new Chess(state.pending.afterFen)
+      const result = resultAfter(chess, state.yourColor, state.yourColor)
+      const entry: CoachEntry = {
+        ply: state.ply,
+        san: state.pending.san,
+        tier: state.verdict?.tier,
+        swing: state.verdict?.swing,
+      }
+      return {
+        ...state,
+        positions: [...state.positions, state.pending.afterFen],
+        sanHistory: [...state.sanHistory, state.pending.san],
+        coachLog: [...state.coachLog, entry],
+        pending: null,
+        verdict: null,
+        status: result ? 'over' : 'thinking',
+        result,
+        ply: state.ply + 1,
+      }
+    }
+
+    case 'MAIA_MOVED': {
+      if (state.status !== 'thinking') return state
+      const chess = new Chess(currentFen(state))
+      let san: string
+      try {
+        san = chess.move({
+          from: action.uci.slice(0, 2),
+          to: action.uci.slice(2, 4),
+          promotion: action.uci[4] ?? 'q',
+        }).san
+      } catch {
+        return state
+      }
+      const result = resultAfter(chess, maiaColor(state), state.yourColor)
+      return {
+        ...state,
+        positions: [...state.positions, chess.fen()],
+        sanHistory: [...state.sanHistory, san],
+        status: result ? 'over' : 'yourTurn',
+        result,
+        ply: state.ply + 1,
+      }
+    }
+
     case 'RESIGN':
       if (state.status === 'over') return state
-      return { ...state, status: 'over', result: { outcome: 'maia', reason: 'resignation' } }
+      return {
+        ...state,
+        pending: null,
+        verdict: null,
+        status: 'over',
+        result: { outcome: 'maia', reason: 'resignation' },
+      }
+
+    case 'SET_EVAL':
+      return { ...state, evalWhitePct: action.whitePct }
 
     default:
       return state

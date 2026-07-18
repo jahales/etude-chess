@@ -7,6 +7,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **In-game coach (v0.2, ADR 0017):** every move you play against Maia is graded by
+  Stockfish *before* Maia replies — a verdict (A/B/C tier + win% + an engine-based "why")
+  with **Take back** or **Continue**, a live "who's ahead" eval bar, and a move list marked
+  with your move tiers. Turns a live game into a stream of coached decisions. One shared
+  Stockfish worker now serves both guess-grading and the play coach.
 - **Play vs Maia (v0.2, #14):** play a full game against the client-side, human-like Maia
   opponent — pick your colour and level (1100 / 1300 / 1500), click or drag to move, Maia
   replies from a single forward pass. A pure `playMachine` reducer + `usePlaySession` hook

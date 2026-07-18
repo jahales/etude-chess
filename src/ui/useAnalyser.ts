@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { StockfishAnalyser } from '../engine/stockfish'
 import type { Analyser } from '../engine/analyser'
 
-interface AnalyserState {
+export interface AnalyserState {
   analyser: Analyser | null
   ready: boolean
   error: string | null
