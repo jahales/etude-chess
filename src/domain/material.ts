@@ -41,11 +41,22 @@ export function materialBalance(fen: string): Material {
   }
 }
 
-/** Piece types (with multiplicity) missing from a side's full starting set. */
+/**
+ * Piece types (with multiplicity) actually captured from a side, inferred from a
+ * FEN. Extra non-pawn pieces beyond the starting set came from promotions, and
+ * each one consumed a pawn that therefore was *not* captured — so we discount the
+ * missing-pawn count by the number of promotions (otherwise a promoted pawn would
+ * show up as a phantom captured pawn).
+ */
 function missing(onBoard: Record<string, number>): string[] {
+  let promotions = 0
+  for (const type of ['n', 'b', 'r', 'q']) {
+    promotions += Math.max(0, (onBoard[type] ?? 0) - (FULL_SET[type] ?? 0))
+  }
   const out: string[] = []
   for (const type of Object.keys(FULL_SET)) {
-    const gone = (FULL_SET[type] ?? 0) - (onBoard[type] ?? 0)
+    let gone = (FULL_SET[type] ?? 0) - (onBoard[type] ?? 0)
+    if (type === 'p') gone -= promotions
     for (let i = 0; i < gone; i++) out.push(type)
   }
   return out

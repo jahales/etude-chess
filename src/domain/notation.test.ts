@@ -22,7 +22,7 @@ describe('formatScore', () => {
   })
   it('formats mate distances', () => {
     expect(formatScore({ type: 'mate', value: 3 })).toBe('M3')
-    expect(formatScore({ type: 'mate', value: -2 })).toBe('-M2')
+    expect(formatScore({ type: 'mate', value: -2 })).toBe('−M2') // U+2212, matches cp negatives
     expect(formatScore({ type: 'mate', value: 0 })).toBe('#')
   })
 })

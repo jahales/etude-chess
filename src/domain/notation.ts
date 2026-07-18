@@ -24,7 +24,7 @@ export function pvToSan(fen: string, pv: string[], maxPlies = 6): string[] {
 export function formatScore(score: Score): string {
   if (score.type === 'mate') {
     if (score.value === 0) return '#'
-    return score.value > 0 ? `M${score.value}` : `-M${Math.abs(score.value)}`
+    return score.value > 0 ? `M${score.value}` : `−M${Math.abs(score.value)}`
   }
   const pawns = score.value / 100
   return `${pawns >= 0 ? '+' : '−'}${Math.abs(pawns).toFixed(2)}`
