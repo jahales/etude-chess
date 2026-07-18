@@ -2,8 +2,17 @@ import type { AnalysisLine } from '../engine/analyser'
 import type { Material } from '../domain/material'
 import { pvToSan, formatScore } from '../domain/notation'
 
-/** Lichess-style vertical eval bar; White fills from the bottom. */
-export function EvalBar({ whitePct }: { whitePct: number | null }) {
+/**
+ * Lichess-style vertical eval bar. White's fill grows from White's side of the
+ * board, so it follows the board orientation (flip / Black-hero) — review #2.
+ */
+export function EvalBar({
+  whitePct,
+  whiteBottom = true,
+}: {
+  whitePct: number | null
+  whiteBottom?: boolean
+}) {
   const pct = whitePct == null ? 50 : Math.max(0, Math.min(100, whitePct))
   return (
     <div
@@ -11,7 +20,10 @@ export function EvalBar({ whitePct }: { whitePct: number | null }) {
       role="img"
       aria-label={whitePct == null ? 'evaluation pending' : `White ${Math.round(pct)} percent`}
     >
-      <div className="evalbar-white" style={{ height: `${pct}%` }} />
+      <div
+        className="evalbar-white"
+        style={{ height: `${pct}%`, top: whiteBottom ? 'auto' : 0, bottom: whiteBottom ? 0 : 'auto' }}
+      />
     </div>
   )
 }

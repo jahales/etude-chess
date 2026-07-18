@@ -236,7 +236,7 @@ function Play({
     <section className="play">
       <div className="board-col">
         <div className="board-row">
-          <EvalBar whitePct={positionWhitePct} />
+          <EvalBar whitePct={positionWhitePct} whiteBottom={whiteBottom} />
           <div className="board-frame" ref={ref}>
             <Chessboard
               id="board"
