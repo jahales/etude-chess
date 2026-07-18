@@ -106,12 +106,20 @@ export function displayFen(state: PlayState): string {
 export function sideToMove(state: PlayState): Color {
   return new Chess(currentFen(state)).turn()
 }
+/** Side to move in the *displayed* position (accounts for a pending, uncommitted move). */
+export function shownSideToMove(state: PlayState): Color {
+  return new Chess(displayFen(state)).turn()
+}
 export function maiaColor(state: PlayState): Color {
   return state.yourColor === 'w' ? 'b' : 'w'
 }
-/** Prior positions, most-recent-first, for Maia's history planes (excludes current). */
+/**
+ * Prior positions, most-recent-first, for Maia's history planes (excludes current).
+ * Capped at 7 — the encoder fills 8 frames (current + up to 7 history), so sending
+ * the whole game each move would just be wasted serialization.
+ */
 export function historyForMaia(state: PlayState): string[] {
-  return state.positions.slice(0, -1).reverse()
+  return state.positions.slice(-8, -1).reverse()
 }
 
 // ---------- move helpers ----------

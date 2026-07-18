@@ -7,6 +7,8 @@ import {
   displayFen,
   historyForMaia,
   isLegalMove,
+  shownSideToMove,
+  sideToMove,
   type PlayState,
 } from './playMachine'
 
@@ -165,6 +167,21 @@ describe('selectors', () => {
 
   it('SET_EVAL updates the who-is-ahead reading', () => {
     expect(playReducer(newGame('w'), { type: 'SET_EVAL', whitePct: 63 }).evalWhitePct).toBe(63)
+  })
+
+  it('shownSideToMove follows your pending move (board), not the committed position', () => {
+    const grading = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    expect(sideToMove(grading)).toBe('w') // committed position: still your turn
+    expect(shownSideToMove(grading)).toBe('b') // displayed board: your move made
+  })
+
+  it('historyForMaia is capped at 7 prior positions, most-recent-first', () => {
+    const positions = Array.from({ length: 10 }, (_, i) => `fen${i}`)
+    const s: PlayState = { ...newGame('w'), positions }
+    const hist = historyForMaia(s)
+    expect(hist).toHaveLength(7)
+    expect(hist[0]).toBe('fen8') // most recent prior (fen9 is current, excluded)
+    expect(hist).not.toContain('fen9')
   })
 
   it('isLegalMove validates for the side to move', () => {

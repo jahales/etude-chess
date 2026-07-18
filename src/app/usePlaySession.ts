@@ -61,7 +61,12 @@ export function usePlaySession(engine: AnalyserState) {
 
   // Grade each of your moves (the coach). Runs once per staged pending move.
   useEffect(() => {
-    if (state.status !== 'grading' || !state.pending || !analyser) return
+    if (state.status !== 'grading' || !state.pending) return
+    if (!analyser) {
+      // Engine failed to start → don't strand the move on "grading"; play on uncoached.
+      if (engine.error) dispatch({ type: 'GRADING_FAILED' })
+      return
+    }
     const fenBefore = currentFen(state)
     const userSan = state.pending.san
     const yourColor = state.yourColor
@@ -88,17 +93,25 @@ export function usePlaySession(engine: AnalyserState) {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.pending?.afterFen, analyser])
+  }, [state.status, state.pending?.afterFen, analyser, engine.error])
 
   // When it's Maia's turn, ask the worker for a move.
   useEffect(() => {
     if (state.status !== 'thinking' || !opponentRef.current) return
     const opp = opponentRef.current
+    const fen = currentFen(state)
     let cancelled = false
     opp
-      .move(currentFen(state), { temperature: MAIA_TEMPERATURE, history: historyForMaia(state) })
+      .move(fen, { temperature: MAIA_TEMPERATURE, history: historyForMaia(state) })
       .then((m) => {
-        if (!cancelled) dispatch({ type: 'MAIA_MOVED', uci: m.uci })
+        if (cancelled) return
+        // Safety net: decodePolicy only emits legal moves, but never freeze on 'thinking'
+        // if that ever fails — surface it instead of silently hanging.
+        if (!isLegalMove(fen, m.uci.slice(0, 2), m.uci.slice(2, 4), m.uci[4] ?? 'q')) {
+          setMaiaError(`Maia returned an unexpected move (${m.uci})`)
+          return
+        }
+        dispatch({ type: 'MAIA_MOVED', uci: m.uci })
       })
       .catch((e) => {
         if (!cancelled) setMaiaError(e instanceof Error ? e.message : String(e))

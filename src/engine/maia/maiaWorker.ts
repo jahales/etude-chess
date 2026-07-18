@@ -21,15 +21,19 @@ import { decodePolicy } from './decoding'
 ort.env.wasm.wasmPaths = { wasm: ortWasmUrl, mjs: ortMjsUrl }
 ort.env.wasm.numThreads = 1 // single-threaded → no SharedArrayBuffer / COOP-COEP needed
 
-let sessionPromise: Promise<ort.InferenceSession> | null = null
+// Keyed by modelUrl so a worker asked for a different net builds the right session
+// (rather than silently reusing the first one). In practice there's one per worker.
+const sessions = new Map<string, Promise<ort.InferenceSession>>()
 
 function getSession(modelUrl: string): Promise<ort.InferenceSession> {
-  if (!sessionPromise) {
-    sessionPromise = loadModelBytes(modelUrl).then((buf) =>
+  let session = sessions.get(modelUrl)
+  if (!session) {
+    session = loadModelBytes(modelUrl).then((buf) =>
       ort.InferenceSession.create(buf, { executionProviders: ['wasm'] }),
     )
+    sessions.set(modelUrl, session)
   }
-  return sessionPromise
+  return session
 }
 
 async function loadModelBytes(url: string): Promise<ArrayBuffer> {

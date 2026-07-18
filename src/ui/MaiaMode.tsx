@@ -4,7 +4,7 @@ import { materialBalance } from '../domain/material'
 import type { Color, Tier } from '../domain/types'
 import type { CoachVerdict } from '../domain/coach'
 import { SHIPPED_LEVELS, type MaiaLevel } from '../engine/maia/opponent'
-import { displayFen, sideToMove, type PendingPlayMove, type PlayResult } from '../app/playMachine'
+import { displayFen, shownSideToMove, type PendingPlayMove, type PlayResult } from '../app/playMachine'
 import type { usePlaySession } from '../app/usePlaySession'
 import { useBoardWidth } from './useBoardWidth'
 import { EvalBar, MaterialStrip } from './Analysis'
@@ -194,18 +194,12 @@ export function MaiaPlay({
       : undefined
 
   // Map each committed ply to the coached tier of your moves (Maia's stay blank).
+  // coachLog entries carry their ply, so this doesn't rely on log ordering.
   const tierByPly = useMemo(() => {
     const arr: (Tier | undefined)[] = new Array(state.sanHistory.length).fill(undefined)
-    let k = 0
-    for (let i = 0; i < arr.length; i++) {
-      const moverIsYou = (i % 2 === 0) === (yourColor === 'w')
-      if (moverIsYou) {
-        arr[i] = state.coachLog[k]?.tier
-        k += 1
-      }
-    }
+    for (const e of state.coachLog) if (e.ply < arr.length) arr[e.ply] = e.tier
     return arr
-  }, [state.sanHistory, state.coachLog, yourColor])
+  }, [state.sanHistory.length, state.coachLog])
 
   const rows = useMemo(() => buildRows(state.sanHistory, tierByPly), [state.sanHistory, tierByPly])
 
@@ -230,7 +224,7 @@ export function MaiaPlay({
         </div>
         <MaterialStrip material={materialBalance(fen)} />
         <div className="turn-line">
-          <span className="mono">{sideName(sideToMove(state))} to move</span>
+          <span className="mono">{sideName(shownSideToMove(state))} to move</span>
           <button
             className="btn ghost flip"
             type="button"
