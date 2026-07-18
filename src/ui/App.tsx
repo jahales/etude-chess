@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react'
-import { Chess, type Square as ChessSquare } from 'chess.js'
+import { useMemo, useState, type ComponentProps } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { GAMES, type PackGame } from '../content/games'
-import { parseGame, heroColorFromResult, buildQuiz, type QuizItem } from '../domain/harness'
-import { gradeAfterMove } from '../engine/grading'
-import { buildFactBundle, explain, factBundleToText, type FactBundle } from '../domain/factBundle'
-import { summarize, type Attempt } from '../domain/session'
+import type { QuizItem } from '../domain/harness'
 import { materialBalance } from '../domain/material'
-import { whiteWinPercent } from '../domain/winPercent'
-import type { Color } from '../domain/types'
-import { DEFAULT_NODES, type AnalysisLine } from '../engine/analyser'
-import { useAnalyser } from './useAnalyser'
+import { explain, factBundleToText, type FactBundle } from '../domain/factBundle'
+import { summarize, type Attempt } from '../domain/session'
+import { useGuessSession } from '../app/useGuessSession'
+import { currentItem, displayFen as selectDisplayFen, isLast, type SessionState } from '../app/sessionMachine'
 import { useBoardWidth } from './useBoardWidth'
 import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
 import {
@@ -23,194 +19,48 @@ import {
   sideName,
   moveLabel,
 } from './format'
-import { saveAttempt } from '../persist/db'
 
 type Arrows = NonNullable<ComponentProps<typeof Chessboard>['customArrows']>
-type Screen = 'home' | 'play' | 'summary'
-type Phase = 'guess' | 'grading' | 'reveal'
-
-interface Session {
-  game: PackGame
-  quiz: QuizItem[]
-  heroColor: Color
-}
-interface PendingMove {
-  san: string
-  from: string
-  to: string
-  afterFen: string
-}
-interface Result {
-  fb: FactBundle
-  bestMoveUci: string | null
-}
 
 export function App() {
-  const { analyser, ready, error } = useAnalyser()
-  const [screen, setScreen] = useState<Screen>('home')
-  const [session, setSession] = useState<Session | null>(null)
-  const [index, setIndex] = useState(0)
-  const [phase, setPhase] = useState<Phase>('guess')
-  const [pending, setPending] = useState<PendingMove | null>(null)
-  const [reason, setReason] = useState('')
-  const [result, setResult] = useState<Result | null>(null)
-  const [attempts, setAttempts] = useState<Attempt[]>([])
-  const [sessionId, setSessionId] = useState('')
-  const [lines, setLines] = useState<AnalysisLine[]>([])
-  const [positionWhitePct, setPositionWhitePct] = useState<number | null>(null)
-
-  // Live "who's ahead" eval for the current position (fast, low node budget).
-  useEffect(() => {
-    if (screen !== 'play' || !session || !analyser || !ready) return
-    const item = session.quiz[index]
-    if (!item) return
-    let cancelled = false
-    setPositionWhitePct(null)
-    analyser
-      .evaluate(item.fen, { nodes: 250_000 })
-      .then((ev) => {
-        if (!cancelled) setPositionWhitePct(whiteWinPercent(ev.score, item.sideToMove))
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [screen, session, index, analyser, ready])
-
-  const startGame = useCallback((game: PackGame) => {
-    const parsed = parseGame(game.pgn)
-    const hero = heroColorFromResult(parsed.result) ?? 'w'
-    const quiz = buildQuiz(parsed.sanMoves, { heroColor: hero, startPly: 8 })
-    setSession({ game, quiz, heroColor: hero })
-    setIndex(0)
-    setPhase('guess')
-    setPending(null)
-    setReason('')
-    setResult(null)
-    setLines([])
-    setPositionWhitePct(null)
-    setAttempts([])
-    setSessionId(`s${Date.now()}`)
-    setScreen('play')
-  }, [])
-
-  const goHome = useCallback(() => {
-    setScreen('home')
-    setSession(null)
-  }, [])
+  const s = useGuessSession()
+  const { state } = s
 
   return (
     <div className="app">
       <header className="topbar">
-        <button className="brand" type="button" onClick={goHome} aria-label="Home">
+        <button className="brand" type="button" onClick={s.goHome} aria-label="Home">
           <b>étude</b>
           <span className="dot">·</span>
           <b>chess</b>
         </button>
-        <span className={`engine-pill ${ready ? 'on' : ''}`}>
-          {error ? 'engine error' : ready ? 'engine ready' : 'engine loading…'}
+        <span className={`engine-pill ${s.engineReady ? 'on' : ''}`}>
+          {s.engineError ? 'engine error' : s.engineReady ? 'engine ready' : 'engine loading…'}
         </span>
       </header>
 
       <main className="main">
-        {screen === 'home' && <Home onPick={startGame} engineError={error} engineReady={ready} />}
-        {screen === 'play' && session && (
+        {state.screen === 'home' && (
+          <Home onPick={s.startGame} engineError={s.engineError} engineReady={s.engineReady} />
+        )}
+        {state.screen === 'play' && state.session && (
           <Play
-            session={session}
-            index={index}
-            phase={phase}
-            pending={pending}
-            reason={reason}
-            result={result}
-            lines={lines}
-            positionWhitePct={positionWhitePct}
-            engineReady={ready}
-            onDropMove={(from, to) => {
-              if (phase !== 'guess') return false
-              const item = session.quiz[index]!
-              const chess = new Chess(item.fen)
-              try {
-                const mv = chess.move({ from, to, promotion: 'q' })
-                setPending({ san: mv.san, from, to, afterFen: chess.fen() })
-                return true
-              } catch {
-                return false
-              }
-            }}
-            onTakeBack={() => setPending(null)}
-            onReasonChange={setReason}
-            onCommit={async () => {
-              const item = session.quiz[index]!
-              if (!pending || !analyser) return
-              setPhase('grading')
-              try {
-                // One MultiPV analysis powers both the grade (top line = best) and
-                // the reveal's alternatives — no redundant evaluation of the position.
-                const ls = await analyser.analyseLines(item.fen, {
-                  nodes: DEFAULT_NODES,
-                  multipv: 3,
-                })
-                const first = ls[0]
-                const best = first
-                  ? { score: first.score, bestMove: first.pv[0] ?? null }
-                  : { score: { type: 'cp' as const, value: 0 }, bestMove: null }
-                const graded = await gradeAfterMove(analyser, item.fen, pending.san, best, {
-                  nodes: DEFAULT_NODES,
-                })
-                const fb = buildFactBundle({
-                  fen: item.fen,
-                  userMoveSan: pending.san,
-                  bestMoveUci: graded.bestMoveUci,
-                  masterMoveSan: item.masterMoveSan,
-                  grade: graded.grade,
-                })
-                const attempt: Attempt = {
-                  itemIndex: index,
-                  moveNumber: item.moveNumber,
-                  sideToMove: item.sideToMove,
-                  fen: item.fen,
-                  userMoveSan: pending.san,
-                  masterMoveSan: item.masterMoveSan,
-                  reason,
-                  tier: graded.grade.tier,
-                  swing: graded.grade.swing,
-                }
-                setAttempts((a) => [...a, attempt])
-                void saveAttempt({
-                  ...attempt,
-                  gameId: session.game.id,
-                  sessionId,
-                  createdAt: Date.now(),
-                })
-                setLines(ls)
-                setPositionWhitePct(whiteWinPercent(best.score, item.sideToMove))
-                setResult({ fb, bestMoveUci: graded.bestMoveUci })
-                setPhase('reveal')
-              } catch (e) {
-                console.error('grading failed', e)
-                setPhase('guess')
-              }
-            }}
-            onNext={() => {
-              setPending(null)
-              setReason('')
-              setResult(null)
-              setLines([])
-              if (index + 1 >= session.quiz.length) {
-                setScreen('summary')
-              } else {
-                setIndex((i) => i + 1)
-                setPhase('guess')
-              }
-            }}
+            state={state}
+            engineReady={s.engineReady}
+            onDropMove={s.tryMove}
+            onClickSquare={s.clickSquare}
+            onTakeBack={s.takeBack}
+            onReasonChange={s.setReason}
+            onCommit={s.commit}
+            onNext={s.next}
           />
         )}
-        {screen === 'summary' && session && (
+        {state.screen === 'summary' && state.session && (
           <Summary
-            attempts={attempts}
-            game={session.game}
-            onReplay={() => startGame(session.game)}
-            onHome={goHome}
+            attempts={state.attempts}
+            game={state.session.game}
+            onReplay={() => s.startGame(state.session!.game)}
+            onHome={s.goHome}
           />
         )}
       </main>
@@ -261,59 +111,29 @@ function Home({
 // ---------- Play ----------
 
 function Play({
-  session,
-  index,
-  phase,
-  pending,
-  reason,
-  result,
-  lines,
-  positionWhitePct,
+  state,
   engineReady,
   onDropMove,
+  onClickSquare,
   onTakeBack,
   onReasonChange,
   onCommit,
   onNext,
 }: {
-  session: Session
-  index: number
-  phase: Phase
-  pending: PendingMove | null
-  reason: string
-  result: Result | null
-  lines: AnalysisLine[]
-  positionWhitePct: number | null
+  state: SessionState
   engineReady: boolean
   onDropMove: (from: string, to: string) => boolean
+  onClickSquare: (square: string) => void
   onTakeBack: () => void
   onReasonChange: (r: string) => void
   onCommit: () => void
   onNext: () => void
 }) {
   const { ref, width } = useBoardWidth()
-  const item = session.quiz[index]!
-  const displayFen = phase === 'reveal' ? item.fen : pending?.afterFen ?? item.fen
-
-  // Click-to-move (alongside drag): click a piece, then its destination. Also
-  // makes the board reliably driveable by the Playwright E2E.
-  const [selected, setSelected] = useState<string | null>(null)
-  useEffect(() => setSelected(null), [index, phase, pending])
-
-  function onSquareClick(square: string) {
-    if (phase !== 'guess' || pending) return
-    if (selected) {
-      if (square !== selected && onDropMove(selected, square)) {
-        setSelected(null)
-        return
-      }
-      const pc = new Chess(item.fen).get(square as ChessSquare)
-      setSelected(pc && pc.color === session.heroColor ? square : null)
-      return
-    }
-    const pc = new Chess(item.fen).get(square as ChessSquare)
-    if (pc && pc.color === session.heroColor) setSelected(square)
-  }
+  const session = state.session!
+  const { phase, pending, reason, result, lines, positionWhitePct, selected, index } = state
+  const item = currentItem(state)!
+  const boardFen = selectDisplayFen(state)
 
   const squareStyles = selected
     ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
@@ -342,19 +162,19 @@ function Play({
           <div className="board-frame" ref={ref}>
             <Chessboard
               id="board"
-              position={displayFen}
+              position={boardFen}
               boardWidth={width}
               boardOrientation={session.heroColor === 'w' ? 'white' : 'black'}
               arePiecesDraggable={phase === 'guess' && !pending && engineReady}
               onPieceDrop={(from, to) => onDropMove(from, to)}
-              onSquareClick={onSquareClick}
+              onSquareClick={onClickSquare}
               customArrows={arrows}
               customSquareStyles={squareStyles}
               customBoardStyle={{ borderRadius: '6px' }}
             />
           </div>
         </div>
-        <MaterialStrip material={materialBalance(displayFen)} />
+        <MaterialStrip material={materialBalance(boardFen)} />
         <div className="turn-line">
           <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
           {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
@@ -376,7 +196,7 @@ function Play({
               {pending ? (
                 <span className="picked mono">{pending.san}</span>
               ) : (
-                <span className="picked empty">Drag a piece to choose your move…</span>
+                <span className="picked empty">Click or drag a piece to choose your move…</span>
               )}
               {pending && phase === 'guess' && (
                 <button className="btn ghost" type="button" onClick={onTakeBack}>
@@ -405,7 +225,7 @@ function Play({
 
         {phase === 'reveal' && result && (
           <>
-            <Reveal fb={result.fb} item={item} onNext={onNext} last={index + 1 >= session.quiz.length} />
+            <Reveal fb={result.fb} item={item} onNext={onNext} last={isLast(state)} />
             <LinesPanel fen={item.fen} lines={lines} />
           </>
         )}
