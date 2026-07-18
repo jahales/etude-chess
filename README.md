@@ -5,10 +5,9 @@ system organized around the *decision type* a position demands, with the mode
 deliberately hidden in a mixed queue so it trains the one skill every other
 trainer gives away for free: *noticing what kind of position you're in.*
 
-> **Status: v0.1.0 in development (as of 2026-07-18).** The first release — coached
-> guess-the-move on master games — is being built (client-side React + Stockfish WASM).
-> Design docs and decision records live in [docs/](docs/); everything remains provisional.
-> See [docs/open-questions.md](docs/open-questions.md) for what's unresolved.
+> **Status: v0.1.0 released (2026-07-18).** Coached guess-the-move on master games —
+> a client-side React + Stockfish WASM app. What exists: [docs/architecture.md](docs/architecture.md)
+> and [CHANGELOG.md](CHANGELOG.md). Next: v0.2 — play vs Maia. Design docs live in [docs/](docs/).
 
 ## Running it
 
@@ -36,6 +35,8 @@ deep calculation stamina, or "worse-but-tricky" practical defense — see
 
 | Path | What it is |
 |------|-----------|
+| [docs/architecture.md](docs/architecture.md) | **What exists now** — architecture, module map, features |
+| [CHANGELOG.md](CHANGELOG.md) · [RELEASING.md](RELEASING.md) | Release history · the release ritual |
 | [docs/vision.md](docs/vision.md) | Problem, value proposition, honest ceiling, who it's for |
 | [docs/constitution.md](docs/constitution.md) | Non-negotiable principles that govern every later decision |
 | [docs/learning-science.md](docs/learning-science.md) | The cognitive-science grounding, with sources |
