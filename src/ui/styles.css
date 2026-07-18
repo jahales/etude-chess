@@ -813,3 +813,78 @@ button {
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* First-attempt accuracy + post-game review */
+.acc-inline {
+  color: var(--ink-soft);
+}
+.review {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.accuracy-big {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.acc-num {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--green);
+}
+.acc-label {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.acc-note {
+  margin: 0.2rem 0 0.9rem;
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+.phase-row {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+.phase-stat {
+  flex: 1 1 auto;
+  min-width: 5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  text-align: center;
+}
+.phase-acc {
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.phase-name {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  text-transform: capitalize;
+}
+.worst-moments {
+  margin-top: 1rem;
+}
+.worst-moments h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+}
+.worst-moments ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+.worst-moments .lost {
+  color: var(--bad);
+}

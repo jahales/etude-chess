@@ -7,11 +7,13 @@ import {
   currentEval,
   canTakeBack,
   openingName,
+  gameAccuracy,
   historyForMaia,
   isLegalMove,
   type PlayState,
   type PositionEval,
 } from './playMachine'
+import { moveAccuracy } from '../domain/accuracy'
 
 const newGame = (yourColor: 'w' | 'b' = 'w'): PlayState =>
   playReducer(initialPlayState, { type: 'NEW_GAME', yourColor, level: 1300, gameId: 'g1' })
@@ -113,6 +115,37 @@ describe('coach feedback', () => {
     expect(s.showMe).toBe(false)
     expect(s.lines).toEqual([])
     expect(s.lastCoach).toBeNull()
+  })
+})
+
+describe('first-attempt accuracy', () => {
+  const START = initialPlayState.positions[0]!
+  const coach = (state: PlayState, san: string, tier: 'A' | 'B' | 'C', swing: number) =>
+    playReducer(state, { type: 'COACH_RESULT', ply: 0, fenBefore: START, yourMoveSan: san, verdict: verdict(tier, swing) })
+
+  it('records your first move at a position and scores accuracy from it', () => {
+    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
+    s = coach(s, 'e4', 'B', 8)
+    expect(s.firstAttempts).toHaveLength(1)
+    expect(s.firstAttempts[0]).toMatchObject({ fen: START, san: 'e4', swing: 8 })
+    expect(gameAccuracy(s)).toBeCloseTo(moveAccuracy(8), 5)
+  })
+
+  it('keeps the first attempt after a take-back + replay (no farming the score)', () => {
+    let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    s = coach(s, 'e4', 'C', 30) // first attempt: a mistake
+    s = playReducer(s, { type: 'TAKE_BACK' })
+    expect(s.firstAttempts).toHaveLength(1) // survives take-back
+    // replay a better move from the same position
+    s = playReducer(s, { type: 'MOVE', from: 'd2', to: 'd4' })
+    s = coach(s, 'd4', 'A', 0)
+    expect(s.firstAttempts).toHaveLength(1) // not overwritten
+    expect(s.firstAttempts[0]!.san).toBe('e4')
+    expect(gameAccuracy(s)).toBeCloseTo(moveAccuracy(30), 5) // still reflects the mistake
+  })
+
+  it('accuracy is 100 with no moves yet', () => {
+    expect(gameAccuracy(newGame('w'))).toBe(100)
   })
 })
 

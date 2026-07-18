@@ -4,6 +4,7 @@ import type { CoachVerdict } from '../domain/coach'
 import type { AnalysisLine } from '../engine/analyser'
 import type { MaiaLevel } from '../engine/maia/opponent'
 import { detectOpening } from '../content/openings'
+import { meanAccuracy } from '../domain/accuracy'
 
 // Application layer for **play vs Maia** with the ambient in-game coach (ADR 0017): a
 // *pure* reducer. You move → Maia replies immediately → the coach shows feedback on your
@@ -49,6 +50,20 @@ export interface CoachEntry {
   swing?: number
 }
 
+/**
+ * Your FIRST move at a position (keyed by the FEN you moved from). Recorded once and
+ * kept across take-backs, so accuracy rewards good first instincts — a take-back is a
+ * learning aid, not a way to farm the score (ADR 0017).
+ */
+export interface FirstAttempt {
+  ply: number
+  fen: string
+  san: string
+  tier: Tier
+  swing: number
+  bestMoveSan: string | null
+}
+
 export interface PlayState {
   screen: 'home' | 'play'
   yourColor: Color
@@ -59,6 +74,8 @@ export interface PlayState {
   selected: string | null
   lastCoach: LastCoach | null
   coachLog: CoachEntry[]
+  /** Your first move at each position faced — the basis for accuracy (survives take-back). */
+  firstAttempts: FirstAttempt[]
   /** Eval after each committed move, indexed by sanHistory move index (White's view). */
   evalByPly: (PositionEval | undefined)[]
   /** "Show me": engine lines for lastCoach.fenBefore, revealed only on request. */
@@ -80,6 +97,7 @@ export const initialPlayState: PlayState = {
   selected: null,
   lastCoach: null,
   coachLog: [],
+  firstAttempts: [],
   evalByPly: [],
   showMe: false,
   lines: [],
@@ -131,6 +149,10 @@ export function canTakeBack(state: PlayState): boolean {
 /** Named opening for the moves played so far, if recognised. */
 export function openingName(state: PlayState): string | null {
   return detectOpening(state.sanHistory)
+}
+/** This game's accuracy (0–100) over your first attempt at each position. */
+export function gameAccuracy(state: PlayState): number {
+  return meanAccuracy(state.firstAttempts.map((a) => a.swing))
 }
 
 // ---------- move helpers ----------
@@ -244,6 +266,20 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
         tier: action.verdict.tier,
         swing: action.verdict.swing,
       }
+      // Record a first attempt only the first time you move from this position.
+      const firstAttempts = state.firstAttempts.some((a) => a.fen === action.fenBefore)
+        ? state.firstAttempts
+        : [
+            ...state.firstAttempts,
+            {
+              ply: action.ply,
+              fen: action.fenBefore,
+              san: action.yourMoveSan,
+              tier: action.verdict.tier,
+              swing: action.verdict.swing,
+              bestMoveSan: action.verdict.bestMoveSan,
+            },
+          ]
       return {
         ...state,
         lastCoach: {
@@ -253,6 +289,7 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
           verdict: action.verdict,
         },
         coachLog: [...state.coachLog.filter((e) => e.ply !== action.ply), entry],
+        firstAttempts,
         showMe: false,
         lines: [],
       }

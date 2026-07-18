@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { materialBalance } from '../domain/material'
 import type { Color, Tier } from '../domain/types'
+import { byPhase, type Phase } from '../domain/accuracy'
 import { SHIPPED_LEVELS, type MaiaLevel } from '../engine/maia/opponent'
 import {
   currentEval,
   canTakeBack,
   displayFen,
+  gameAccuracy,
   openingName,
   sideToMove,
   type LastCoach,
@@ -94,6 +96,57 @@ function describeResult(result: PlayResult): string {
   if (result.outcome === 'you') return `You won ${tail}`.trim()
   if (result.reason === 'resignation') return 'You resigned — Maia wins'
   return `Maia won ${tail}`.trim()
+}
+
+const PHASES: Phase[] = ['opening', 'middlegame', 'endgame']
+
+/** Post-game review: first-attempt accuracy, by-phase, and your worst moments. */
+function Review({ state }: { state: PlayState }) {
+  const acc = Math.round(gameAccuracy(state))
+  const phases = byPhase(state.firstAttempts)
+  const worst = [...state.firstAttempts]
+    .filter((a) => a.swing >= 2)
+    .sort((a, b) => b.swing - a.swing)
+    .slice(0, 3)
+  return (
+    <div className="review">
+      <div className="accuracy-big">
+        <span className="acc-num mono">{acc}%</span>
+        <span className="acc-label">accuracy</span>
+      </div>
+      <p className="acc-note">Your first move at each position — take-backs don&apos;t count.</p>
+      <div className="phase-row">
+        {PHASES.filter((p) => phases[p].moves > 0).map((p) => (
+          <div key={p} className="phase-stat">
+            <div className="phase-acc mono">{Math.round(phases[p].accuracy)}%</div>
+            <div className="phase-name">
+              {p} · {phases[p].moves}
+            </div>
+          </div>
+        ))}
+      </div>
+      {worst.length > 0 && (
+        <div className="worst-moments">
+          <h3>Worth another look</h3>
+          <ul>
+            {worst.map((a) => (
+              <li key={a.ply}>
+                <span className="mono">{Math.floor(a.ply / 2) + 1}.</span> you played{' '}
+                <b className="mono">{a.san}</b>
+                <span className="lost"> −{Math.round(a.swing)}%</span>
+                {a.bestMoveSan && a.bestMoveSan !== a.san && (
+                  <>
+                    {' '}
+                    · best <b className="mono">{a.bestMoveSan}</b>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /** Ambient feedback on your last move: verdict + cost, with the answer behind "Show me". */
@@ -235,6 +288,12 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
           {opening && <p className="opening mono">{opening}</p>}
           <p className="playing-as">
             You are <b>{sideName(yourColor)}</b>.
+            {state.firstAttempts.length > 0 && (
+              <span className="acc-inline mono" title="Accuracy of your first move at each position">
+                {' '}
+                · Accuracy {Math.round(gameAccuracy(state))}%
+              </span>
+            )}
           </p>
         </div>
 
@@ -243,9 +302,12 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
             <span className="banner error">Maia failed to load: {maiaError}</span>
           </div>
         ) : over && state.result ? (
-          <div className="maia-status over" role="status">
-            <span className="maia-result">{describeResult(state.result)}</span>
-          </div>
+          <>
+            <div className="maia-status over" role="status">
+              <span className="maia-result">{describeResult(state.result)}</span>
+            </div>
+            <Review state={state} />
+          </>
         ) : !maiaReady ? (
           <div className="maia-status" role="status">
             Loading Maia {state.level}…

@@ -22,6 +22,8 @@ export interface StoredGame {
   sanHistory: string[]
   outcome: 'you' | 'maia' | 'draw'
   reason: string
+  /** This game's first-attempt accuracy (0–100). */
+  accuracy: number
   createdAt: number
 }
 
