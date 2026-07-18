@@ -53,6 +53,7 @@ export function useGuessSession() {
   const goHome = useCallback(() => dispatch({ type: 'GO_HOME' }), [])
   const clickSquare = useCallback((square: string) => dispatch({ type: 'CLICK_SQUARE', square }), [])
   const takeBack = useCallback(() => dispatch({ type: 'TAKE_BACK' }), [])
+  const setPromotion = useCallback((piece: string) => dispatch({ type: 'SET_PROMOTION', piece }), [])
   const setReason = useCallback((reason: string) => dispatch({ type: 'SET_REASON', reason }), [])
   const next = useCallback(() => dispatch({ type: 'NEXT' }), [])
 
@@ -106,6 +107,7 @@ export function useGuessSession() {
     clickSquare,
     tryMove,
     takeBack,
+    setPromotion,
     setReason,
     commit,
     next,

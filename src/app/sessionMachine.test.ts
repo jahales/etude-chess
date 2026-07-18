@@ -70,6 +70,31 @@ describe('move entry', () => {
   })
 })
 
+describe('promotion', () => {
+  it('defaults to queen and can switch to an underpromotion', () => {
+    const promoItem = {
+      fen: '4k3/P7/8/8/8/8/8/4K3 w - - 0 1',
+      ply: 0,
+      moveNumber: 1,
+      sideToMove: 'w' as const,
+      masterMoveSan: 'a8=Q',
+      masterMoveUci: 'a7a8q',
+    }
+    const s0: SessionState = {
+      ...initialState,
+      screen: 'play',
+      session: { game: opera, quiz: [promoItem], heroColor: 'w' },
+      sessionId: 's',
+    }
+    const s1 = sessionReducer(s0, { type: 'TRY_MOVE', from: 'a7', to: 'a8' })
+    expect(s1.pending?.san).toBe('a8=Q+') // promoting on a8 checks the e8 king
+    expect(s1.pending?.promotion).toBe('q')
+    const s2 = sessionReducer(s1, { type: 'SET_PROMOTION', piece: 'n' })
+    expect(s2.pending?.san).toBe('a8=N')
+    expect(s2.pending?.promotion).toBe('n')
+  })
+})
+
 describe('grading + reveal + advance', () => {
   it('records an attempt and reveals on GRADE_RESULT', () => {
     let s = started()
