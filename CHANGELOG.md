@@ -6,7 +6,13 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Maia spike (toward v0.2, #14):** client-side Maia-1 inference proven end-to-end —
+  Maia-1900 runs in-browser (onnxruntime-web wasm in a Web Worker) and returns legal,
+  human-like moves. Reusable foundation: a `MaiaOpponent` port + onnxruntime adapter, a
+  pure 112-plane Lc0 encoder and 1858-move policy decoder (unit-tested), an opt-in Node
+  oracle, and a headless-browser proof. See [docs/spikes/maia-onnx.md](docs/spikes/maia-onnx.md)
+  and ADR [0016](docs/decisions/0016-maia-onnx-delivery.md). Not yet wired into the app.
 
 ## [0.1.0] — 2026-07-18
 
