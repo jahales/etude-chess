@@ -20,7 +20,7 @@ describe('findHangingPieces', () => {
     expect(hanging).toHaveLength(1)
     expect(hanging[0]!.square).toBe('d5')
     expect(hanging[0]!.piece).toBe('q')
-    expect(hanging[0]!.defended).toBe(false)
+    expect(hanging[0]!.loss).toBe(9)
   })
 
   it('reports nothing in the quiet starting position', () => {
@@ -86,7 +86,7 @@ describe('explain', () => {
     const b = buildFactBundle({ fen: FEN, userMoveSan: 'Qd5', bestMoveUci: 'g1f3', masterMoveSan: 'Nf3', grade: gradeC })
     const text = explain(b)
     expect(text).toContain('mistake')
-    expect(text).toMatch(/queen on d5 (hanging|underdefended)/)
+    expect(text).toMatch(/queen on d5 hanging/)
     expect(text).toContain('Nf3')
   })
 })
