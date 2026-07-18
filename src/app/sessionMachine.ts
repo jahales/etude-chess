@@ -24,6 +24,8 @@ export interface PendingMove {
   from: string
   to: string
   afterFen: string
+  /** Promotion piece for a promoting move ('q' by default); ignored otherwise. */
+  promotion: string
 }
 export interface Result {
   fb: FactBundle
@@ -69,6 +71,7 @@ export type Action =
   | { type: 'CLICK_SQUARE'; square: string }
   | { type: 'TRY_MOVE'; from: string; to: string; promotion?: string }
   | { type: 'TAKE_BACK' }
+  | { type: 'SET_PROMOTION'; piece: string }
   | { type: 'SET_REASON'; reason: string }
   | { type: 'START_GRADING' }
   | { type: 'GRADE_RESULT'; graded: GradedMove; lines: AnalysisLine[]; whitePct: number }
@@ -104,10 +107,15 @@ function tryPending(
   const chess = new Chess(item.fen)
   try {
     const mv = chess.move({ from, to, promotion })
-    return { san: mv.san, from, to, afterFen: chess.fen() }
+    return { san: mv.san, from, to, afterFen: chess.fen(), promotion }
   } catch {
     return null
   }
+}
+
+/** True if the pending move is a pawn promotion (SAN carries "="). */
+export function isPromotion(pending: PendingMove | null): boolean {
+  return !!pending && pending.san.includes('=')
 }
 
 function pieceColorAt(state: SessionState, square: string): Color | null {
@@ -158,6 +166,12 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
 
     case 'TAKE_BACK':
       return { ...state, pending: null, selected: null }
+
+    case 'SET_PROMOTION': {
+      if (!state.pending || state.phase !== 'guess') return state
+      const pending = tryPending(state, state.pending.from, state.pending.to, action.piece)
+      return pending ? { ...state, pending } : state
+    }
 
     case 'SET_REASON':
       return { ...state, reason: action.reason }

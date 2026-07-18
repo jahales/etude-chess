@@ -6,7 +6,13 @@ import { materialBalance } from '../domain/material'
 import { explain, factBundleToText, type FactBundle } from '../domain/factBundle'
 import { summarize, type Attempt } from '../domain/session'
 import { useGuessSession } from '../app/useGuessSession'
-import { currentItem, displayFen as selectDisplayFen, isLast, type SessionState } from '../app/sessionMachine'
+import {
+  currentItem,
+  displayFen as selectDisplayFen,
+  isLast,
+  isPromotion,
+  type SessionState,
+} from '../app/sessionMachine'
 import { useBoardWidth } from './useBoardWidth'
 import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
 import {
@@ -21,6 +27,8 @@ import {
 } from './format'
 
 type Arrows = NonNullable<ComponentProps<typeof Chessboard>['customArrows']>
+
+const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞' }
 
 export function App() {
   const s = useGuessSession()
@@ -50,6 +58,7 @@ export function App() {
             onDropMove={s.tryMove}
             onClickSquare={s.clickSquare}
             onTakeBack={s.takeBack}
+            onSetPromotion={s.setPromotion}
             onReasonChange={s.setReason}
             onCommit={s.commit}
             onNext={s.next}
@@ -116,6 +125,7 @@ function Play({
   onDropMove,
   onClickSquare,
   onTakeBack,
+  onSetPromotion,
   onReasonChange,
   onCommit,
   onNext,
@@ -125,15 +135,18 @@ function Play({
   onDropMove: (from: string, to: string) => boolean
   onClickSquare: (square: string) => void
   onTakeBack: () => void
+  onSetPromotion: (piece: string) => void
   onReasonChange: (r: string) => void
   onCommit: () => void
   onNext: () => void
 }) {
   const { ref, width } = useBoardWidth()
+  const [flipped, setFlipped] = useState(false)
   const session = state.session!
   const { phase, pending, reason, result, lines, positionWhitePct, selected, index } = state
   const item = currentItem(state)!
   const boardFen = selectDisplayFen(state)
+  const whiteBottom = session.heroColor === 'w' ? !flipped : flipped
 
   const squareStyles = selected
     ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
@@ -164,7 +177,7 @@ function Play({
               id="board"
               position={boardFen}
               boardWidth={width}
-              boardOrientation={session.heroColor === 'w' ? 'white' : 'black'}
+              boardOrientation={whiteBottom ? 'white' : 'black'}
               arePiecesDraggable={phase === 'guess' && !pending && engineReady}
               onPieceDrop={(from, to) => onDropMove(from, to)}
               onSquareClick={onClickSquare}
@@ -178,6 +191,15 @@ function Play({
         <div className="turn-line">
           <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
           {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
+          <button
+            className="btn ghost flip"
+            type="button"
+            onClick={() => setFlipped((f) => !f)}
+            aria-label="Flip board"
+            title="Flip board"
+          >
+            ⇅ Flip
+          </button>
         </div>
       </div>
 
@@ -204,6 +226,22 @@ function Play({
                 </button>
               )}
             </div>
+            {isPromotion(pending) && (
+              <div className="promotion-picker">
+                <span className="promo-label">Promote to:</span>
+                {(['q', 'r', 'b', 'n'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`btn ghost promo ${pending!.promotion === p ? 'active' : ''}`}
+                    onClick={() => onSetPromotion(p)}
+                    aria-label={`Promote to ${p}`}
+                  >
+                    {PROMO_GLYPH[p]}
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
               className="reason"
               placeholder="One line: what does your move do? (e.g. develops and eyes f7)"

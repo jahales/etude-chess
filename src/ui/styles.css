@@ -312,6 +312,30 @@ button {
   color: var(--ink-soft);
   font-size: 0.9rem;
 }
+.turn-line .flip {
+  float: right;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+}
+.promotion-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+}
+.promo-label {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.btn.promo {
+  padding: 0.15rem 0.55rem;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.btn.promo.active {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 15%, var(--surface));
+}
 .game-head h2 {
   font-size: 1.25rem;
 }
