@@ -2,10 +2,13 @@
 // Worker and serializes request/response over postMessage with a pending-promise map
 // (the same shape as StockfishAnalyser). App/domain code sees only the port.
 
-import type { MaiaMove, MaiaOpponent } from './opponent'
+import type { MaiaLevel, MaiaMove, MaiaMoveOpts, MaiaOpponent } from './opponent'
+
+/** Model URL for a rating level, served from public/ (see scripts/setup-maia.mjs). */
+export const maiaModelUrl = (level: MaiaLevel): string => `/models/maia-${level}.onnx`
 
 /** Served from public/ (fetch scripts/setup-maia.mjs to populate it). */
-export const DEFAULT_MAIA_MODEL_URL = '/models/maia-1900.onnx'
+export const DEFAULT_MAIA_MODEL_URL = maiaModelUrl(1900)
 
 type Pending = { resolve: (m: MaiaMove[]) => void; reject: (e: Error) => void }
 
@@ -47,17 +50,24 @@ export class MaiaOnnxOpponent implements MaiaOpponent {
     return this.readyPromise
   }
 
-  policy(fen: string, temperature = 1): Promise<MaiaMove[]> {
+  policy(fen: string, opts: MaiaMoveOpts = {}): Promise<MaiaMove[]> {
     const id = ++this.seq
     return new Promise<MaiaMove[]>((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
-      this.worker.postMessage({ type: 'policy', id, fen, modelUrl: this.modelUrl, temperature })
+      this.worker.postMessage({
+        type: 'policy',
+        id,
+        fen,
+        modelUrl: this.modelUrl,
+        temperature: opts.temperature ?? 1,
+        history: opts.history ?? [],
+      })
     })
   }
 
-  async move(fen: string, opts: { temperature?: number } = {}): Promise<MaiaMove> {
+  async move(fen: string, opts: MaiaMoveOpts = {}): Promise<MaiaMove> {
     const t = opts.temperature ?? 0
-    const moves = await this.policy(fen, t === 0 ? 0.01 : t)
+    const moves = await this.policy(fen, { temperature: t === 0 ? 0.01 : t, history: opts.history })
     const [first] = moves
     if (!first) throw new Error('no legal moves')
     if (t === 0) return first // argmax: the strongest human move

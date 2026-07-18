@@ -7,6 +7,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Play vs Maia (v0.2, #14):** play a full game against the client-side, human-like Maia
+  opponent — pick your colour and level (1100 / 1300 / 1500), click or drag to move, Maia
+  replies from a single forward pass. A pure `playMachine` reducer + `usePlaySession` hook
+  drive it; the Maia worker + wasm are lazy-loaded only when a game starts (never on the
+  guess-the-move path), and finished games are stored locally for the coming coached review.
 - **Maia spike (toward v0.2, #14):** client-side Maia-1 inference proven end-to-end —
   Maia-1900 runs in-browser (onnxruntime-web wasm in a Web Worker) and returns legal,
   human-like moves. Reusable foundation: a `MaiaOpponent` port + onnxruntime adapter, a
