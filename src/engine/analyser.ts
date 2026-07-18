@@ -1,4 +1,4 @@
-import type { EngineEvaluation } from '../domain/types'
+import type { EngineEvaluation, Score } from '../domain/types'
 
 // The engine abstraction (docs/decisions/0010): grading logic depends only on
 // this interface, never on the Worker. StockfishAnalyser (stockfish.ts) is the
@@ -10,9 +10,21 @@ export interface AnalyseOptions {
   movetime?: number
 }
 
+/** One ranked engine line (for the reveal's alternatives panel, #1). */
+export interface AnalysisLine {
+  /** MultiPV rank, 1 = best. */
+  multipv: number
+  /** Score from the side-to-move's perspective. */
+  score: Score
+  /** Principal variation as UCI moves. */
+  pv: string[]
+}
+
 export interface Analyser {
   /** Evaluate a position. `score` is from the side-to-move's perspective. */
   evaluate(fen: string, opts?: AnalyseOptions): Promise<EngineEvaluation>
+  /** Top-N lines for the position, best first. */
+  analyseLines(fen: string, opts?: AnalyseOptions & { multipv?: number }): Promise<AnalysisLine[]>
   dispose(): void
 }
 

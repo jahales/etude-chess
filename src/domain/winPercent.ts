@@ -1,4 +1,4 @@
-import type { Score } from './types'
+import type { Color, Score } from './types'
 
 // Lichess's win-percentage model. Grading by *win-percent swing* (not raw
 // centipawns) is the load-bearing choice from docs/decisions/0010: a fixed
@@ -21,6 +21,12 @@ export function winPercentFromCp(cp: number): number {
 export function winPercent(score: Score): number {
   if (score.type === 'mate') return score.value > 0 ? 100 : 0
   return winPercentFromCp(score.value)
+}
+
+/** White's win% (0–100) for a score given whose turn it is — drives the eval bar. */
+export function whiteWinPercent(score: Score, sideToMove: Color): number {
+  const stm = winPercent(score)
+  return sideToMove === 'w' ? stm : 100 - stm
 }
 
 /** Flip a score to the opponent's perspective (used to normalise both sides of a move). */

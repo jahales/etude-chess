@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { winPercent, winPercentFromCp, negate } from './winPercent'
+import { winPercent, winPercentFromCp, whiteWinPercent, negate } from './winPercent'
 
 describe('winPercentFromCp', () => {
   it('is 50% at a dead-equal position', () => {
@@ -44,6 +44,25 @@ describe('winPercent (Score)', () => {
 
   it('delegates cp scores to the centipawn model', () => {
     expect(winPercent({ type: 'cp', value: 0 })).toBeCloseTo(50, 6)
+  })
+})
+
+describe('whiteWinPercent', () => {
+  it('passes the score straight through when White is to move', () => {
+    expect(whiteWinPercent({ type: 'cp', value: 200 }, 'w')).toBeCloseTo(
+      winPercentFromCp(200),
+      6,
+    )
+  })
+  it('flips to White\'s side when Black is to move', () => {
+    // +200 for Black-to-move means White is worse: White% = 100 − Black%.
+    expect(whiteWinPercent({ type: 'cp', value: 200 }, 'b')).toBeCloseTo(
+      100 - winPercentFromCp(200),
+      6,
+    )
+  })
+  it('reads a mate for Black-to-move as 0% for White', () => {
+    expect(whiteWinPercent({ type: 'mate', value: 1 }, 'b')).toBe(0)
   })
 })
 

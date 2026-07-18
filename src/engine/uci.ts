@@ -25,3 +25,26 @@ export function parseBestMove(line: string): { move: string | null } | null {
   if (!m) return null
   return { move: m[1] === '(none)' ? null : m[1]! }
 }
+
+export interface InfoLine {
+  /** MultiPV rank (1 = best); 1 when the engine omits the field. */
+  multipv: number
+  score: Score
+  /** Principal variation as UCI moves, e.g. ['e2e4','e7e5']. */
+  pv: string[]
+}
+
+/**
+ * Parse a full `info … multipv N … score … pv …` line for MultiPV analysis.
+ * Returns null unless the line carries both a (non-bound) score and a pv.
+ */
+export function parseInfoLine(line: string): InfoLine | null {
+  if (!line.startsWith('info')) return null
+  const score = parseScore(line) // already rejects bound lines
+  if (!score) return null
+  const pvMatch = line.match(/\bpv (.+)$/)
+  if (!pvMatch) return null
+  const pv = pvMatch[1]!.trim().split(/\s+/)
+  const mpv = line.match(/\bmultipv (\d+)/)
+  return { multipv: mpv ? parseInt(mpv[1]!, 10) : 1, score, pv }
+}

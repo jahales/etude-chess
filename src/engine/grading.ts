@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js'
 import type { Analyser, AnalyseOptions } from './analyser'
-import type { Score } from '../domain/types'
+import type { EngineEvaluation, Score } from '../domain/types'
 import { gradeMove, type MoveGrade } from '../domain/grade'
 import { negate } from '../domain/winPercent'
 
@@ -28,7 +28,20 @@ export async function evaluateAndGrade(
   opts?: AnalyseOptions,
 ): Promise<GradedMove> {
   const best = await analyser.evaluate(fen, opts)
+  return gradeAfterMove(analyser, fen, userMoveSan, best, opts)
+}
 
+/**
+ * Grade against an already-computed best evaluation — lets the UI reuse the top
+ * line from `analyseLines` instead of evaluating the position twice.
+ */
+export async function gradeAfterMove(
+  analyser: Analyser,
+  fen: string,
+  userMoveSan: string,
+  best: EngineEvaluation,
+  opts?: AnalyseOptions,
+): Promise<GradedMove> {
   const chess = new Chess(fen)
   const applied = chess.move(userMoveSan) // throws if illegal; the UI only submits legal moves
 

@@ -10,6 +10,9 @@ class FakeAnalyser implements Analyser {
   evaluate(fen: string): Promise<EngineEvaluation> {
     return Promise.resolve(this.byFen[fen] ?? { score: { type: 'cp', value: 0 }, bestMove: null })
   }
+  analyseLines(): Promise<[]> {
+    return Promise.resolve([])
+  }
   dispose(): void {}
 }
 

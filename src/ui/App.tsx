@@ -1,15 +1,18 @@
-import { useCallback, useMemo, useState, type ComponentProps } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react'
 import { Chess } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { GAMES, type PackGame } from '../content/games'
 import { parseGame, heroColorFromResult, buildQuiz, type QuizItem } from '../domain/harness'
-import { evaluateAndGrade } from '../engine/grading'
+import { gradeAfterMove } from '../engine/grading'
 import { buildFactBundle, explain, factBundleToText, type FactBundle } from '../domain/factBundle'
 import { summarize, type Attempt } from '../domain/session'
+import { materialBalance } from '../domain/material'
+import { whiteWinPercent } from '../domain/winPercent'
 import type { Color } from '../domain/types'
-import { DEFAULT_NODES } from '../engine/analyser'
+import { DEFAULT_NODES, type AnalysisLine } from '../engine/analyser'
 import { useAnalyser } from './useAnalyser'
 import { useBoardWidth } from './useBoardWidth'
+import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
 import {
   TIER_TEXT,
   TIER_CLASS,
@@ -53,6 +56,26 @@ export function App() {
   const [result, setResult] = useState<Result | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
   const [sessionId, setSessionId] = useState('')
+  const [lines, setLines] = useState<AnalysisLine[]>([])
+  const [positionWhitePct, setPositionWhitePct] = useState<number | null>(null)
+
+  // Live "who's ahead" eval for the current position (fast, low node budget).
+  useEffect(() => {
+    if (screen !== 'play' || !session || !analyser || !ready) return
+    const item = session.quiz[index]
+    if (!item) return
+    let cancelled = false
+    setPositionWhitePct(null)
+    analyser
+      .evaluate(item.fen, { nodes: 250_000 })
+      .then((ev) => {
+        if (!cancelled) setPositionWhitePct(whiteWinPercent(ev.score, item.sideToMove))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [screen, session, index, analyser, ready])
 
   const startGame = useCallback((game: PackGame) => {
     const parsed = parseGame(game.pgn)
@@ -64,6 +87,8 @@ export function App() {
     setPending(null)
     setReason('')
     setResult(null)
+    setLines([])
+    setPositionWhitePct(null)
     setAttempts([])
     setSessionId(`s${Date.now()}`)
     setScreen('play')
@@ -97,6 +122,8 @@ export function App() {
             pending={pending}
             reason={reason}
             result={result}
+            lines={lines}
+            positionWhitePct={positionWhitePct}
             engineReady={ready}
             onDropMove={(from, to) => {
               if (phase !== 'guess') return false
@@ -117,7 +144,17 @@ export function App() {
               if (!pending || !analyser) return
               setPhase('grading')
               try {
-                const graded = await evaluateAndGrade(analyser, item.fen, pending.san, {
+                // One MultiPV analysis powers both the grade (top line = best) and
+                // the reveal's alternatives — no redundant evaluation of the position.
+                const ls = await analyser.analyseLines(item.fen, {
+                  nodes: DEFAULT_NODES,
+                  multipv: 3,
+                })
+                const first = ls[0]
+                const best = first
+                  ? { score: first.score, bestMove: first.pv[0] ?? null }
+                  : { score: { type: 'cp' as const, value: 0 }, bestMove: null }
+                const graded = await gradeAfterMove(analyser, item.fen, pending.san, best, {
                   nodes: DEFAULT_NODES,
                 })
                 const fb = buildFactBundle({
@@ -145,6 +182,8 @@ export function App() {
                   sessionId,
                   createdAt: Date.now(),
                 })
+                setLines(ls)
+                setPositionWhitePct(whiteWinPercent(best.score, item.sideToMove))
                 setResult({ fb, bestMoveUci: graded.bestMoveUci })
                 setPhase('reveal')
               } catch (e) {
@@ -156,6 +195,7 @@ export function App() {
               setPending(null)
               setReason('')
               setResult(null)
+              setLines([])
               if (index + 1 >= session.quiz.length) {
                 setScreen('summary')
               } else {
@@ -227,6 +267,8 @@ function Play({
   pending,
   reason,
   result,
+  lines,
+  positionWhitePct,
   engineReady,
   onDropMove,
   onTakeBack,
@@ -240,6 +282,8 @@ function Play({
   pending: PendingMove | null
   reason: string
   result: Result | null
+  lines: AnalysisLine[]
+  positionWhitePct: number | null
   engineReady: boolean
   onDropMove: (from: string, to: string) => boolean
   onTakeBack: () => void
@@ -269,18 +313,22 @@ function Play({
   return (
     <section className="play">
       <div className="board-col">
-        <div className="board-frame" ref={ref}>
-          <Chessboard
-            id="board"
-            position={displayFen}
-            boardWidth={width}
-            boardOrientation={session.heroColor === 'w' ? 'white' : 'black'}
-            arePiecesDraggable={phase === 'guess' && !pending && engineReady}
-            onPieceDrop={(from, to) => onDropMove(from, to)}
-            customArrows={arrows}
-            customBoardStyle={{ borderRadius: '6px' }}
-          />
+        <div className="board-row">
+          <EvalBar whitePct={positionWhitePct} />
+          <div className="board-frame" ref={ref}>
+            <Chessboard
+              id="board"
+              position={displayFen}
+              boardWidth={width}
+              boardOrientation={session.heroColor === 'w' ? 'white' : 'black'}
+              arePiecesDraggable={phase === 'guess' && !pending && engineReady}
+              onPieceDrop={(from, to) => onDropMove(from, to)}
+              customArrows={arrows}
+              customBoardStyle={{ borderRadius: '6px' }}
+            />
+          </div>
         </div>
+        <MaterialStrip material={materialBalance(displayFen)} />
         <div className="turn-line">
           <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
           {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
@@ -330,7 +378,10 @@ function Play({
         )}
 
         {phase === 'reveal' && result && (
-          <Reveal fb={result.fb} item={item} onNext={onNext} last={index + 1 >= session.quiz.length} />
+          <>
+            <Reveal fb={result.fb} item={item} onNext={onNext} last={index + 1 >= session.quiz.length} />
+            <LinesPanel fen={item.fen} lines={lines} />
+          </>
         )}
       </div>
     </section>
