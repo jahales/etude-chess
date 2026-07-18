@@ -25,6 +25,13 @@ describe('materialBalance', () => {
     expect(m.capturedByBlack).toEqual([])
   })
 
+  it('does not report a promoted pawn as a captured pawn', () => {
+    // White has TWO queens (d1 + a promoted one on e5) and only 7 pawns (h-pawn
+    // promoted). Black is otherwise full, so nothing of White's was captured.
+    const m = materialBalance('rnbqkbnr/pppppppp/8/4Q3/8/8/PPPPPPP1/RNBQKBNR w KQkq - 0 1')
+    expect(m.capturedByBlack).toEqual([]) // the missing h-pawn promoted, wasn't captured
+  })
+
   it('nets an uneven exchange (White wins a knight for nothing)', () => {
     // White knight on d5, no black pieces missing except one knight.
     const m = materialBalance('r1bqkbnr/pppppppp/8/3N4/8/8/PPPPPPPP/R1BQKBNR b KQkq - 0 1')
