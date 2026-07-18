@@ -25,7 +25,9 @@ event** (~25–35 per game, ~10× the density of playing), it's the self-serve a
 [v0.1.0-plan.md](v0.1.0-plan.md); rationale: ADRs [0011](decisions/0011-game-review-first.md) +
 [0014](decisions/0014-v0.1.0-guess-the-move.md). Then:
 - **v0.2.0** — **play vs client-side Maia** + the same coached review on your own games;
-  by-phase leak analytics begin (ADR [0013](decisions/0013-v0.1.0-play-vs-maia.md))
+  by-phase leak analytics begin (ADR [0013](decisions/0013-v0.1.0-play-vs-maia.md)). The
+  client-side-Maia delivery risk is **de-risked** — a spike proves Maia-1 runs in-browser
+  (ADR [0016](decisions/0016-maia-onnx-delivery.md), [spike report](spikes/maia-onnx.md)).
 - **v0.3.0** — mid-game "step back and analyze" intervention; tactics from *your own missed
   tactics* (fresh instances, untimed)
 - **v0.4.0** — opening *safety*: trap avoidance + structure/plan from your opening leaks

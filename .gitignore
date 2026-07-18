@@ -40,3 +40,7 @@ data/
 *.nnue
 syzygy/
 scratch/
+
+# Maia spike: the weights are fetched via scripts/setup-maia.mjs, not committed
+# (but keep the NOTICE tracked for GPL compliance).
+public/models/*.onnx

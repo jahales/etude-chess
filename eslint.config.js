@@ -10,6 +10,7 @@ export default tseslint.config(
       'coverage',
       '.vite',
       'public/engine',
+      'public/models',
       'playwright-report',
       'test-results',
     ],
@@ -29,5 +30,10 @@ export default tseslint.config(
       'no-empty': ['error', { allowEmptyCatch: true }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
+  },
+  {
+    // Node build/setup scripts (e.g. scripts/setup-maia.mjs).
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node, fetch: 'readonly' } },
   },
 )
