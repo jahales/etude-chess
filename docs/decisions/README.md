@@ -24,5 +24,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0014](0014-v0.1.0-guess-the-move.md) | v0.1.0 is coached guess-the-move on master games | Accepted |
 | [0015](0015-pragmatic-hexagonal.md) | Pragmatic hexagonal architecture (ports & adapters) | Accepted |
 | [0016](0016-maia-onnx-delivery.md) | Client-side Maia delivery: Maia-1 via onnxruntime-web in a Worker | Accepted |
+| [0017](0017-in-game-coach.md) | Coach during the game (coach-every-move), not only after | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.

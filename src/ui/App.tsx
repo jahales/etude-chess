@@ -9,6 +9,7 @@ import type { Color } from '../domain/types'
 import { useGuessSession } from '../app/useGuessSession'
 import { usePlaySession } from '../app/usePlaySession'
 import type { MaiaLevel } from '../engine/maia/opponent'
+import { useAnalyser } from './useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
 import {
   STRENGTH_PRESETS,
@@ -43,8 +44,9 @@ const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '
 type Mode = 'home' | 'guess' | 'maia'
 
 export function App() {
-  const guess = useGuessSession()
-  const play = usePlaySession()
+  const engine = useAnalyser() // one shared Stockfish worker (guess grading + play coach)
+  const guess = useGuessSession(engine)
+  const play = usePlaySession(engine)
   const gstate = guess.state
   const [mode, setMode] = useState<Mode>('home')
   const [showSettings, setShowSettings] = useState(false)

@@ -709,3 +709,59 @@ button {
   gap: 0.8rem;
   margin-top: 1.1rem;
 }
+
+/* In-game coach card (ADR 0017) */
+.coach-card {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.coach-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.coach-verdict .mono {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.coach-why {
+  margin: 0.6rem 0 0;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+.coach-actions {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+.coach-actions .btn {
+  flex: 1;
+}
+
+/* Tier dot on your moves in the move list */
+.mv-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.tier-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: var(--ink-faint);
+}
+.tier-dot.tier-a {
+  background: var(--good);
+}
+.tier-dot.tier-b {
+  background: var(--warn);
+}
+.tier-dot.tier-c {
+  background: var(--bad);
+}

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { Color } from '../domain/types'
+import { coachVerdict } from '../domain/coach'
+import { whiteWinPercent } from '../domain/winPercent'
+import { evaluateAndGrade } from '../engine/grading'
 import { MaiaOnnxOpponent, maiaModelUrl } from '../engine/maia/maiaOpponent'
 import { DEFAULT_LEVEL, type MaiaLevel } from '../engine/maia/opponent'
+import type { AnalyserState } from '../ui/useAnalyser'
 import { saveGame } from '../persist/db'
 import {
   playReducer,
@@ -9,24 +13,29 @@ import {
   currentFen,
   historyForMaia,
   isLegalMove,
+  sideToMove,
   type PlayState,
 } from './playMachine'
 
 // How adventurously Maia plays: 0 ≈ its single most-likely human move; higher samples
-// the policy for natural variety across games. Modest sampling keeps it human-like.
+// the policy for natural variety. Modest sampling keeps it human-like across games.
 const MAIA_TEMPERATURE = 0.5
+// Grading nodes: enough for a reliable A/B/C tier, kept snappy for move-by-move play.
+const GRADE_NODES = 500_000
+// Cheap "who's ahead" refresh for the live eval bar.
+const LIVE_NODES = 120_000
 
-// Binds the pure play reducer to the Maia opponent (lazy-loaded per level) and
-// persistence. Mirrors useGuessSession; Maia is loaded only when a game starts, so
-// the ~13.5 MB wasm + model never touch the guess-the-move path (ADR 0016).
-export function usePlaySession() {
+// Binds the pure play reducer to Maia (opponent, lazy per level) and Stockfish (the
+// shared referee, from App) — every one of your moves is graded before Maia replies
+// (ADR 0017). Mirrors useGuessSession; the Maia worker/wasm load only when a game starts.
+export function usePlaySession(engine: AnalyserState) {
+  const { analyser } = engine
   const [state, dispatch] = useReducer(playReducer, initialPlayState)
   const opponentRef = useRef<MaiaOnnxOpponent | null>(null)
   const levelRef = useRef<MaiaLevel | null>(null)
   const [maiaReady, setMaiaReady] = useState(false)
   const [maiaError, setMaiaError] = useState<string | null>(null)
 
-  // Create (or swap, on a level change) the Maia worker.
   const ensureOpponent = useCallback((level: MaiaLevel): MaiaOnnxOpponent => {
     if (opponentRef.current && levelRef.current === level) return opponentRef.current
     opponentRef.current?.dispose()
@@ -45,22 +54,46 @@ export function usePlaySession() {
   const newGame = useCallback(
     (opts: { yourColor: Color; level: MaiaLevel }) => {
       ensureOpponent(opts.level)
-      dispatch({
-        type: 'NEW_GAME',
-        yourColor: opts.yourColor,
-        level: opts.level,
-        gameId: `m${Date.now()}`,
-      })
+      dispatch({ type: 'NEW_GAME', yourColor: opts.yourColor, level: opts.level, gameId: `m${Date.now()}` })
     },
     [ensureOpponent],
   )
 
-  // When it's Maia's turn, ask the worker for a move. `ply` changes on every move, so
-  // each new thinking turn triggers exactly once.
+  // Grade each of your moves (the coach). Runs once per staged pending move.
   useEffect(() => {
-    if (state.status !== 'thinking') return
+    if (state.status !== 'grading' || !state.pending || !analyser) return
+    const fenBefore = currentFen(state)
+    const userSan = state.pending.san
+    const yourColor = state.yourColor
+    let cancelled = false
+    evaluateAndGrade(analyser, fenBefore, userSan, { nodes: GRADE_NODES })
+      .then((graded) => {
+        if (cancelled) return
+        const verdict = coachVerdict({
+          fen: fenBefore,
+          userMoveSan: userSan,
+          grade: graded.grade,
+          bestMoveUci: graded.bestMoveUci,
+        })
+        dispatch({
+          type: 'COACH_RESULT',
+          verdict,
+          evalWhitePct: whiteWinPercent(graded.playedScoreMover, yourColor),
+        })
+      })
+      .catch(() => {
+        if (!cancelled) dispatch({ type: 'GRADING_FAILED' })
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status, state.pending?.afterFen, analyser])
+
+  // When it's Maia's turn, ask the worker for a move.
+  useEffect(() => {
+    if (state.status !== 'thinking' || !opponentRef.current) return
     const opp = opponentRef.current
-    if (!opp) return
     let cancelled = false
     opp
       .move(currentFen(state), { temperature: MAIA_TEMPERATURE, history: historyForMaia(state) })
@@ -75,6 +108,24 @@ export function usePlaySession() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, state.ply])
+
+  // Live "who's ahead" for the current position when it's your move.
+  useEffect(() => {
+    if (state.status !== 'yourTurn' || !analyser || !state.gameId) return
+    const fen = currentFen(state)
+    const perspective = sideToMove(state)
+    let cancelled = false
+    analyser
+      .evaluate(fen, { nodes: LIVE_NODES })
+      .then((ev) => {
+        if (!cancelled) dispatch({ type: 'SET_EVAL', whitePct: whiteWinPercent(ev.score, perspective) })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status, state.ply, analyser])
 
   // Persist a finished game once (best-effort).
   const savedRef = useRef('')
@@ -92,14 +143,14 @@ export function usePlaySession() {
     })
   }, [state.status, state.result, state.gameId, state.yourColor, state.level, state.sanHistory])
 
-  // Tear down the worker on unmount.
   useEffect(() => () => opponentRef.current?.dispose(), [])
 
   const goHome = useCallback(() => dispatch({ type: 'GO_HOME' }), [])
   const selectSquare = useCallback((square: string) => dispatch({ type: 'SELECT_SQUARE', square }), [])
+  const takeBack = useCallback(() => dispatch({ type: 'TAKE_BACK' }), [])
+  const continueMove = useCallback(() => dispatch({ type: 'CONTINUE' }), [])
   const resign = useCallback(() => dispatch({ type: 'RESIGN' }), [])
 
-  // Drag: validate synchronously (react-chessboard needs a boolean), then dispatch.
   const tryMove = useCallback(
     (from: string, to: string): boolean => {
       if (state.status !== 'yourTurn' || !isLegalMove(currentFen(state), from, to)) return false
@@ -113,11 +164,14 @@ export function usePlaySession() {
     state,
     maiaReady,
     maiaError,
+    engineReady: engine.ready,
     defaultLevel: DEFAULT_LEVEL,
     newGame,
     goHome,
     selectSquare,
     tryMove,
+    takeBack,
+    continueMove,
     resign,
   } satisfies { state: PlayState } & Record<string, unknown>
 }

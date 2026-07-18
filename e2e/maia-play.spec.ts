@@ -1,34 +1,36 @@
 import { test, expect } from '@playwright/test'
 import { existsSync } from 'node:fs'
 
-// v0.2: play a real move against client-side Maia and get a legal human reply.
-// Needs the nets in place (node scripts/setup-maia.mjs); skips otherwise so CI is
-// unaffected.
+// v0.2: play vs client-side Maia with the in-game coach (ADR 0017) — you move, the
+// coach grades it (take back / continue), then Maia replies with a legal move. Needs
+// the nets (node scripts/setup-maia.mjs); skips otherwise so CI is unaffected.
 const hasModel = existsSync('public/models/maia-1300.onnx')
 
-test.describe('play vs Maia', () => {
+test.describe('play vs Maia + coach', () => {
   test.skip(!hasModel, 'run `node scripts/setup-maia.mjs` to fetch the Maia nets')
 
-  test('you move, Maia replies with a legal move', async ({ page }) => {
+  test('you move → coached → continue → Maia replies', async ({ page }) => {
     await page.goto('/')
 
-    // Start a game as White vs the default level (1300).
     await page.getByRole('button', { name: /Play vs Maia/ }).click()
-
-    // Maia loads, then it's your move.
     await expect(page.getByText('Your move.')).toBeVisible({ timeout: 60_000 })
 
     // Play 1.e4 by click-to-move.
     await page.locator('[data-square="e2"]').click()
     await page.locator('[data-square="e4"]').click()
 
-    const movelist = page.locator('.movelist')
-    await expect(movelist).toContainText('e4')
+    // The coach grades it before Maia replies: a verdict + Continue appear. The move
+    // stays pending (not yet in the move list) so it can be taken back.
+    const continueBtn = page.getByRole('button', { name: /Continue/ })
+    await expect(continueBtn).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Good move.')).toBeVisible()
+    await expect(page.locator('.movelist')).toBeEmpty()
 
-    // Maia thinks, then replies — the turn comes back to you and a black move appears.
+    // Continue → the move is committed, Maia replies, and the turn returns to you.
+    await continueBtn.click()
+    await expect(page.locator('.movelist')).toContainText('e4')
     await expect(page.getByText('Your move.')).toBeVisible({ timeout: 30_000 })
-    const firstRow = movelist.locator('li').first()
-    // row = [number, white move, black move]; the black cell should be filled.
-    await expect(firstRow.locator('span').nth(2)).not.toBeEmpty()
+    // First row now holds both your move and Maia's reply.
+    await expect(page.locator('.movelist li').first().locator('.mv-cell')).toHaveCount(2)
   })
 })

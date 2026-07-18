@@ -28,8 +28,9 @@ event** (~25–35 per game, ~10× the density of playing), it's the self-serve a
   by-phase leak analytics begin (ADR [0013](decisions/0013-v0.1.0-play-vs-maia.md)). The
   client-side-Maia delivery risk is **de-risked** — a spike proves Maia-1 runs in-browser
   (ADR [0016](decisions/0016-maia-onnx-delivery.md), [spike report](spikes/maia-onnx.md)).
-- **v0.3.0** — mid-game "step back and analyze" intervention; tactics from *your own missed
-  tactics* (fresh instances, untimed)
+- **v0.3.0** — tactics from *your own missed tactics* (fresh instances, untimed). _(The
+  mid-game "step back and analyze" intervention moved **into v0.2** as coach-every-move —
+  ADR [0017](decisions/0017-in-game-coach.md).)_
 - **v0.4.0** — opening *safety*: trap avoidance + structure/plan from your opening leaks
 - **v0.5.0** — endgame technique curriculum (tablebase-adjudicated)
 - **v0.6.0+** — the hidden-mode mixed queue (the differentiator); dedicated play-it-out

@@ -4,7 +4,7 @@ import { evaluateAndGrade } from '../engine/grading'
 import type { AnalysisLine } from '../engine/analyser'
 import { whiteWinPercent } from '../domain/winPercent'
 import { saveAttempt } from '../persist/db'
-import { useAnalyser } from '../ui/useAnalyser'
+import type { AnalyserState } from '../ui/useAnalyser'
 import {
   sessionReducer,
   initialState,
@@ -14,10 +14,10 @@ import {
 } from './sessionMachine'
 import { DEFAULT_SETTINGS, liveEvalNodes, type AnalysisSettings } from './settings'
 
-// Binds the pure session reducer to the engine and persistence. Components read
-// `state` and call the returned handlers; all async/side-effecting work is here.
-export function useGuessSession() {
-  const { analyser, ready, error } = useAnalyser()
+// Binds the pure session reducer to the engine (shared from App) and persistence.
+// Components read `state` and call the returned handlers; all async work is here.
+export function useGuessSession(engine: AnalyserState) {
+  const { analyser, ready, error } = engine
   const [state, dispatch] = useReducer(sessionReducer, initialState)
   const [settings, setSettings] = useState<AnalysisSettings>(DEFAULT_SETTINGS)
 

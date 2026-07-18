@@ -8,7 +8,7 @@ import { seeCaptureGain } from './see'
 // paraphrases/grades (docs/decisions/0012-llm-grounded-explainer.md). The LLM is
 // never allowed to invent any of these facts.
 
-const PIECE_NAME: Record<string, string> = {
+export const PIECE_NAME: Record<string, string> = {
   p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king',
 }
 
