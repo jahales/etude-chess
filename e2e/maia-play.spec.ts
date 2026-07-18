@@ -33,8 +33,14 @@ test.describe('play vs Maia + ambient coach', () => {
     await showMe.click()
     await expect(page.getByText(/Engine.s pick/)).toBeVisible({ timeout: 30_000 })
 
-    // Take back the pair → the move list empties.
+    // Take back the pair → the move list empties, but the first-attempt accuracy stands.
     await page.getByRole('button', { name: /Take back/ }).click()
     await expect(page.locator('.movelist')).toBeEmpty()
+    await expect(page.getByText(/Accuracy \d+%/)).toBeVisible()
+
+    // Resign → the post-game review shows an accuracy figure.
+    await page.getByRole('button', { name: /Resign/ }).click()
+    await expect(page.locator('.review')).toBeVisible()
+    await expect(page.locator('.acc-num')).toContainText('%')
   })
 })

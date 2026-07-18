@@ -12,6 +12,7 @@ import {
   playReducer,
   initialPlayState,
   currentFen,
+  gameAccuracy,
   historyForMaia,
   isLegalMove,
   sideToMove,
@@ -165,8 +166,10 @@ export function usePlaySession(engine: AnalyserState) {
       sanHistory: state.sanHistory,
       outcome: state.result.outcome,
       reason: state.result.reason,
+      accuracy: gameAccuracy(state),
       createdAt: Date.now(),
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, state.result, state.gameId, state.yourColor, state.level, state.sanHistory])
 
   useEffect(() => () => opponentRef.current?.dispose(), [])
