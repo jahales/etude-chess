@@ -5,6 +5,7 @@ import {
   currentItem,
   displayFen,
   isLast,
+  resolveMove,
   type SessionState,
 } from './sessionMachine'
 import { GAMES } from '../content/games'
@@ -24,6 +25,14 @@ const gradeA: GradedMove = {
   afterFen: 'x',
   userMoveSan: 'Qxf3',
 }
+
+describe('resolveMove (shared by the reducer and the drag handler)', () => {
+  const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+  it('resolves a legal move and rejects an illegal one', () => {
+    expect(resolveMove(start, 'e2', 'e4')?.san).toBe('e4')
+    expect(resolveMove(start, 'e2', 'e5')).toBeNull()
+  })
+})
 
 describe('START_GAME', () => {
   it('builds a quiz for the winner and enters play', () => {

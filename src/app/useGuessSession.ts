@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
-import { Chess } from 'chess.js'
 import type { PackGame } from '../content/games'
-import { gradeAfterMove } from '../engine/grading'
+import { evaluateAndGrade } from '../engine/grading'
+import type { AnalysisLine } from '../engine/analyser'
 import { whiteWinPercent } from '../domain/winPercent'
 import { saveAttempt } from '../persist/db'
 import { useAnalyser } from '../ui/useAnalyser'
-import { sessionReducer, initialState, currentItem, type SessionState } from './sessionMachine'
+import {
+  sessionReducer,
+  initialState,
+  currentItem,
+  resolveMove,
+  type SessionState,
+} from './sessionMachine'
 import { DEFAULT_SETTINGS, liveEvalNodes, type AnalysisSettings } from './settings'
 
 // Binds the pure session reducer to the engine and persistence. Components read
@@ -33,10 +39,18 @@ export function useGuessSession() {
     }
   }, [state.screen, state.session, state.index, analyser, ready, settings])
 
-  // Persist each newly recorded attempt (best-effort).
-  const persistedRef = useRef(0)
+  // Persist each newly recorded attempt (best-effort). The counter is scoped to a
+  // sessionId and reset when a new session starts, so a later game's early attempts
+  // aren't skipped just because an earlier game had more (review finding #1).
+  const persistedRef = useRef({ sessionId: '', count: 0 })
   useEffect(() => {
-    if (!state.session || state.attempts.length <= persistedRef.current) return
+    if (!state.session) return
+    const p = persistedRef.current
+    if (p.sessionId !== state.sessionId) {
+      p.sessionId = state.sessionId
+      p.count = 0
+    }
+    if (state.attempts.length <= p.count) return
     const attempt = state.attempts[state.attempts.length - 1]!
     void saveAttempt({
       ...attempt,
@@ -44,7 +58,7 @@ export function useGuessSession() {
       sessionId: state.sessionId,
       createdAt: Date.now(),
     })
-    persistedRef.current = state.attempts.length
+    p.count = state.attempts.length
   }, [state.attempts, state.session, state.sessionId])
 
   const startGame = useCallback(
@@ -58,16 +72,12 @@ export function useGuessSession() {
   const setReason = useCallback((reason: string) => dispatch({ type: 'SET_REASON', reason }), [])
   const next = useCallback(() => dispatch({ type: 'NEXT' }), [])
 
-  // Drag: validate synchronously (react-chessboard needs a boolean) and dispatch.
+  // Drag: validate synchronously (react-chessboard needs a boolean) via the same
+  // resolver the reducer uses, then dispatch.
   const tryMove = useCallback(
     (from: string, to: string): boolean => {
       const item = currentItem(state)
-      if (!item || state.phase !== 'guess') return false
-      try {
-        new Chess(item.fen).move({ from, to, promotion: 'q' })
-      } catch {
-        return false
-      }
+      if (!item || state.phase !== 'guess' || !resolveMove(item.fen, from, to)) return false
       dispatch({ type: 'TRY_MOVE', from, to })
       return true
     },
@@ -79,22 +89,27 @@ export function useGuessSession() {
     if (!item || !state.pending || !analyser) return
     dispatch({ type: 'START_GRADING' })
     try {
-      const lines = await analyser.analyseLines(item.fen, {
-        nodes: settings.nodes,
-        multipv: settings.multipv,
-      })
-      const first = lines[0]
-      const best = first
-        ? { score: first.score, bestMove: first.pv[0] ?? null }
-        : { score: { type: 'cp' as const, value: 0 }, bestMove: null }
-      const graded = await gradeAfterMove(analyser, item.fen, state.pending.san, best, {
+      // Grade at a fixed MultiPV=1 (both best and played) so the tier never depends
+      // on how many lines the learner chose to display (review finding #3).
+      const graded = await evaluateAndGrade(analyser, item.fen, state.pending.san, {
         nodes: settings.nodes,
       })
+      // Display lines are a separate concern; only run the multi-line search if asked.
+      const lines: AnalysisLine[] =
+        settings.multipv > 1
+          ? await analyser.analyseLines(item.fen, { nodes: settings.nodes, multipv: settings.multipv })
+          : [
+              {
+                multipv: 1,
+                score: graded.bestScore,
+                pv: graded.bestMoveUci ? [graded.bestMoveUci] : [],
+              },
+            ]
       dispatch({
         type: 'GRADE_RESULT',
         graded,
         lines,
-        whitePct: whiteWinPercent(best.score, item.sideToMove),
+        whitePct: whiteWinPercent(graded.bestScore, item.sideToMove),
       })
     } catch (e) {
       console.error('grading failed', e)
