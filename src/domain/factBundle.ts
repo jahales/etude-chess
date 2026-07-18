@@ -1,13 +1,13 @@
 import { Chess } from 'chess.js'
 import type { Color } from './types'
 import type { MoveGrade } from './grade'
+import { seeCaptureGain } from './see'
 
 // The "fact bundle": everything the coach knows about a move, computed in code.
 // v0.1.0 renders it as a rules-based "why"; later the same bundle is what an LLM
 // paraphrases/grades (docs/decisions/0012-llm-grounded-explainer.md). The LLM is
 // never allowed to invent any of these facts.
 
-const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 }
 const PIECE_NAME: Record<string, string> = {
   p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king',
 }
@@ -15,37 +15,22 @@ const PIECE_NAME: Record<string, string> = {
 export interface HangingPiece {
   square: string
   piece: string
-  cheapestAttacker: number
-  defended: boolean
+  /** Material `color` loses if the opponent captures here, per SEE. */
+  loss: number
 }
 
 /**
- * Heuristic hanging/underdefended detection for `color`'s pieces: a piece is
- * flagged if it's attacked and either undefended or its cheapest attacker is
- * worth less than it. This is NOT full SEE — it ignores pins and multi-piece
- * exchange ordering (a known first-pass limitation, docs/research/llm-integration.md §2b).
+ * Hanging/underdefended pieces of `color`, via Static Exchange Evaluation
+ * (`seeCaptureGain`): a piece is flagged when the opponent can win material by
+ * capturing it, accounting for the full value-ordered exchange (docs/decisions/0012).
  */
 export function findHangingPieces(chess: Chess, color: Color): HangingPiece[] {
-  const enemy: Color = color === 'w' ? 'b' : 'w'
   const out: HangingPiece[] = []
   for (const row of chess.board()) {
     for (const sq of row) {
       if (!sq || sq.color !== color || sq.type === 'k') continue
-      const attackers = chess.attackers(sq.square, enemy)
-      if (attackers.length === 0) continue
-      const defenders = chess.attackers(sq.square, color)
-      const cheapestAttacker = Math.min(
-        ...attackers.map((a) => PIECE_VALUE[chess.get(a)!.type] ?? 0),
-      )
-      const pieceVal = PIECE_VALUE[sq.type] ?? 0
-      if (defenders.length === 0 || cheapestAttacker < pieceVal) {
-        out.push({
-          square: sq.square,
-          piece: sq.type,
-          cheapestAttacker,
-          defended: defenders.length > 0,
-        })
-      }
+      const loss = seeCaptureGain(chess, sq.square)
+      if (loss > 0) out.push({ square: sq.square, piece: sq.type, loss })
     }
   }
   return out
@@ -124,7 +109,7 @@ export function explain(b: FactBundle): string {
   if (b.grade.tier !== 'A' && b.hangingAfterMove.length > 0) {
     const h = b.hangingAfterMove[0]!
     const name = PIECE_NAME[h.piece] ?? 'piece'
-    parts.push(`It leaves your ${name} on ${h.square} ${h.defended ? 'underdefended' : 'hanging'}.`)
+    parts.push(`It leaves your ${name} on ${h.square} hanging (about ${h.loss} point${h.loss === 1 ? '' : 's'}).`)
   }
 
   if (b.grade.tier !== 'A') {
@@ -148,7 +133,7 @@ export function factBundleToText(b: FactBundle): string {
   const hanging =
     b.hangingAfterMove.length > 0
       ? b.hangingAfterMove
-          .map((h) => `${PIECE_NAME[h.piece] ?? h.piece} on ${h.square}${h.defended ? ' (underdefended)' : ' (undefended)'}`)
+          .map((h) => `${PIECE_NAME[h.piece] ?? h.piece} on ${h.square} (loses ~${h.loss})`)
           .join(', ')
       : 'none detected'
   return [
