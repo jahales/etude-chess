@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react'
-import { Chess } from 'chess.js'
+import { Chess, type Square as ChessSquare } from 'chess.js'
 import { Chessboard } from 'react-chessboard'
 import { GAMES, type PackGame } from '../content/games'
 import { parseGame, heroColorFromResult, buildQuiz, type QuizItem } from '../domain/harness'
@@ -295,6 +295,30 @@ function Play({
   const item = session.quiz[index]!
   const displayFen = phase === 'reveal' ? item.fen : pending?.afterFen ?? item.fen
 
+  // Click-to-move (alongside drag): click a piece, then its destination. Also
+  // makes the board reliably driveable by the Playwright E2E.
+  const [selected, setSelected] = useState<string | null>(null)
+  useEffect(() => setSelected(null), [index, phase, pending])
+
+  function onSquareClick(square: string) {
+    if (phase !== 'guess' || pending) return
+    if (selected) {
+      if (square !== selected && onDropMove(selected, square)) {
+        setSelected(null)
+        return
+      }
+      const pc = new Chess(item.fen).get(square as ChessSquare)
+      setSelected(pc && pc.color === session.heroColor ? square : null)
+      return
+    }
+    const pc = new Chess(item.fen).get(square as ChessSquare)
+    if (pc && pc.color === session.heroColor) setSelected(square)
+  }
+
+  const squareStyles = selected
+    ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
+    : undefined
+
   const arrows: Arrows = useMemo(() => {
     if (phase !== 'reveal') return [] as unknown as Arrows
     const out: string[][] = []
@@ -323,7 +347,9 @@ function Play({
               boardOrientation={session.heroColor === 'w' ? 'white' : 'black'}
               arePiecesDraggable={phase === 'guess' && !pending && engineReady}
               onPieceDrop={(from, to) => onDropMove(from, to)}
+              onSquareClick={onSquareClick}
               customArrows={arrows}
+              customSquareStyles={squareStyles}
               customBoardStyle={{ borderRadius: '6px' }}
             />
           </div>
