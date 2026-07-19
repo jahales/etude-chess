@@ -1,5 +1,5 @@
 import type { Tier } from '../domain/types'
-import type { CoachEntry } from './playMachine'
+import type { CoachEntry } from '../domain/gameRecord'
 import type { StoredGame } from '../persist/db'
 
 /**

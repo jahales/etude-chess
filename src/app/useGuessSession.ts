@@ -4,7 +4,7 @@ import { evaluateAndGrade } from '../engine/grading'
 import type { AnalysisLine } from '../engine/analyser'
 import { whiteWinPercent } from '../domain/winPercent'
 import { saveAttempt } from '../persist/db'
-import type { AnalyserState } from '../ui/useAnalyser'
+import type { AnalyserState } from './useAnalyser'
 import {
   sessionReducer,
   initialState,
