@@ -5,6 +5,7 @@ import {
   withEvalAt,
   progressOf,
   evalSwingAt,
+  accuracyReport,
   BATCH_NODES,
 } from './gameAnalysis'
 import type { StoredGame } from '../persist/db'
@@ -104,5 +105,81 @@ describe('evalSwingAt', () => {
 
   it('has no swing across a gap in the evaluations', () => {
     expect(evalSwingAt([ev(50), undefined, ev(30)], 2, 'w')).toBeUndefined()
+  })
+})
+
+describe('accuracyReport — the figure, and how much of the game it covers', () => {
+  const graded = (ply: number, swing: number) => ({
+    ply, fen: `f${ply}`, san: 'x', tier: 'A' as const, swing, bestMoveSan: null,
+  })
+
+  it('reports coach coverage honestly when the game was never analysed', () => {
+    // The bug behind #74: resigning leaves coachLog holding only the moves that
+    // finished grading — here 1 of your 2 — and the mean over that subset reads
+    // as if it described the whole game.
+    const r = accuracyReport(game({ sanHistory: ['e4', 'e5', 'Ke2', 'Nf6'], coachLog: [graded(0, 0)] }))
+    expect(r.source).toBe('coach')
+    expect(r.covered).toBe(1)
+    expect(r.total).toBe(2) // you played plies 0 and 2
+    expect(r.complete).toBe(false)
+    expect(r.accuracy).toBeCloseTo(100, 0)
+  })
+
+  it('uses the analysis once a pass has completed, covering every move', () => {
+    const r = accuracyReport(
+      game({
+        sanHistory: ['e4', 'e5', 'Ke2', 'Nf6'],
+        coachLog: [graded(0, 0)], // still partial — must be ignored in favour of the pass
+        analysedAt: 1, analysisNodes: BATCH_NODES,
+        startEval: ev(50),
+        evalByPly: [ev(55), ev(52), ev(20), ev(22)],
+      }),
+    )
+    expect(r.source).toBe('analysis')
+    expect(r.covered).toBe(2)
+    expect(r.complete).toBe(true)
+    // Ply 2 gave up 32 win%, so the mean must be well below the coach's 100.
+    expect(r.accuracy).toBeLessThan(80)
+  })
+
+  it('scores the first move, which needs the start position to be measurable', () => {
+    const withStart = accuracyReport(
+      game({ sanHistory: ['e4', 'e5'], analysedAt: 1, analysisNodes: BATCH_NODES,
+             startEval: ev(50), evalByPly: [ev(20), ev(22)] }),
+    )
+    expect(withStart.covered).toBe(1)
+    expect(withStart.complete).toBe(true)
+
+    // Without it, move 1 has nothing to compare against and coverage is honest about that.
+    const without = accuracyReport(
+      game({ sanHistory: ['e4', 'e5'], analysedAt: 1, analysisNodes: BATCH_NODES,
+             evalByPly: [ev(20), ev(22)] }),
+    )
+    expect(without.covered).toBe(0)
+    expect(without.complete).toBe(false)
+  })
+
+  it('counts Black’s moves when you played Black', () => {
+    const r = accuracyReport(
+      game({ yourColor: 'b', sanHistory: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'] }),
+    )
+    expect(r.total).toBe(2) // plies 1 and 3
+  })
+
+  it('does not let a move that gained ground score better than perfect', () => {
+    // A negative swing means the evaluation moved your way; clamping stops it
+    // pulling the mean above what the worst moves justify.
+    const r = accuracyReport(
+      game({ sanHistory: ['e4', 'e5', 'Nf3', 'Nc6'], analysedAt: 1, analysisNodes: BATCH_NODES,
+             startEval: ev(50), evalByPly: [ev(90), ev(88), ev(40), ev(38)] }),
+    )
+    expect(r.accuracy).toBeLessThanOrEqual(100)
+    expect(r.accuracy).toBeLessThan(90) // the ply-2 collapse still dominates
+  })
+
+  it('is 100 with nothing measured, but says it covers nothing', () => {
+    const r = accuracyReport(game({ sanHistory: [] }))
+    expect(r.accuracy).toBe(100)
+    expect(r.total).toBe(0)
   })
 })

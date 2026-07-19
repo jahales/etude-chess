@@ -1,5 +1,11 @@
 # 0017 — Coach *during* the game (coach-every-move), not only after it
 
+> **Amended 2026-07-19 (#74).** Accuracy is still "the game as played", with take-backs counted
+> separately — that stands. What changed is *where the number comes from*: `coachLog` only holds
+> moves the coach finished grading before the game ended, so it silently reported a subset as if
+> it were the whole game. Accuracy is now computed from a completed whole-game analysis where
+> one exists, and otherwise states its coverage. See `accuracyReport` in `src/app/gameAnalysis.ts`.
+
 **Status:** Accepted · 2026-07-18
 **Applies to:** v0.2.0 play-vs-Maia. Amends the timing of ADR
 [0013](0013-v0.1.0-play-vs-maia.md) and pulls the mid-game intervention forward from

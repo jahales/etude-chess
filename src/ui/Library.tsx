@@ -12,6 +12,7 @@ import { ANNOTATION_NAME } from '../domain/annotation'
 import type { AnalyserState } from '../app/useAnalyser'
 import { usePositionAnalysis } from '../app/usePositionAnalysis'
 import { useGameAnalysis } from '../app/useGameAnalysis'
+import { accuracyReport, BATCH_NODES } from '../app/gameAnalysis'
 import { countGames, gameKind, listGames, type StoredGame } from '../persist/db'
 import { BoardPanel } from './BoardPanel'
 import { LinesPanel } from './Analysis'
@@ -98,7 +99,10 @@ export function Library({
               <td>
                 <span className={`result ${g.outcome}`}>{outcomeText(g)}</span>
               </td>
-              <td className="num mono">{accuracyText(g)}</td>
+              <td className="num mono">
+                {accuracyOf(g).text}
+                {accuracyOf(g).note && <span className="coverage-note">{accuracyOf(g).note}</span>}
+              </td>
               <td className="num mono">{g.takebacks}</td>
               <td>
                 <button className="btn ghost" type="button" onClick={() => onOpen(g)}>
@@ -128,12 +132,21 @@ function outcomeText(g: StoredGame): string {
 }
 
 /**
- * A game the coach never graded has `accuracy: 0`, which would read as a verdict
- * on your play rather than as an absence of data.
+ * Accuracy, plus how much of the game it actually rests on.
+ *
+ * The stored `accuracy` is a mean over `coachLog`, which only holds moves the
+ * coach finished grading before the game ended — so a resigned game reports a
+ * figure computed from its early, good moves and reads far too high. Recompute
+ * from a completed analysis where we have one, and where we don't, say what the
+ * number covers instead of implying it covers everything (#74).
  */
-function accuracyText(g: StoredGame): string {
-  const graded = g.coachLog === undefined || g.coachLog.length > 0
-  return graded ? `${g.accuracy.toFixed(2)}%` : '—'
+function accuracyOf(g: StoredGame): { text: string; note?: string } {
+  const r = accuracyReport(g)
+  if (r.covered === 0) return { text: '—', note: 'not graded' }
+  return {
+    text: `${r.accuracy.toFixed(2)}%`,
+    note: r.complete ? undefined : `over ${r.covered} of ${r.total} moves`,
+  }
 }
 
 // ---------- Replay ----------
@@ -187,6 +200,13 @@ export function Replay({
   const moves = useMemo(() => buildReplayMoves(game, whole.evalByPly), [game, whole.evalByPly])
   const rows = useMemo(() => replayRows(moves), [moves])
   const study = useMemo(() => movesWorthStudying(moves, game.yourColor), [moves, game.yourColor])
+  // Recomputed from the live analysis state so finishing a pass corrects the
+  // figure immediately, rather than only after the record is re-read.
+  const accuracy = useMemo(
+    () => accuracyOf({ ...game, evalByPly: whole.evalByPly, startEval: whole.startEval,
+                       ...(whole.analysed ? { analysedAt: 1, analysisNodes: BATCH_NODES } : {}) }),
+    [game, whole.evalByPly, whole.startEval, whole.analysed],
+  )
 
   // A fresh deep analysis supersedes the batch score for the position it was
   // actually computed for; otherwise fall back to whatever the pass has produced.
@@ -237,8 +257,9 @@ export function Replay({
             You as {sideName(game.yourColor)} vs Maia {game.level}
           </h2>
           <p className="playing-as">
-            {outcomeText(game)} · {accuracyText(game)} accuracy · {game.takebacks} take-back
-            {game.takebacks === 1 ? '' : 's'}
+            {outcomeText(game)} · {accuracy.text} accuracy
+            {accuracy.note && <span className="coverage-note"> ({accuracy.note})</span>} ·{' '}
+            {game.takebacks} take-back{game.takebacks === 1 ? '' : 's'}
           </p>
           <button className="btn ghost back" type="button" onClick={onBack}>
             ← Back to your games
