@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js'
 import type { Color, Tier } from './types'
 import type { MoveGrade } from './grade'
-import { findHangingPieces, uciToSan, PIECE_NAME, type HangingPiece } from './factBundle'
+import { hangingAfterMove, uciToSan, PIECE_NAME, type HangingPiece } from './factBundle'
 
 // The in-game coach's verdict on one of *your* moves (ADR 0017). Like the fact
 // bundle, but engine-based (there is no master move in a live game vs Maia): it
@@ -40,7 +40,7 @@ export function coachVerdict(input: CoachInput): CoachVerdict {
   const chess = new Chess(input.fen)
   const mover = chess.turn() as Color
   const applied = chess.move(input.userMoveSan) // legal by contract
-  const hanging = findHangingPieces(chess, mover)
+  const hanging = hangingAfterMove(chess, mover, applied)
   const bestMoveSan = input.bestMoveUci ? uciToSan(input.fen, input.bestMoveUci) : null
   const matchedBest = !!bestMoveSan && bestMoveSan === applied.san
 
