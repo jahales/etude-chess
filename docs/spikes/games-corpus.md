@@ -171,6 +171,59 @@ it's the clean way to label openings at scale (our `openings.ts` is currently ha
   DuckDB-WASM over Parquet gives indexed queries against a large static file with no backend —
   fits the constitution's no-backend rule. Noted, not needed yet.
 
+## 5. Delivery — measured, 2026-07-18
+The §4 numbers above were estimates. A follow-up pass measured them on **121,332 real games /
+8,292,419 plies** (`lichess_db_standard_rated_2013-01`), which corrects two of them and
+changes the item-9 design.
+
+**Bytes per game, measured** (raw PGN is 764.9 B/game, of which **348.5 B — 46% — is headers**):
+
+| Representation | raw | gzip-9 | brotli-11 |
+|---|---|---|---|
+| Full PGN | 764.9 | 211.5 | 142.0 |
+| SAN tokens only | 282.3 | 99.4 | 76.5 |
+| 16-bit `from\|to<<6\|promo<<12` | 126.8 | 92.1 | 76.2 |
+| **8-bit index-into-legal-moves** | 63.4 | 41.8 | **40.9** |
+
+So the §4 estimate of "~150 B/game for a compact binary" was **~4× pessimistic**; the real
+figure is ~41 B/game over the wire, and 20 MB would hold ~490k games. Note the byte-index row
+barely improves under brotli — the stream is already near its entropy, so generic compression
+on top of a good move encoding buys almost nothing, while gzip on text PGN leaves a lot on the
+table (brotli-11 is 1.49× better than gzip-9 there). **Precompress static text as `.br`.**
+
+**The catch that reverses the recommendation.** Encoding to legal-move indices requires
+generating the legal move list at every ply, and with `chess.js` that measured at **~12
+games/sec** — a 100k-game import would take **over two hours**. Storage was never the binding
+constraint; **CPU is**. At 765 B/game, 100k games is ~76 MB of raw PGN, comfortably inside
+Chrome's per-origin quota (60% of disk) and Firefox's (10 GiB). So for v0.3 we **store the
+PGN text** and keep the byte encoding documented as the escape hatch if storage ever bites.
+
+**Streaming matters more than encoding.** [chessops](https://github.com/niklasf/chessops)
+(by the Lichess author) ships an **asynchronous streaming PGN parser** that preserves
+comments, NAGs and variations — exactly ADR 0018 §3's requirement — and is the only JS parser
+that won't force a multi-hundred-MB file into memory as one string. Prefer it over a
+hand-rolled `[Event ` splitter, which implies whole-file-in-memory.
+
+**`navigator.storage.persist()` is effectively mandatory**, not optional: it is what exempts
+us from Safari's 7-day eviction of script-written storage. Re-importability (§ item 9) is the
+backstop for when it's declined, not a substitute for asking.
+
+**Prior art.** [En Croissant](https://encroissant.org/docs/reference/database-format) is the
+closest precedent (SQLite, one byte per move = index into the legal moves; their published
+Lumbra build is 291 B/game *including* indexes and normalized player/event tables);
+[OCGDB](https://github.com/nguyenpham/ocgdb) is the same idea as an open standard. No
+open-source *browser* app ships a multi-million-game database client-side — that space is
+empty. Lichess's own [compression](https://github.com/lichess-org/compression) Huffman-codes
+the legal-move rank at a measured **4.41 bits/ply**; the gap from our 5.51 is purely move
+*ordering* (their PSQT-tuned sort), a ~20% win for a large complexity jump — not before the
+content loop exists.
+
+**One framing question this raises for later.** `lila-openingexplorer` stores **aggregated
+per-position W/D/L counts, not games**. If the eventual feature is "what do strong players
+play here", that is a completely different and far smaller artifact than a game database.
+Worth settling which one we're building before optimizing bytes-per-game — it bears on the
+deferred position-search work, not on v0.3.
+
 ## What this means for the product
 "Master games database" becomes, honestly stated: **a searchable database of strong-player
 games (CC0) plus a curated collection of historical classics, annotated by our engine and our
