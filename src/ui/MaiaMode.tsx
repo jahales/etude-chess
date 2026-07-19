@@ -50,8 +50,8 @@ export function MaiaSetup({
   }
 
   return (
+    // The screen shell supplies the heading, so this panel starts at the pitch.
     <div className="maia-setup">
-      <h2>Play a human-like opponent — with a coach on every move</h2>
       <p className="maia-setup-lede">
         Maia plays like a real player at its rating. After each move the coach grades it and
         shows why — take it back and rethink, or play on. Ask &ldquo;show me&rdquo; when you want the

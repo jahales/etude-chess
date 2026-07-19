@@ -8,6 +8,7 @@ import { summarize, type Attempt } from '../domain/session'
 import type { Color } from '../domain/types'
 import { useGuessSession } from '../app/useGuessSession'
 import { usePlaySession } from '../app/usePlaySession'
+import { useHomeStats, type HomeStats } from '../app/useHomeStats'
 import type { MaiaLevel } from '../engine/maia/opponent'
 import { useAnalyser } from './useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
@@ -41,7 +42,13 @@ type Arrows = NonNullable<ComponentProps<typeof Chessboard>['customArrows']>
 
 const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞' }
 
-type Mode = 'home' | 'guess' | 'maia'
+// Home is a chooser; each mode gets a focused setup screen before it starts
+// (docs/v0.3.0-plan.md §2). Screens are a flat union rather than nested state
+// because there is no back-stack to model — everything returns to Home.
+type Mode = 'home' | 'maia-setup' | 'maia' | 'guess-pick' | 'guess'
+
+/** Analysis settings configure guess-mode grading, so the gear only belongs there. */
+const SETTINGS_MODES: Mode[] = ['guess-pick', 'guess']
 
 export function App() {
   const engine = useAnalyser() // one shared Stockfish worker (guess grading + play coach)
@@ -50,11 +57,16 @@ export function App() {
   const gstate = guess.state
   const [mode, setMode] = useState<Mode>('home')
   const [showSettings, setShowSettings] = useState(false)
+  // Re-read the Home stats each time we land there, so a game you just finished
+  // shows up without a refresh.
+  const [homeVisits, setHomeVisits] = useState(0)
+  const stats = useHomeStats(homeVisits)
 
   const goHome = () => {
     guess.goHome()
     play.goHome()
     setMode('home')
+    setHomeVisits((n) => n + 1)
   }
   const startGuess = (g: PackGame) => {
     guess.startGame(g)
@@ -65,6 +77,7 @@ export function App() {
     setMode('maia')
   }
 
+  const showSettingsGear = SETTINGS_MODES.includes(mode)
   const enginePill =
     mode === 'maia'
       ? play.maiaError
@@ -88,7 +101,7 @@ export function App() {
           <b>chess</b>
         </button>
         <div className="top-right">
-          {mode === 'guess' && (
+          {showSettingsGear && (
             <button
               className="settings-btn"
               type="button"
@@ -103,19 +116,31 @@ export function App() {
         </div>
       </header>
 
-      {showSettings && mode === 'guess' && (
+      {showSettings && showSettingsGear && (
         <SettingsPanel settings={guess.settings} onChange={guess.setSettings} />
       )}
 
       <main className="main">
         {mode === 'home' && (
           <Home
-            onPickGame={startGuess}
-            onPlayMaia={startMaia}
-            defaultLevel={play.defaultLevel}
-            engineError={guess.engineError}
-            engineReady={guess.engineReady}
+            stats={stats}
+            onPlay={() => setMode('maia-setup')}
+            onStudy={() => setMode('guess-pick')}
           />
+        )}
+        {mode === 'maia-setup' && (
+          <Screen title="Play a coached game" onBack={goHome}>
+            <MaiaSetup onPlay={startMaia} defaultLevel={play.defaultLevel} />
+          </Screen>
+        )}
+        {mode === 'guess-pick' && (
+          <Screen title="Study a master game" onBack={goHome}>
+            <GamePicker
+              onPickGame={startGuess}
+              engineError={guess.engineError}
+              engineReady={guess.engineReady}
+            />
+          </Screen>
         )}
         {mode === 'guess' && gstate.screen === 'play' && gstate.session && (
           <Play
@@ -198,50 +223,137 @@ function SettingsPanel({
 // ---------- Home ----------
 
 function Home({
-  onPickGame,
-  onPlayMaia,
-  defaultLevel,
-  engineError,
-  engineReady,
+  stats,
+  onPlay,
+  onStudy,
 }: {
-  onPickGame: (g: PackGame) => void
-  onPlayMaia: (opts: { yourColor: Color; level: MaiaLevel }) => void
-  defaultLevel: MaiaLevel
-  engineError: string | null
-  engineReady: boolean
+  stats: HomeStats
+  onPlay: () => void
+  onStudy: () => void
 }) {
   return (
     <section className="home">
       <h1 className="title">Train your chess judgment.</h1>
+      <p className="lede">Pick how you want to work today.</p>
 
-      <MaiaSetup onPlay={onPlayMaia} defaultLevel={defaultLevel} />
-
-      <div className="home-guess">
-        <h2>…or study a master&apos;s game by playing it.</h2>
-        <p className="lede">
-          Take the winner&apos;s side of a classic. At each move, commit your choice and a one-line
-          reason <em>before</em> the answer appears — then see how the engine grades it. A move as
-          good as the master&apos;s earns full marks.
-        </p>
-        {engineError && <p className="banner error">{engineError}</p>}
-        {!engineReady && !engineError && (
-          <p className="banner">Loading the chess engine… you can pick a game now.</p>
-        )}
-        <ul className="game-list">
-          {GAMES.map((g) => (
-            <li key={g.id} className="game-card">
-              <div>
-                <h2>{g.title}</h2>
-                <p>{g.blurb}</p>
-              </div>
-              <button className="btn primary" type="button" onClick={() => onPickGame(g)}>
-                Study this game
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ul className="mode-cards">
+        <ModeCard
+          title="Play a coached game"
+          pitch="A full game against a human-like opponent, with a coach grading every move as you go."
+          cta="Choose colour & level"
+          stat={playStat(stats)}
+          onClick={onPlay}
+        />
+        <ModeCard
+          title="Study a master game"
+          pitch="Take the winner's side of a classic. Commit your move and your reasoning before the answer appears."
+          cta="Pick a game"
+          stat={stats.decisions > 0 ? `${stats.decisions} decisions committed` : undefined}
+          onClick={onStudy}
+        />
+      </ul>
     </section>
+  )
+}
+
+/**
+ * Your play history in one line, or nothing at all before you've played. An
+ * empty card should read as an invitation, not as a slot waiting to be filled.
+ */
+function playStat(stats: HomeStats): string | undefined {
+  if (stats.gamesPlayed === 0) return undefined
+  const games = `${stats.gamesPlayed} played`
+  return stats.lastAccuracy === undefined
+    ? games
+    : `last game ${stats.lastAccuracy.toFixed(2)}% · ${games}`
+}
+
+function ModeCard({
+  title,
+  pitch,
+  cta,
+  stat,
+  onClick,
+}: {
+  title: string
+  pitch: string
+  cta: string
+  stat?: string
+  onClick: () => void
+}) {
+  return (
+    <li className="mode-card">
+      {/* The whole card is the control — a button inside would give two tab stops
+          to the same destination. */}
+      <button type="button" className="mode-card-btn" onClick={onClick}>
+        <h2>{title}</h2>
+        <p className="mode-pitch">{pitch}</p>
+        <div className="mode-foot">
+          <span className="mode-cta">{cta} →</span>
+          {stat && <span className="mode-stat mono">{stat}</span>}
+        </div>
+      </button>
+    </li>
+  )
+}
+
+/** Shell for a focused setup screen: a title, a way back, and the content. */
+function Screen({
+  title,
+  onBack,
+  children,
+}: {
+  title: string
+  onBack: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <section className="screen">
+      <div className="screen-head">
+        <button className="btn ghost back" type="button" onClick={onBack}>
+          ← Home
+        </button>
+        <h1 className="screen-title">{title}</h1>
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function GamePicker({
+  onPickGame,
+  engineError,
+  engineReady,
+}: {
+  onPickGame: (g: PackGame) => void
+  engineError: string | null
+  engineReady: boolean
+}) {
+  return (
+    <>
+      <p className="lede">
+        Take the winner&apos;s side of a classic. At each move, commit your choice and a one-line
+        reason <em>before</em> the answer appears — then see how the engine grades it. A move as
+        good as the master&apos;s earns full marks.
+      </p>
+      {engineError && <p className="banner error">{engineError}</p>}
+      {!engineReady && !engineError && (
+        <p className="banner">Loading the chess engine… you can pick a game now.</p>
+      )}
+      <ul className="game-list">
+        {GAMES.map((g) => (
+          <li key={g.id} className="game-card">
+            <div>
+              <h2>{g.title}</h2>
+              <p>{g.blurb}</p>
+            </div>
+            <button className="btn primary" type="button" onClick={() => onPickGame(g)}>
+              Study this game
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 
