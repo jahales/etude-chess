@@ -9,9 +9,11 @@ import type { Color } from '../domain/types'
 import { useGuessSession } from '../app/useGuessSession'
 import { usePlaySession } from '../app/usePlaySession'
 import { useHomeStats, type HomeStats } from '../app/useHomeStats'
+import { getGame, type StoredGame } from '../persist/db'
 import type { MaiaLevel } from '../engine/maia/opponent'
 import { useAnalyser } from './useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
+import { Library, Replay } from './Library'
 import {
   STRENGTH_PRESETS,
   MULTIPV_OPTIONS,
@@ -45,7 +47,7 @@ const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '
 // Home is a chooser; each mode gets a focused setup screen before it starts
 // (docs/v0.3.0-plan.md §2). Screens are a flat union rather than nested state
 // because there is no back-stack to model — everything returns to Home.
-type Mode = 'home' | 'maia-setup' | 'maia' | 'guess-pick' | 'guess'
+type Mode = 'home' | 'maia-setup' | 'maia' | 'guess-pick' | 'guess' | 'library' | 'replay'
 
 /** Analysis settings configure guess-mode grading, so the gear only belongs there. */
 const SETTINGS_MODES: Mode[] = ['guess-pick', 'guess']
@@ -61,6 +63,8 @@ export function App() {
   // shows up without a refresh.
   const [homeVisits, setHomeVisits] = useState(0)
   const stats = useHomeStats(homeVisits)
+  // The game being replayed, plus where to land in it.
+  const [replaying, setReplaying] = useState<{ game: StoredGame; cursor: number } | null>(null)
 
   const goHome = () => {
     guess.goHome()
@@ -75,6 +79,19 @@ export function App() {
   const startMaia = (opts: { yourColor: Color; level: MaiaLevel }) => {
     play.newGame(opts)
     setMode('maia')
+  }
+  const openReplay = (game: StoredGame, cursor = 0) => {
+    setReplaying({ game, cursor })
+    setMode('replay')
+  }
+  /**
+   * Jump into the game you just finished from its review. It's already been
+   * persisted by the time the review renders, so this reads it back rather than
+   * converting live state — one code path for replay, whatever the source.
+   */
+  const reviewPly = async (gameId: string, ply: number) => {
+    const stored = await getGame(gameId)
+    if (stored) openReplay(stored, ply + 1) // cursor N shows the position after N moves
   }
 
   const showSettingsGear = SETTINGS_MODES.includes(mode)
@@ -126,6 +143,7 @@ export function App() {
             stats={stats}
             onPlay={() => setMode('maia-setup')}
             onStudy={() => setMode('guess-pick')}
+            onLibrary={() => setMode('library')}
           />
         )}
         {mode === 'maia-setup' && (
@@ -168,6 +186,19 @@ export function App() {
             play={play}
             onNewGame={() => play.newGame({ yourColor: play.state.yourColor, level: play.state.level })}
             onHome={goHome}
+            onReviewPly={reviewPly}
+          />
+        )}
+        {mode === 'library' && (
+          <Screen title="Your games" onBack={goHome}>
+            <Library onOpen={(g) => openReplay(g)} onPlay={() => setMode('maia-setup')} />
+          </Screen>
+        )}
+        {mode === 'replay' && replaying && (
+          <Replay
+            game={replaying.game}
+            initialCursor={replaying.cursor}
+            onBack={() => setMode('library')}
           />
         )}
       </main>
@@ -226,10 +257,12 @@ function Home({
   stats,
   onPlay,
   onStudy,
+  onLibrary,
 }: {
   stats: HomeStats
   onPlay: () => void
   onStudy: () => void
+  onLibrary: () => void
 }) {
   return (
     <section className="home">
@@ -250,6 +283,13 @@ function Home({
           cta="Pick a game"
           stat={stats.decisions > 0 ? `${stats.decisions} decisions committed` : undefined}
           onClick={onStudy}
+        />
+        <ModeCard
+          title="Your games"
+          pitch="Walk back through a finished game with the coach's verdict on every move."
+          cta="Browse your games"
+          stat={stats.gamesPlayed > 0 ? `${stats.gamesPlayed} saved` : undefined}
+          onClick={onLibrary}
         />
       </ul>
     </section>

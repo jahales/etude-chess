@@ -117,7 +117,14 @@ function plyLabel(ply: number, yourColor: Color): string {
 }
 
 /** Post-game review: final-line accuracy, take-back count, by-phase, and worst moments. */
-function Review({ state }: { state: PlayState }) {
+function Review({
+  state,
+  onReviewPly,
+}: {
+  state: PlayState
+  /** Open this game in replay at the given ply. */
+  onReviewPly: (gameId: string, ply: number) => void
+}) {
   if (state.coachLog.length === 0) {
     return (
       <div className="review">
@@ -164,15 +171,24 @@ function Review({ state }: { state: PlayState }) {
           <ul>
             {worst.map((e) => (
               <li key={e.fen}>
-                <span className="mono">{plyLabel(e.ply, state.yourColor)}</span> you played{' '}
-                <b className="mono">{e.san}</b>
-                <span className="lost"> −{Math.round(e.swing)}%</span>
-                {e.bestMoveSan && e.bestMoveSan !== e.san && (
-                  <>
-                    {' '}
-                    · best <b className="mono">{e.bestMoveSan}</b>
-                  </>
-                )}
+                {/* The whole entry navigates — a flagged mistake with no way back
+                    into the position is where the old loop dropped the thread (#39). */}
+                <button
+                  type="button"
+                  className="worst-jump"
+                  onClick={() => onReviewPly(state.gameId, e.ply)}
+                >
+                  <span className="mono">{plyLabel(e.ply, state.yourColor)}</span> you played{' '}
+                  <b className="mono">{e.san}</b>
+                  <span className="lost"> −{Math.round(e.swing)}%</span>
+                  {e.bestMoveSan && e.bestMoveSan !== e.san && (
+                    <>
+                      {' '}
+                      · best <b className="mono">{e.bestMoveSan}</b>
+                    </>
+                  )}
+                  <span className="worst-cta"> · replay →</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -313,7 +329,17 @@ function MoveCell({ move }: { move?: Cell }) {
   )
 }
 
-export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNewGame: () => void; onHome: () => void }) {
+export function MaiaPlay({
+  play,
+  onNewGame,
+  onHome,
+  onReviewPly,
+}: {
+  play: PlaySession
+  onNewGame: () => void
+  onHome: () => void
+  onReviewPly: (gameId: string, ply: number) => void
+}) {
   const { ref, width } = useBoardWidth()
   const [flipped, setFlipped] = useState(false)
   const { state, maiaReady, maiaError, showEval } = play
@@ -391,7 +417,7 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
             <div className="maia-status over" role="status">
               <span className="maia-result">{describeResult(state.result)}</span>
             </div>
-            <Review state={state} />
+            <Review state={state} onReviewPly={onReviewPly} />
           </>
         ) : !maiaReady ? (
           <div className="maia-status" role="status">

@@ -545,13 +545,18 @@ button {
   font-size: 0.9rem;
   color: #fff;
 }
-.tier-a .tier-badge {
+/* The tier class sits on a parent (.verdict) in some places and on the badge
+   itself in others (replay), so match both rather than nesting a wrapper. */
+.tier-a .tier-badge,
+.tier-badge.tier-a {
   background: var(--good);
 }
-.tier-b .tier-badge {
+.tier-b .tier-badge,
+.tier-badge.tier-b {
   background: var(--warn);
 }
-.tier-c .tier-badge {
+.tier-c .tier-badge,
+.tier-badge.tier-c {
   background: var(--bad);
 }
 .your-move {
@@ -1009,4 +1014,157 @@ button {
 .lines-reveal .your-line .line-pv {
   color: var(--ink);
   font-weight: 600;
+}
+
+/* ---------- Library + replay (v0.3, #39) ---------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.library-empty {
+  margin-top: 1.4rem;
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+}
+
+/* A table is wide; let it scroll inside its own box rather than the page. */
+.table-wrap {
+  margin-top: 1.4rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.games-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+}
+.games-table th,
+.games-table td {
+  text-align: left;
+  padding: 0.62rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.games-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.games-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.games-table tbody tr:hover {
+  background: color-mix(in srgb, var(--green) 6%, transparent);
+}
+.games-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.games-table .result.you {
+  color: var(--good);
+}
+.games-table .result.maia {
+  color: var(--bad);
+}
+.badge {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+.replay-pos {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5rem;
+  text-align: center;
+}
+.replay-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+.replay-coach {
+  margin-top: 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.92rem;
+  min-height: 1.4rem;
+}
+.replay-coach-empty {
+  color: var(--ink-faint);
+}
+
+/* Move cells become jump targets in replay. */
+.mv-jump {
+  border: none;
+  background: none;
+  padding: 0.05rem 0.25rem;
+  margin: 0 -0.25rem;
+  border-radius: 5px;
+  font: inherit;
+  font-family: var(--mono);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.mv-jump:hover {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+.mv-jump.selected {
+  background: var(--green);
+  color: #fff;
+}
+.mv-jump.selected .mv-score,
+.mv-jump.selected .mv-no {
+  color: color-mix(in srgb, #fff 75%, transparent);
+}
+
+/* "Worth another look" entries navigate into replay. */
+.worst-jump {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 0.2rem 0.35rem;
+  margin: 0 -0.35rem;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.worst-jump:hover {
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+}
+.worst-cta {
+  color: var(--green);
 }
