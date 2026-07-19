@@ -5,8 +5,10 @@ import {
   replayRows,
   coachAtCursor,
   clampCursor,
+  movesWorthStudying,
   type ReplayMove,
 } from '../app/replay'
+import { ANNOTATION_NAME } from '../domain/annotation'
 import type { AnalyserState } from '../app/useAnalyser'
 import { usePositionAnalysis } from '../app/usePositionAnalysis'
 import { useGameAnalysis } from '../app/useGameAnalysis'
@@ -184,6 +186,7 @@ export function Replay({
 
   const moves = useMemo(() => buildReplayMoves(game, whole.evalByPly), [game, whole.evalByPly])
   const rows = useMemo(() => replayRows(moves), [moves])
+  const study = useMemo(() => movesWorthStudying(moves, game.yourColor), [moves, game.yourColor])
 
   // A fresh deep analysis supersedes the batch score for the position it was
   // actually computed for; otherwise fall back to whatever the pass has produced.
@@ -276,10 +279,26 @@ export function Replay({
               type="button"
               onClick={whole.running ? whole.cancel : whole.start}
             >
-              {whole.running
-                ? `Analysing ${whole.progress?.done ?? 0}/${whole.progress?.total ?? 0} — stop`
-                : 'Analyse the whole game'}
+              {whole.running ? 'Stop analysing' : 'Analyse the whole game'}
             </button>
+          )}
+          {whole.running && whole.progress && (
+            <div
+              className="analysis-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={whole.progress.total}
+              aria-valuenow={whole.progress.done}
+              aria-label="Analysing the game"
+            >
+              <div
+                className="analysis-progress-fill"
+                style={{ width: `${(whole.progress.done / whole.progress.total) * 100}%` }}
+              />
+              <span className="analysis-progress-label mono">
+                {whole.progress.done}/{whole.progress.total}
+              </span>
+            </div>
           )}
           {whole.analysed && <span className="replay-coach-empty">Whole game analysed.</span>}
           {analysis.available ? (
@@ -302,6 +321,25 @@ export function Replay({
           <LinesPanel fen={fen} lines={analysis.lines} />
         </div>
 
+        {study.length > 0 && (
+          <div className="study-list">
+            <h3>Worth studying</h3>
+            <ul>
+              {study.map((m) => (
+                <li key={m.ply}>
+                  <button type="button" className="worst-jump" onClick={() => go(m.ply + 1)}>
+                    <span className="mono">{moveNumberLabel(m.ply)}</span>{' '}
+                    <b className="mono">{m.san}</b>
+                    <span className={`glyph ${glyphClass(m.annotation)}`}>{m.annotation}</span>
+                    <span className="lost"> −{Math.round(m.evalSwing ?? 0)}%</span>
+                    <span className="worst-cta"> · go →</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <ol className="movelist" aria-label="Moves">
           {rows.map((r) => (
             <li key={r.n}>
@@ -314,6 +352,15 @@ export function Replay({
       </div>
     </section>
   )
+}
+
+/** 1-based move number with a colour marker, e.g. "12." or "12…". */
+function moveNumberLabel(ply: number): string {
+  return `${Math.floor(ply / 2) + 1}${ply % 2 === 0 ? '.' : '…'}`
+}
+
+function glyphClass(annotation?: string): string {
+  return annotation === '??' ? 'glyph-blunder' : annotation === '?' ? 'glyph-mistake' : 'glyph-dubious'
 }
 
 function ReplayCell({
@@ -337,6 +384,14 @@ function ReplayCell({
     >
       {move.tier && <span className={`tier-dot ${TIER_CLASS[move.tier]}`} title={TIER_TEXT[move.tier]} />}
       {move.san}
+      {move.annotation && (
+        <span
+          className={`glyph ${glyphClass(move.annotation)}`}
+          title={`${ANNOTATION_NAME[move.annotation]} — about ${Math.round(move.evalSwing ?? 0)}% of the winning chances`}
+        >
+          {move.annotation}
+        </span>
+      )}
       {move.score && <span className="mv-score">{move.score}</span>}
     </button>
   )

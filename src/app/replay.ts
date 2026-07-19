@@ -1,4 +1,6 @@
-import type { Tier } from '../domain/types'
+import type { Color, Tier } from '../domain/types'
+import { annotationForSwing, moverColorAt, type Annotation } from '../domain/annotation'
+import { evalSwingAt } from './gameAnalysis'
 import type { CoachEntry, PositionEval } from '../domain/gameRecord'
 import type { StoredGame } from '../persist/db'
 
@@ -19,6 +21,14 @@ export interface ReplayMove {
   bestMoveSan?: string | null
   /** Evaluation *after* this move, White's perspective. */
   score?: string
+  /**
+   * Win% this move gave up, from the mover's side. Derived from the whole-game
+   * analysis, so unlike `swing` it covers **every** move — including the
+   * opponent's, and your own moves the coach never graded.
+   */
+  evalSwing?: number
+  /** `?!`/`?`/`??` from `evalSwing`; absent when the move was fine or unmeasured. */
+  annotation?: Annotation
 }
 
 export interface ReplayRow {
@@ -42,6 +52,9 @@ export function buildReplayMoves(
 
   return game.sanHistory.map((san, ply) => {
     const coach = byPly.get(ply)
+    // Measured from the mover's own side, so a glyph means the same thing on
+    // both halves of the board.
+    const swing = evalSwingAt(evalByPly, ply, moverColorAt(ply))
     return {
       ply,
       san,
@@ -49,8 +62,28 @@ export function buildReplayMoves(
       swing: coach?.swing,
       bestMoveSan: coach?.bestMoveSan,
       score: evalByPly?.[ply]?.label,
+      evalSwing: swing,
+      annotation: annotationForSwing(swing),
     }
   })
+}
+
+/**
+ * Your worst moves, biggest first — the "what should I study" list.
+ *
+ * Only *your* moves: the point is your own improvement, and a list dominated by
+ * the opponent's blunders would bury it. Moves the analysis couldn't measure are
+ * omitted rather than assumed fine.
+ */
+export function movesWorthStudying(
+  moves: readonly ReplayMove[],
+  yourColor: Color,
+  limit = 5,
+): ReplayMove[] {
+  return moves
+    .filter((m) => moverColorAt(m.ply) === yourColor && m.annotation !== undefined)
+    .sort((a, b) => (b.evalSwing ?? 0) - (a.evalSwing ?? 0))
+    .slice(0, limit)
 }
 
 /**

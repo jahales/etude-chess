@@ -1182,3 +1182,75 @@ button {
 .worst-cta {
   color: var(--green);
 }
+
+/* Move annotations (#67) — only the three we can actually measure. */
+.glyph {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.85em;
+  margin-left: 0.15rem;
+}
+.glyph-dubious {
+  color: var(--warn);
+}
+.glyph-mistake {
+  color: var(--bad);
+}
+.glyph-blunder {
+  color: var(--bad);
+  text-shadow: 0 0 0.5px currentColor;
+}
+.mv-jump.selected .glyph {
+  color: #fff;
+}
+
+/* "Worth studying": your worst moves, biggest first, each a jump target. */
+.study-list {
+  margin-top: 1rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.study-list h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.4rem;
+}
+.study-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.analysis-progress {
+  position: relative;
+  flex: 1 1 8rem;
+  height: 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+  min-width: 8rem;
+}
+.analysis-progress-fill {
+  height: 100%;
+  background: color-mix(in srgb, var(--green) 30%, transparent);
+  transition: width 160ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .analysis-progress-fill {
+    transition: none;
+  }
+}
+.analysis-progress-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
