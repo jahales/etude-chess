@@ -29,9 +29,10 @@ test.describe('play vs Maia + ambient coach', () => {
     const showMe = page.getByRole('button', { name: /Show me/ })
     await expect(showMe).toBeVisible()
 
-    // Reveal the engine's answer + lines.
+    // Reveal the engine's answer + lines — your own move is scored alongside them.
     await showMe.click()
-    await expect(page.getByText(/Engine.s pick/)).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.lines-reveal')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.your-line')).toContainText('e4')
 
     // Take back the pair → the move list empties (accuracy is the game as played).
     await page.getByRole('button', { name: /Take back/ }).click()
