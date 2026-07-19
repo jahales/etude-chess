@@ -1,96 +1,96 @@
-# 0018 — Games database: CC0/CC-BY corpora, and annotations we compute or license
+# 0018 — Games database: bring-your-own corpora; we ship only what we own
 
 **Status:** Accepted · 2026-07-19
 **Applies to:** the games database (#40) and all future content sourcing.
 **Evidence:** [../spikes/games-corpus.md](../spikes/games-corpus.md).
 
 ## Context
-Issue #40 asks for a master-games database "with annotations, if possible". Before writing
-code we settled what may lawfully be shipped, because it determines the product shape rather
-than merely the implementation. Two findings dominate:
+Issue #40 asks for a master-games database "with annotations, if possible". Research settled
+the law first, because it determines the product shape (see the spike). Two findings dominate:
 
-1. **Move scores are facts** (*Feist*; *NBA v. Motorola*; German/Swiss federation and IP-office
-   positions; the 2016 Agon injunction denied in the SDNY on a non-copyright theory).
+1. **Move scores are facts** (*Feist*; *NBA v. Motorola*; the 2016 Agon injunction denied in
+   the SDNY on a non-copyright theory; German/Swiss federation and IP-office positions).
    **Annotations are copyrighted prose.**
-2. **Compilations carry rights of their own** — thin in the US, but the **EU sui generis
-   database right** applies regardless of originality, and chess *favours* the compiler:
-   games are **obtained**, not created, which is exactly what *BHB*/*Fixtures* said qualifies.
+2. **Compilations carry rights of their own.** US compilation copyright is thin, but the **EU
+   sui generis database right** applies regardless of originality — and chess *favours* the
+   compiler, because games are **obtained**, not created (exactly what *BHB*/*Fixtures* said
+   qualifies). No chess-specific ruling exists; the risk is real and unsettled.
+
+Every one of those problems is a **redistribution** problem. The owner's direction — *let users
+attach their own databases; the project stays open and never goes commercial; prefer the
+strongest standard-time-control games; annotations are a bonus* — dissolves it.
 
 ## Decision
-1. **Source only from corpora with a written licence.** Only three qualify:
-   - **CC0 — preferred**: the [Lichess open database](https://database.lichess.org/) (7.9B
-     games, 2.51 TB, `.pgn.zst`) and its derivative **[Lichess Elite](https://database.nikonoel.fr/)**
-     (2400+/2200+, later 2500+/2300+; a 582 MB historical `.7z` + monthly files). CC0
-     expressly waives *database rights as well as* copyright — precisely why it defuses the
-     sui-generis risk. **Online play only**; there is **no masters export** (the explorer's
-     ~2M-game OTB set was a third-party donation, is not downloadable, and has no licence).
-   - **CC BY-NC-SA 4.0 — the only cleanly-licensed OTB corpus**:
-     **[Lumbra's Gigabase](https://lumbrasgigabase.com/en/)** — 10.3M+ OTB games, actively
-     maintained (monthly; latest 2026-07-08), Scid + PGN. **NC is compatible with this
-     project** (personal, non-commercial); revisit if that ever changes. SA attaches to
-     redistributed derivatives.
-   - **CC BY-SA 4.0 / public domain — annotations**: **Wikibooks `Chess/Famous Games`** (~12
-     annotated games, already algebraic, includes modern ones) and Wikisource's proofread,
-     scan-backed *Chess Fundamentals* (1921) / *My System* (1930, PD since 2026) behind a
-     descriptive→algebraic converter.
-   - ⚠️ **Lichess "Broadcasts"** (OTB relays) appear as a tab on the CC0 page, but we have
-     **conflicting reads** on whether they are CC0 or CC BY-SA 4.0. **Verify before shipping
-     any broadcast game**; assume CC BY-SA (attribute) until confirmed.
-   - **Never**: **TWIC** (*"free for personal use only. All rights are reserved."*),
-     **PGN Mentor** / **FICS** / **365chess** / the **Chess.com API** (all silent on data
-     rights — silence is not a grant), **chessgames.com** (bulk export paywalled, `robots.txt`
-     spidertrap, blocks GPTBot), lichess **studies** (authors retain copyright; the CC0 covers
-     only the *game* dumps), or chesshistory.com.
-   - **Dead — do not chase or link**: **Caissabase** (domain lapsed and now redirects to a
-     crypto-casino affiliate), **KingBase** (parked domain), **Millionbase**/rebel13 (host
-     down, HTTP 526).
-2. **Strip `{...}` comments and NAGs from every ingested PGN.** Inherited liability lives in
-   the annotation layer, not the moves. Ingest is moves + factual headers only.
-3. **Our annotations are computed or our own.** Engine-derived facts (uncopyrightable machine
-   output) are the backbone — consistent with ADR
-   [0012](0012-llm-grounded-explainer.md): we compute facts and render them, never reproduce
-   someone's prose. Hand-written notes are our own; third-party prose is licensed or absent.
-4. **Name the thing honestly.** With bulk OTB master compilations unavailable, this is *"a
-   searchable database of strong-player and broadcast games, plus curated classics, annotated
-   by the engine and by us."* We do not imply a repackaged ChessBase (constitution §12).
-5. **Delivery stays client-side** (ADR 0009): a bounded static asset + Dexie indexes. Position
-   search (Polyglot/Zobrist keys) is **deferred**; feasible at 10k–100k games with truncated
-   keys and opening-only indexing, but not needed for v1.
 
-## The TWIC provenance caveat (recorded, not buried)
-**TWIC sits upstream of essentially every "free" OTB compilation** — Caissabase, Millionbase's
-later updates, chessgames.com, and Lumbra's Gigabase all merge TWIC issues — while TWIC itself
-reserves all rights ("free for personal use only"). So the CC licences those downstream
-compilations apply **rest on the moves-are-facts argument, not on permission from the
-originator.** We rely on the same argument, which is strong for the *moves* (§1) and is exactly
-why decision 2 (strip comments/NAGs) matters: it removes the only layer where a licence could
-actually be needed. Anyone revisiting OTB sourcing should know this is the load-bearing
-assumption, not paperwork.
+1. **We do not distribute bulk corpora. Users attach their own.**
+   The app reads **user-supplied PGN** (file picker / drag-and-drop), parses it locally, and
+   indexes it in IndexedDB. Nothing leaves the device and nothing is redistributed, so the
+   compilation/database-right question **never arises**. This also unlocks the *best* data:
+   a user may lawfully use TWIC (*"free for personal use"*), Lumbra's Gigabase, a ChessBase
+   export, or their own collection — uses that are permitted to them and simply not ours to
+   pass on.
+2. **We ship only a small curated pack we own** — our own selection of public-domain classics
+   with **our own annotations** (the v0.3.0 pack). That stays the default out-of-box content.
+3. **Annotations are optional and preserved, not stripped.**
+   - In **user-attached** files: keep `{...}` comments, NAGs and variations, and display them.
+     It's the user's own copy; rendering it locally is personal use. (This reverses the
+     earlier "strip on ingest" rule, which existed only to make *redistribution* safe.)
+   - In **anything we ship**: our own prose, or engine-computed facts — never third-party
+     text. Engine output is uncopyrightable machine output and fits ADR
+     [0012](0012-llm-grounded-explainer.md) exactly: we compute facts and render them.
+4. **Prefer strong, standard time controls.** Ingest filters default to **OTB / classical**
+   and exclude blitz, rapid and bullet, with a minimum-rating filter. Consequence worth
+   stating: this argues *against* Lichess Elite as a primary source (it is online blitz/rapid
+   play), and *for* OTB collections the user supplies. Where a PGN lacks `TimeControl`/`Event`
+   detail we keep the game but mark the control unknown rather than guessing.
+5. **Recommend sources in-app rather than bundling them.** A short, honest pointer list
+   (Lumbra's Gigabase — CC BY-NC-SA 4.0, actively maintained, the only cleanly-licensed OTB
+   corpus; TWIC for personal use; Lichess CC0 for online play) with the caveat that some are
+   dead ends (Caissabase's domain now redirects to a crypto-casino affiliate; KingBase and
+   Millionbase are down). **NC licences are unproblematic** — the project is permanently open
+   and non-commercial.
+6. **Delivery is client-side** (ADR 0009), and the two search jobs get **different tools**:
+   - **Metadata / name search is a scan** → **MiniSearch** (5.7 kB gzip, stable serialization
+     so the index can be built once and reloaded; pass *identical* options to `loadJSON`).
+     Not lunr (unmaintained; >15 s builds at 800k docs). Structured filters (ECO/year/result/
+     Elo/time-control) use **Dexie compound indexes** — a compound index cannot be
+     multiEntry, and multiEntry queries need `.distinct()`.
+   - **Position search is a point lookup** → **defer it, then prefer brute force over an
+     index.** At ~2 bytes/move, 100k games of movetext is **~16 MB — smaller than the ~92 MB
+     Zobrist index it would replace** — and replays in a Web Worker over typed arrays. This is
+     ChessBase's own conclusion (they abandoned indexing for scanning). Escape hatch if it
+     outgrows that: a Zobrist index over range-request SQLite (~1 KB per lookup at any size).
+   - If/when we hash: **64-bit Polyglot keys** (the 781-key table) are ample — 1M games ≈ 80M
+     positions gives ~2.7e-4 collision probability. Lichess uses 96-bit only because it is at
+     390M+ positions with an adversarial threat model. **Cap depth ~40 plies** (Lichess caps
+     at 50) and use paired `Uint32Array`, **not `BigInt`**, in the hot loop.
+7. **Name the feature honestly.** It is *"attach your own game database, plus a curated
+   classics pack"* — not a bundled ChessBase (constitution §12).
 
 ## Consequences
-- **Attribution obligations become real.** CC BY-NC-SA (Lumbra) and CC BY-SA (Wikibooks,
-  probably broadcasts) require attribution and share-alike on *that content*; we'll carry a
-  `NOTICE` + a per-game source/licence field, as we already do for the GPL engines. CC0
-  material needs none.
-- **NC clauses bind the project's licence posture.** Lumbra is NC; if etude-chess ever became
-  commercial, that corpus would have to be dropped or licensed (their stated route:
-  business@lumbrasgigabase.com). Recorded so the choice isn't discovered late.
-- **Provenance is per-game data, not a footnote.** Every stored game records its source and
-  licence so obligations survive later re-use.
-- Corpus size is not the constraint (~150 B/game compact → 10 MB ≈ 65k games); **licensing
-  is** — which is why this ADR exists at all.
-- Guess-the-move gains a real corpus; the curated v0.3.0 pack remains the *teaching* set.
-- The descriptive→algebraic converter is optional future work, valuable mainly because it
-  unlocks *My System* — self-validating, since every converted move must be legal.
+- **The licensing risk largely disappears**, because we stopped redistributing. What remains
+  is small and ours: the curated pack (our selection, our prose) and engine-computed facts.
+- **Import UX becomes the hard part**, which is a much better problem to have: parsing large
+  PGN files without freezing the tab (stream + parse in a Web Worker, chunked `bulkPut`),
+  progress reporting, dedup, and clear errors on malformed games.
+- **Two platform hazards to design around.** Dexie bulk import runs ~3k rec/s, so **10k–100k
+  games is the comfortable ceiling** per attached database — chunk imports and show progress.
+  And **Safari evicts script-writable storage after ~7 days without interaction** unless
+  installed as a PWA, so an imported corpus must be **re-importable** and never the only copy
+  of anything the user cares about.
+- Guess-the-move gains an effectively unlimited corpus (whatever the user attaches) while the
+  curated pack remains the teaching set.
+- Per-game **provenance** (source file, licence if known, time control) is still recorded — now
+  for the user's own bookkeeping and filtering rather than for our compliance.
 
 ## Alternatives rejected
-- **Ship a big OTB compilation anyway** (Caissabase/TWIC): no usable licence, and squarely in
-  the EU database right's path. Rejected.
-- **Scrape chessgames.com/365chess**: express terms prohibit it; contract binds where IP
-  wouldn't. Rejected.
-- **Harvest lichess studies for annotations**: the format is perfect and the licence is not —
-  authors retain copyright and there is no bulk corpus. Rejected (individual authors may still
-  be asked; a user importing *their own* studies is fine).
-- **Strip prose from Informant/ChessBase and keep only `!`/`?` symbols**: individual symbols
-  are likely unprotectable, but a *complete evaluation layer* is selection and judgment. Not a
-  safe workaround. Rejected.
+- **Bundle a big corpus** (Lumbra/Caissabase/TWIC-derived): unnecessary once users attach
+  their own, and it's the only path that carries EU database-right exposure. Rejected.
+- **Ship Lichess Elite as the default corpus**: CC0 and easy, but it is **online blitz/rapid**
+  play — the wrong material for a trainer aimed at standard-time-control judgment. Rejected as
+  a default; still a fine thing for a user to attach.
+- **Strip annotations from user-attached files**: pointless — stripping only ever protected
+  *redistribution*, which we no longer do, and it would throw away the annotations the owner
+  explicitly wants shown when present. Rejected.
+- **Scrape chessgames.com / 365chess**: express terms and anti-bot measures; contract binds
+  where IP would not. Rejected regardless of the BYO model.

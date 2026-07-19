@@ -9,7 +9,17 @@
 Can we ship a searchable database of **master games**, with **annotations**, in a fully
 client-side app we redistribute?
 
-## Verdict
+## ⚠️ Outcome: the question changed — and that's the finding
+Every hard problem below is a **redistribution** problem. Once the app lets users **attach
+their own database** (owner direction, 2026-07-19), they vanish: a user may lawfully use TWIC
+(*"free for personal use"*), Lumbra's Gigabase, or a ChessBase export — uses permitted to
+*them*, simply not ours to pass on. **We ship only a small curated pack we own; users bring
+the rest.** Annotations in a user's own file are theirs to read, so we preserve and display
+them rather than stripping them. See ADR
+[0018](../decisions/0018-games-corpus-and-annotations.md). The research below still governs
+**anything we ship**, and the source table is now a *recommendation list for users*.
+
+## Verdict (as originally framed — for redistribution)
 - **Game scores: yes, freely.** Moves are facts.
 - **Bulk OTB *master* games: not from the usual compilations** (Caissabase/TWIC/Millionbase
   have no usable licence). But **Lichess broadcasts are CC BY-SA 4.0** — real OTB tournament
