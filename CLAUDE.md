@@ -28,6 +28,9 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
 5. [docs/development-focus.md](docs/development-focus.md) — **read before adding a mode.** What the
    priorities are and why: the "why" layer (P0) before breadth, the own-game review loop (P1),
    produce→review in one cycle (P2). Names the real bottleneck (annotation/ontology labor).
+   Ratified into the version sequence by ADR
+   [0019](docs/decisions/0019-why-layer-next.md): **v0.4.0 is the "why" layer**, and the three
+   curricula each moved back a slot.
 
 ## How to work here
 - **Sequencing is load-bearing.** Content/loop first; the **adaptive skill model is last**

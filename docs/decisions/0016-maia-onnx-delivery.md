@@ -28,6 +28,15 @@ identical human-like output). Two decisions crystallised and deserve recording.
    (The failure mode this avoids is documented in the spike.)
 
 ## Consequences
+- **A known blind spot in what Maia can teach.** Maia is the right sparring engine — it makes
+  *human* mistakes, where reduced-strength Stockfish blunders inhumanly and trains you to
+  punish errors you'll never face. But it systematically under-samples **pressure errors**:
+  no rating stakes, no tilt, no fatigue, no move-35 time trouble. Below ~1600 a large share of
+  rating loss comes from exactly those conditions, so Maia yields a clean sample of a player's
+  **technical** errors and almost none of their **psychological** ones
+  ([../research/effectiveness.md §8](../research/effectiveness.md)). Consequence for the
+  product: keep occasional real rated games in the user's mental model as the calibration Maia
+  cannot provide, and don't let accuracy-vs-Maia be read as a rating proxy (constitution §12).
 - **No backend, no new headers** — preserves the static, local-first architecture (ADR
   0009). Ships as static assets to S3/CloudFront later, unchanged.
 - **Two GPL engine artifacts** (Stockfish wasm + Maia ONNX), both arm's-length with
