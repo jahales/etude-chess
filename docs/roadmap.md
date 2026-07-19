@@ -38,33 +38,37 @@ tracked as the **v0.3.0 milestone** on GitHub.
 - Guess-the-move loop closers: **drill your misses**, your **reason reflected back** at the
   reveal, the same **accuracy** metric as play mode.
 - **Click through engine lines on the board**; richer play-mode "why".
-- **Curated pack: 3 → ~15 annotated classics** (our own annotations; not the #40 database).
+- **Curated pack: 3 → ~15 annotated classics** (our own annotations).
+- **Attach your own game database (#40)** — PGN import (parse/filter/index locally), browse +
+  search, and study any imported game, with its annotations shown when present. Per ADR
+  [0018](decisions/0018-games-corpus-and-annotations.md) we **ship no corpus**: users bring
+  their own, which is what makes it legally clean *and* gives access to the strongest OTB
+  material. Defaults prefer standard/classical over blitz/rapid.
 - **Landing redesign** (mode cards + focused setup screens, live stats) and a **theme
   toggle + dark-palette retune** (#42).
 
-## v0.4.0 — The games corpus (content, pulled forward)
-The master-games **database**: search, filters (rating/opening/annotations), annotations
-shown in guess-the-move (#40). **Spike first** — corpus source + licensing, client-side
-size/delivery, search index — exactly as the Maia spike de-risked v0.2. Pulled ahead of the
-curricula because every later release consumes this substrate; the mixed queue is a queue
-*over a pool*, so the pool comes first.
-
-## v0.5.0 — Opening safety
+## v0.4.0 — Opening safety
 Trap avoidance + structure/plans from your opening leaks (v0.2/v0.3 telemetry says where you
-bleed; the corpus supplies the material; the v0.3 opening picker supplies the drill vehicle).
+bleed; an attached database supplies the material; the v0.3 opening picker supplies the drill
+vehicle). *Moved up: the old v0.4 "games corpus" slot is largely answered by bring-your-own
+import in v0.3 — the pool now comes from the user, not from us.*
 
-## v0.6.0 — Endgame technique
+## v0.5.0 — Endgame technique
 Tablebase-adjudicated technique curriculum (Syzygy; constitution §7).
 
-## v0.7.0+ — The hidden-mode mixed queue
+## v0.6.0+ — The hidden-mode mixed queue
 The differentiator (constitution §2, ADR [0002](decisions/0002-hidden-mode-mixed-queue.md)):
 one queue across decision types with the mode concealed. Deliberately last of the curricula —
-it requires the pool (v0.4) and the per-type item sources (v0.3/v0.5/v0.6) to exist.
+it is a queue *over a pool*, so it needs the pool (the user's attached database, v0.3) and the
+per-type item sources (v0.3 own-game drills, v0.4 opening, v0.5 endgame) to exist first.
 
 ## Ongoing / cross-cutting
-- **Content pipeline & the evaluative core** (feeds v0.4–v0.7): frequency-weighted-regret
+- **Content pipeline & the evaluative core** (feeds v0.4–v0.6): frequency-weighted-regret
   miner over Lichess data, the "tactics-in-a-trenchcoat" filter, priyome taxonomy seeding,
   LLM justification grading against annotations (#13), family scheduling + held-out sets.
+- **Position search / opening explorer** over an attached database ("find games reaching this
+  position"). Deferred; the spike found brute-force replay beats a Zobrist index at our scale
+  (~2 B/move ⇒ 100k games ≈ 16 MB, smaller than the index).
 - **Justification capture** and honest metrics apply from v0.1.0 onward (telemetry seed).
 
 ## Last — the learner model & adaptivity
