@@ -154,11 +154,12 @@ export function usePlaySession(engine: AnalyserState) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, state.sanHistory.length, showEval, analyser])
 
-  // Persist a finished game once (best-effort).
-  const savedRef = useRef('')
+  // Persist a finished game (best-effort, upsert by gameId). Re-runs if the final move's
+  // grade lands after the game ended, so the stored accuracy matches the review.
+  const createdAtRef = useRef(0)
   useEffect(() => {
-    if (state.status !== 'over' || !state.result || savedRef.current === state.gameId) return
-    savedRef.current = state.gameId
+    if (state.status !== 'over' || !state.result) return
+    if (createdAtRef.current === 0 || createdAtRef.current > Date.now()) createdAtRef.current = Date.now()
     void saveGame({
       gameId: state.gameId,
       yourColor: state.yourColor,
@@ -167,10 +168,11 @@ export function usePlaySession(engine: AnalyserState) {
       outcome: state.result.outcome,
       reason: state.result.reason,
       accuracy: gameAccuracy(state),
-      createdAt: Date.now(),
+      takebacks: state.takebacks,
+      createdAt: createdAtRef.current,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.result, state.gameId, state.yourColor, state.level, state.sanHistory])
+  }, [state.status, state.result, state.gameId, state.coachLog, state.takebacks])
 
   useEffect(() => () => opponentRef.current?.dispose(), [])
 
