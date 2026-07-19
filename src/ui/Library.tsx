@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Chessboard } from 'react-chessboard'
 import { replayPositions } from '../domain/replay'
-import { materialBalance } from '../domain/material'
 import {
   buildReplayMoves,
   replayRows,
@@ -9,12 +7,17 @@ import {
   clampCursor,
   type ReplayMove,
 } from '../app/replay'
-import { gameKind, listGames, type StoredGame } from '../persist/db'
-import { useBoardWidth } from './useBoardWidth'
-import { MaterialStrip } from './Analysis'
+import type { AnalyserState } from '../app/useAnalyser'
+import { usePositionAnalysis } from '../app/usePositionAnalysis'
+import { countGames, gameKind, listGames, type StoredGame } from '../persist/db'
+import { BoardPanel } from './BoardPanel'
+import { LinesPanel } from './Analysis'
 import { TIER_CLASS, TIER_TEXT, sideName } from './format'
 
 // ---------- Library ----------
+
+/** How many games the table shows. Beyond this we say so rather than truncating quietly. */
+const LIBRARY_LIMIT = 200
 
 export function Library({
   onOpen,
@@ -24,11 +27,14 @@ export function Library({
   onPlay: () => void
 }) {
   const [games, setGames] = useState<StoredGame[] | null>(null) // null = still loading
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    void listGames(200).then((g) => {
-      if (!cancelled) setGames(g)
+    void Promise.all([listGames(LIBRARY_LIMIT), countGames()]).then(([g, n]) => {
+      if (cancelled) return
+      setGames(g)
+      setTotal(n)
     })
     return () => {
       cancelled = true
@@ -52,7 +58,13 @@ export function Library({
   }
 
   return (
-    <div className="table-wrap">
+    <>
+      {total > games.length && (
+        <p className="lede table-note">
+          Showing your {games.length} most recent games of {total}.
+        </p>
+      )}
+      <div className="table-wrap">
       <table className="games-table">
         <thead>
           <tr>
@@ -94,7 +106,8 @@ export function Library({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -124,17 +137,17 @@ function accuracyText(g: StoredGame): string {
 
 export function Replay({
   game,
+  engine,
   initialCursor = 0,
   onBack,
 }: {
   game: StoredGame
+  /** Reviewing your own game needs the engine too — not just the stored verdicts. */
+  engine: AnalyserState
   /** Where to land — used by "Worth another look" to jump straight to a move. */
   initialCursor?: number
   onBack: () => void
 }) {
-  const { ref, width } = useBoardWidth()
-  const [flipped, setFlipped] = useState(false)
-
   // Derived once per game: replay is read-only, so nothing here ever changes
   // while the screen is open.
   const positions = useMemo(() => replayPositions(game.sanHistory), [game])
@@ -161,70 +174,56 @@ export function Replay({
   }, [lastCursor])
 
   const fen = positions[cursor] ?? positions[0]!
-  const whiteBottom = game.yourColor === 'w' ? !flipped : flipped
   const coach = coachAtCursor(game, cursor)
   const truncated = positions.length <= game.sanHistory.length
 
+  // Stored data answers "how did I do"; the engine answers "what should I have
+  // played here", which the coach only ever recorded for your own moves. It runs
+  // on request, so stepping through a game still costs nothing.
+  const analysis = usePositionAnalysis(engine, fen)
+
+  // The stored eval is free and instant; a fresh analysis supersedes it for the
+  // position it was actually computed for.
+  const storedPct = cursor > 0 ? game.evalByPly?.[cursor - 1]?.whitePct : undefined
+  const whitePct = analysis.evaluation?.whitePct ?? storedPct ?? null
+
   return (
     <section className="play">
-      <div className="board-col">
-        <div className="board-row">
-          <div className="board-frame" ref={ref}>
-            <Chessboard
-              id="replay-board"
-              position={fen}
-              boardWidth={width}
-              boardOrientation={whiteBottom ? 'white' : 'black'}
-              arePiecesDraggable={false}
-              customBoardStyle={{ borderRadius: '6px' }}
-            />
-          </div>
-        </div>
-        <MaterialStrip material={materialBalance(fen)} />
-        <div className="replay-controls">
-          <button className="btn ghost" type="button" onClick={() => go(0)} aria-label="First move">
-            ⏮
-          </button>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => go(cursor - 1)}
-            disabled={cursor === 0}
-            aria-label="Previous move"
-          >
-            ‹
-          </button>
-          <span className="replay-pos mono">
-            {cursor} / {lastCursor}
-          </span>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => go(cursor + 1)}
-            disabled={cursor === lastCursor}
-            aria-label="Next move"
-          >
-            ›
-          </button>
-          <button
-            className="btn ghost"
-            type="button"
-            onClick={() => go(lastCursor)}
-            aria-label="Last move"
-          >
-            ⏭
-          </button>
-          <button
-            className="btn ghost flip"
-            type="button"
-            onClick={() => setFlipped((f) => !f)}
-            aria-label="Flip board"
-          >
-            ⇅ Flip
-          </button>
-        </div>
-        <p className="replay-hint">Arrow keys step through the game.</p>
-      </div>
+      <BoardPanel
+        id="replay-board"
+        fen={fen}
+        orientedFor={game.yourColor}
+        whitePct={whitePct}
+        arePiecesDraggable={false}
+      >
+        <button className="btn ghost" type="button" onClick={() => go(0)} aria-label="First move">
+          ⏮
+        </button>
+        <button
+          className="btn ghost"
+          type="button"
+          onClick={() => go(cursor - 1)}
+          disabled={cursor === 0}
+          aria-label="Previous move"
+        >
+          ‹
+        </button>
+        <span className="replay-pos mono">
+          {cursor} / {lastCursor}
+        </span>
+        <button
+          className="btn ghost"
+          type="button"
+          onClick={() => go(cursor + 1)}
+          disabled={cursor === lastCursor}
+          aria-label="Next move"
+        >
+          ›
+        </button>
+        <button className="btn ghost" type="button" onClick={() => go(lastCursor)} aria-label="Last move">
+          ⏭
+        </button>
+      </BoardPanel>
 
       <div className="side-col">
         <div className="game-head">
@@ -265,6 +264,27 @@ export function Replay({
               {cursor === 0 ? 'Start of the game.' : 'Maia’s move.'}
             </span>
           )}
+        </div>
+
+        <div className="replay-analysis">
+          {analysis.available ? (
+            <>
+              <button
+                className="btn ghost"
+                type="button"
+                onClick={analysis.analyse}
+                disabled={analysis.analysing}
+              >
+                {analysis.analysing ? 'Analysing…' : 'Analyse this position'}
+              </button>
+              {analysis.evaluation && (
+                <span className="score-chip mono">{analysis.evaluation.label}</span>
+              )}
+            </>
+          ) : (
+            <span className="replay-coach-empty">Engine loading…</span>
+          )}
+          <LinesPanel fen={fen} lines={analysis.lines} />
         </div>
 
         <ol className="movelist" aria-label="Moves">

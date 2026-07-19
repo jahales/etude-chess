@@ -452,13 +452,7 @@ button {
 .line.best .line-pv {
   color: var(--ink);
 }
-.turn-line {
-  margin-top: 0.7rem;
-  color: var(--ink-soft);
-  font-size: 0.9rem;
-}
-.turn-line .flip {
-  float: right;
+.board-controls .flip {
   padding: 0.2rem 0.6rem;
   font-size: 0.78rem;
 }
@@ -1037,6 +1031,10 @@ button {
 }
 
 /* A table is wide; let it scroll inside its own box rather than the page. */
+.table-note {
+  margin-top: 1.2rem;
+  font-size: 0.88rem;
+}
 .table-wrap {
   margin-top: 1.4rem;
   overflow-x: auto;
@@ -1091,12 +1089,28 @@ button {
   letter-spacing: 0.03em;
 }
 
-.replay-controls {
+/* Shared row under the board (BoardPanel): turn line, replay transport, flip. */
+.board-controls {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   margin-top: 0.8rem;
   flex-wrap: wrap;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+.board-controls .flip {
+  margin-left: auto;
+}
+.replay-analysis {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+.replay-analysis .lines {
+  flex-basis: 100%;
 }
 .replay-pos {
   color: var(--ink-faint);

@@ -1,6 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Chessboard } from 'react-chessboard'
-import { materialBalance } from '../domain/material'
 import type { Color, Tier } from '../domain/types'
 import { pvToSan, whiteScoreLabel } from '../domain/notation'
 import { byPhase, type Phase } from '../domain/accuracy'
@@ -18,8 +16,7 @@ import {
   type PlayState,
 } from '../app/playMachine'
 import type { usePlaySession } from '../app/usePlaySession'
-import { useBoardWidth } from './useBoardWidth'
-import { EvalBar, MaterialStrip } from './Analysis'
+import { BoardPanel } from './BoardPanel'
 import { moveLabel, sideName, TIER_CLASS, TIER_TEXT } from './format'
 
 const LEVEL_BLURB: Record<number, string> = {
@@ -170,7 +167,7 @@ function Review({
           <h3>Worth another look</h3>
           <ul>
             {worst.map((e) => (
-              <li key={e.fen}>
+              <li key={e.ply}>
                 {/* The whole entry navigates — a flagged mistake with no way back
                     into the position is where the old loop dropped the thread (#39). */}
                 <button
@@ -340,12 +337,9 @@ export function MaiaPlay({
   onHome: () => void
   onReviewPly: (gameId: string, ply: number) => void
 }) {
-  const { ref, width } = useBoardWidth()
-  const [flipped, setFlipped] = useState(false)
   const { state, maiaReady, maiaError, showEval } = play
   const fen = displayFen(state)
   const yourColor = state.yourColor
-  const whiteBottom = yourColor === 'w' ? !flipped : flipped
   const yourTurn = state.status === 'yourTurn'
   const over = state.status === 'over'
 
@@ -357,40 +351,28 @@ export function MaiaPlay({
 
   return (
     <section className="play">
-      <div className="board-col">
-        <div className="board-row">
-          {showEval && <EvalBar whitePct={score?.whitePct ?? null} whiteBottom={whiteBottom} />}
-          <div className="board-frame" ref={ref}>
-            <Chessboard
-              id="maia-board"
-              position={fen}
-              boardWidth={width}
-              boardOrientation={whiteBottom ? 'white' : 'black'}
-              arePiecesDraggable={yourTurn && maiaReady}
-              onPieceDrop={(from, to) => play.tryMove(from, to)}
-              onSquareClick={play.selectSquare}
-              customSquareStyles={squareStyles}
-              customBoardStyle={{ borderRadius: '6px' }}
-            />
-          </div>
-        </div>
-        <MaterialStrip material={materialBalance(fen)} />
-        <div className="turn-line">
-          <span className="mono">{sideName(sideToMove(state))} to move</span>
-          {showEval && score && <span className="score-chip mono">{score.label}</span>}
-          <button
-            className={`btn ghost eval-toggle ${showEval ? 'on' : ''}`}
-            type="button"
-            onClick={() => play.setShowEval((v) => !v)}
-            title="Show or hide the engine evaluation"
-          >
-            {showEval ? 'Eval: on' : 'Eval: off'}
-          </button>
-          <button className="btn ghost flip" type="button" onClick={() => setFlipped((f) => !f)} aria-label="Flip board" title="Flip board">
-            ⇅ Flip
-          </button>
-        </div>
-      </div>
+      <BoardPanel
+        id="maia-board"
+        fen={fen}
+        orientedFor={yourColor}
+        whitePct={score?.whitePct ?? null}
+        showEvalBar={showEval}
+        arePiecesDraggable={yourTurn && maiaReady}
+        onPieceDrop={(from, to) => play.tryMove(from, to)}
+        onSquareClick={play.selectSquare}
+        customSquareStyles={squareStyles}
+      >
+        <span className="mono">{sideName(sideToMove(state))} to move</span>
+        {showEval && score && <span className="score-chip mono">{score.label}</span>}
+        <button
+          className={`btn ghost eval-toggle ${showEval ? 'on' : ''}`}
+          type="button"
+          onClick={() => play.setShowEval((v) => !v)}
+          title="Show or hide the engine evaluation"
+        >
+          {showEval ? 'Eval: on' : 'Eval: off'}
+        </button>
+      </BoardPanel>
 
       <div className="side-col">
         <div className="game-head">

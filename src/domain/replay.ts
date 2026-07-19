@@ -1,4 +1,14 @@
 import { Chess } from 'chess.js'
+import type { Color } from './types'
+
+/**
+ * Whose turn it is, straight from the FEN's second field. Engine scores are
+ * side-to-move relative, so anything converting one to White's perspective
+ * needs this — cheaper and clearer than constructing a Chess just to ask.
+ */
+export function sideToMoveOf(fen: string): Color {
+  return fen.split(' ')[1] === 'b' ? 'b' : 'w'
+}
 
 /**
  * Rebuild every position of a game from its SAN move list.
