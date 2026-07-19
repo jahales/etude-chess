@@ -104,9 +104,19 @@ describe('annotations derived from the whole-game analysis', () => {
     { whitePct: 28, label: '−1.5' }, // after 2...Nc6: Black gave up 8 ⇒ inaccuracy
   ]
 
+  it('withholds glyphs until the game was scored at one budget', () => {
+    // Live evals mix budgets (your moves at the grading budget, the opponent's at
+    // the cheaper display one), so differencing them invents swings. A glyph is a
+    // claim about a move; it waits for a uniform pass.
+    const moves = buildReplayMoves(game({ coachLog: [] }), evals)
+    expect(moves.every((m) => m.annotation === undefined && m.evalSwing === undefined)).toBe(true)
+    // Scores are still shown — a score is a fact about one position.
+    expect(moves[0]?.score).toBe('+0.2')
+  })
+
   it('marks every move, not only the ones the coach graded', () => {
     // The coach graded nothing here; the glyphs come purely from the analysis.
-    const moves = buildReplayMoves(game({ coachLog: [] }), evals)
+    const moves = buildReplayMoves(game({ coachLog: [] }), evals, { annotated: true })
     expect(moves[0]?.annotation).toBeUndefined() // no prior eval to measure against
     expect(moves[1]?.annotation).toBeUndefined()
     expect(moves[2]?.annotation).toBe('??')
@@ -114,7 +124,7 @@ describe('annotations derived from the whole-game analysis', () => {
   })
 
   it('measures each move from its own mover’s side, positive = ground given up', () => {
-    const moves = buildReplayMoves(game(), evals)
+    const moves = buildReplayMoves(game(), evals, { annotated: true })
     // whitePct always reads White's perspective, so the same movement means
     // opposite things depending on who moved.
     expect(moves[2]?.evalSwing).toBeCloseTo(32) // White's move: 52 → 20, White gave up 32
@@ -123,7 +133,7 @@ describe('annotations derived from the whole-game analysis', () => {
 
   it('leaves moves unmarked when the game has not been analysed', () => {
     // Absent must read as "not measured", never as "fine".
-    const moves = buildReplayMoves(game({ evalByPly: undefined }))
+    const moves = buildReplayMoves(game({ evalByPly: undefined }), undefined, { annotated: true })
     expect(moves.every((m) => m.annotation === undefined && m.evalSwing === undefined)).toBe(true)
   })
 })
@@ -137,25 +147,27 @@ describe('movesWorthStudying', () => {
   ]
 
   it('lists only your own moves, worst first', () => {
-    const moves = buildReplayMoves(game(), evals)
+    const moves = buildReplayMoves(game(), evals, { annotated: true })
     const mine = movesWorthStudying(moves, 'w')
     expect(mine.map((m) => m.ply)).toEqual([2]) // ply 3 is Black's, however bad
     expect(mine[0]?.annotation).toBe('??')
   })
 
   it('is your opponent’s list when you are Black', () => {
-    const theirs = movesWorthStudying(buildReplayMoves(game(), evals), 'b')
+    const theirs = movesWorthStudying(buildReplayMoves(game(), evals, { annotated: true }), 'b')
     expect(theirs.map((m) => m.ply)).toEqual([3])
   })
 
   it('is empty for a game with nothing worth flagging', () => {
     const flat = [{ whitePct: 50, label: 'x' }, { whitePct: 50, label: 'x' }, { whitePct: 50, label: 'x' }]
-    expect(movesWorthStudying(buildReplayMoves(game(), flat), 'w')).toEqual([])
+    expect(movesWorthStudying(buildReplayMoves(game(), flat, { annotated: true }), 'w')).toEqual([])
   })
 
   it('caps the list so it stays a study aid rather than a dump', () => {
     const noisy = Array.from({ length: 12 }, (_, i) => ({ whitePct: i % 2 ? 90 : 10, label: 'x' }))
-    const many = buildReplayMoves(game({ sanHistory: Array(12).fill('e4') }), noisy)
+    const many = buildReplayMoves(game({ sanHistory: Array(12).fill('e4') }), noisy, {
+      annotated: true,
+    })
     expect(movesWorthStudying(many, 'w', 3)).toHaveLength(3)
   })
 })

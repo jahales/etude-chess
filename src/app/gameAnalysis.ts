@@ -31,9 +31,20 @@ export interface AnalysisProgress {
  * mixing node counts would make the resulting scores (and the annotation glyphs
  * derived from them) inconsistent across a single game for no visible reason.
  */
-export function pliesNeedingAnalysis(game: StoredGame, nodes = BATCH_NODES): number[] {
+export function pliesNeedingAnalysis(
+  game: StoredGame,
+  nodes = BATCH_NODES,
+  /**
+   * Positions actually reconstructable from the move list. A record whose SAN
+   * cannot be fully replayed has fewer, and asking for the rest means the pass
+   * can never reach 100% — so it would never mark itself complete and would redo
+   * every position on each attempt, forever.
+   */
+  replayablePositions = game.sanHistory.length + 1,
+): number[] {
   if (isAnalysed(game, nodes)) return []
-  return game.sanHistory.map((_, ply) => ply)
+  const measurable = Math.max(0, Math.min(game.sanHistory.length, replayablePositions - 1))
+  return Array.from({ length: measurable }, (_, ply) => ply)
 }
 
 /** Whether a completed pass at this budget already covers the game. */

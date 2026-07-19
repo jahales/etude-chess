@@ -38,13 +38,24 @@ export interface ReplayRow {
 }
 
 /**
- * `evalByPly` can be overridden so a whole-game analysis in flight (#68) lights
- * up the move list as it goes, rather than only after it is persisted.
+ * `evalByPly` and `startEval` can be overridden so an analysis in flight (#68)
+ * lights up the move list as it goes, rather than only once it is persisted.
+ *
+ * `annotated` gates the **glyphs**, and defaults off for a reason. A swing is a
+ * *difference* between two evaluations, so it is only meaningful when both were
+ * computed the same way. Live evals are not: your moves are scored at the
+ * grading budget and the opponent's at the cheaper display one, so differencing
+ * them manufactures swings of several win% out of nothing — and a Tier-A move
+ * would sit in the move list with a `?!` beside it. Scores are still shown
+ * either way; a score is a fact about one position, a glyph is a claim about a
+ * move.
  */
 export function buildReplayMoves(
   game: StoredGame,
   evalByPly: (PositionEval | undefined)[] | undefined = game.evalByPly,
+  opts: { annotated?: boolean; startEval?: PositionEval } = {},
 ): ReplayMove[] {
+  const { annotated = false, startEval = game.startEval } = opts
   // Index the coach log by ply once — it only covers your moves, and a linear
   // scan per move would be quadratic on a long game.
   const byPly = new Map<number, CoachEntry>()
@@ -53,8 +64,11 @@ export function buildReplayMoves(
   return game.sanHistory.map((san, ply) => {
     const coach = byPly.get(ply)
     // Measured from the mover's own side, so a glyph means the same thing on
-    // both halves of the board.
-    const swing = evalSwingAt(evalByPly, ply, moverColorAt(ply))
+    // both halves of the board. Only trusted when the whole game was scored at
+    // one budget — see the note above.
+    const swing = annotated
+      ? evalSwingAt(evalByPly, ply, moverColorAt(ply), startEval)
+      : undefined
     return {
       ply,
       san,

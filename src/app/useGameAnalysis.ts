@@ -3,7 +3,7 @@ import { whiteWinPercent } from '../domain/winPercent'
 import { whiteScoreLabel } from '../domain/notation'
 import { sideToMoveOf } from '../domain/replay'
 import type { PositionEval } from '../domain/gameRecord'
-import { saveGame, type StoredGame } from '../persist/db'
+import { saveAnalysis, type StoredGame } from '../persist/db'
 import type { AnalyserState } from './useAnalyser'
 import {
   BATCH_NODES,
@@ -71,7 +71,7 @@ export function useGameAnalysis(
   const start = useCallback(() => {
     const analyser = engine.analyser
     if (!analyser || !engine.ready || running) return
-    const plies = pliesNeedingAnalysis(game)
+    const plies = pliesNeedingAnalysis(game, BATCH_NODES, positions.length)
     if (plies.length === 0) return
 
     const runId = ++runIdRef.current
@@ -130,8 +130,10 @@ export function useGameAnalysis(
       // but marking it done would stop it ever being finished.
       const complete = done === plies.length
       if (complete) setCompletedHere(true)
-      await saveGame({
-        ...game,
+      // Targeted write: `game` here is a snapshot the caller took, possibly
+      // minutes ago, and a full replace would revert whatever the play session
+      // has persisted since (a late grade landing in coachLog, say).
+      await saveAnalysis(game.gameId, {
         evalByPly: acc,
         startEval,
         ...(complete ? { analysedAt: Date.now(), analysisNodes: BATCH_NODES } : {}),

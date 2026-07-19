@@ -246,7 +246,16 @@ export function Replay({
   const whole = useGameAnalysis(engine, game, positions)
   const analysis = usePositionAnalysis(engine, fen)
 
-  const moves = useMemo(() => buildReplayMoves(game, whole.evalByPly), [game, whole.evalByPly])
+  const moves = useMemo(
+    // Glyphs only once the game has been scored at a single budget; before that
+    // the live evals would manufacture swings that contradict the coach's tiers.
+    () =>
+      buildReplayMoves(game, whole.evalByPly, {
+        annotated: whole.analysed,
+        startEval: whole.startEval,
+      }),
+    [game, whole.evalByPly, whole.analysed, whole.startEval],
+  )
   const rows = useMemo(() => replayRows(moves), [moves])
   const study = useMemo(() => movesWorthStudying(moves, game.yourColor), [moves, game.yourColor])
   // Recomputed from the live analysis state so finishing a pass corrects the
@@ -259,7 +268,10 @@ export function Replay({
 
   // A fresh deep analysis supersedes the batch score for the position it was
   // actually computed for; otherwise fall back to whatever the pass has produced.
-  const batchPct = cursor > 0 ? whole.evalByPly?.[cursor - 1]?.whitePct : undefined
+  // At cursor 0 the position is the start, whose evaluation lives in startEval —
+  // evalByPly is indexed by the move each entry follows and cannot hold it.
+  const batchPct =
+    cursor > 0 ? whole.evalByPly?.[cursor - 1]?.whitePct : whole.startEval?.whitePct
   const whitePct = analysis.evaluation?.whitePct ?? batchPct ?? null
 
   return (

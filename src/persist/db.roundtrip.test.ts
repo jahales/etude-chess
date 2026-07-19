@@ -9,7 +9,12 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import Dexie from 'dexie'
 import type { PositionEval } from '../domain/gameRecord'
-import { saveGame, listGames, getGame, lastGame, countGames, deleteGame, gameKind, type StoredGame } from './db'
+import { saveGame, saveAnalysis, listGames, getGame, lastGame, countGames, deleteGame, gameKind, type StoredGame } from './db'
+
+const ev = (whitePct: number) => ({ whitePct, label: `${whitePct}` })
+const coachEntry = (ply: number) => ({
+  ply, fen: `f${ply}`, san: 'e4', tier: 'A' as const, swing: 0, bestMoveSan: null,
+})
 
 function game(overrides: Partial<StoredGame> = {}): StoredGame {
   return {
@@ -155,6 +160,54 @@ describe('stored games (with IndexedDB)', () => {
 
   it('deleting a game that is not there is not an error', async () => {
     await expect(deleteGame('never-existed')).resolves.toBeUndefined()
+  })
+
+  it('a late grade does not erase a completed analysis', async () => {
+    // Two writers touch this row from separate snapshots. A full replace meant
+    // each reverted the other's fields: finish a pass, let a trailing grade land,
+    // and analysedAt vanished so the game offered to analyse itself again.
+    await saveGame(game({ gameId: 'both' }))
+    await saveAnalysis('both', {
+      evalByPly: [ev(60)],
+      startEval: ev(50),
+      analysedAt: 999,
+      analysisNodes: 150_000,
+    })
+
+    // The play session writes again, from a literal with no analysis fields.
+    await saveGame(game({ gameId: 'both', accuracy: 71, coachLog: [coachEntry(0)] }))
+
+    const loaded = await getGame('both')
+    expect(loaded?.analysedAt).toBe(999) // survived
+    expect(loaded?.startEval?.whitePct).toBe(50)
+    expect(loaded?.accuracy).toBe(71) // and the new play data landed
+    expect(loaded?.coachLog).toHaveLength(1)
+  })
+
+  it('the analysis does not revert coach data written after its snapshot', async () => {
+    // saveAnalysis re-reads inside the transaction; the caller's copy of the game
+    // may be minutes old.
+    await saveGame(game({ gameId: 'race', coachLog: [] }))
+    await saveGame(game({ gameId: 'race', coachLog: [coachEntry(0), coachEntry(2)] }))
+
+    await saveAnalysis('race', { evalByPly: [ev(60)], analysedAt: 1, analysisNodes: 150_000 })
+
+    expect((await getGame('race'))?.coachLog).toHaveLength(2)
+  })
+
+  it('live evals never overwrite a completed pass', async () => {
+    // Live evals mix node budgets by parity; a uniform pass must win.
+    await saveGame(game({ gameId: 'evals' }))
+    await saveAnalysis('evals', {
+      evalByPly: [ev(60), ev(61)],
+      analysedAt: 1,
+      analysisNodes: 150_000,
+    })
+
+    await saveGame(game({ gameId: 'evals', evalByPly: [ev(10)] }))
+
+    expect((await getGame('evals'))?.evalByPly).toHaveLength(2)
+    expect((await getGame('evals'))?.evalByPly?.[0]?.whitePct).toBe(60)
   })
 
   it('countGames matches what listGames returns', async () => {

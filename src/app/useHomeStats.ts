@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { countAttempts, countGames, listGames, type StoredGame } from '../persist/db'
+import { accuracyReport } from './gameAnalysis'
 
 /**
  * What the Home cards show about your own history. Everything is optional: a
@@ -57,12 +58,24 @@ export function useHomeStats(reloadKey: unknown = 0): HomeStats {
 }
 
 /**
- * `listGames` is newest-first, but accuracy only means something once the coach
- * has graded a move: a game resigned on move one reports 0%, which reads as
- * "you played terribly" rather than "no data". So skip games we know were never
- * graded. A v0.2 record has no `coachLog` at all — that's unknown, not empty,
- * so it still counts rather than being silently dropped from your history.
+ * Accuracy of the most recent game we can honestly report one for.
+ *
+ * Recomputed via `accuracyReport` rather than read from the stored `accuracy`
+ * field: that field is written once by the play session from the coach log, and
+ * nothing rewrites it when a later analysis pass scores every move. Reading it
+ * raw meant Home and the library could show two different numbers for the same
+ * game (#74, found by the cross-cutting review).
+ *
+ * Games with nothing measured are skipped — a game resigned on move one reports
+ * 0%, which reads as "you played terribly" rather than "no data".
  */
 export function lastAccuracyOf(games: StoredGame[]): number | undefined {
-  return games.find((g) => g.coachLog === undefined || g.coachLog.length > 0)?.accuracy
+  for (const game of games) {
+    const report = accuracyReport(game)
+    // A v0.2 record has no coachLog at all: unknown, not empty, so trust its
+    // stored figure rather than dropping it from your history.
+    if (game.coachLog === undefined) return game.accuracy
+    if (report.covered > 0) return report.accuracy
+  }
+  return undefined
 }
