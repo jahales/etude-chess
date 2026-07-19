@@ -32,6 +32,13 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **The coach called normal captures blunders.** "It leaves your pawn on d5 hanging" fired
+  mid-exchange, because the hanging check read the position statically and never counted what
+  the move had just won — so `1.e4 d5 2.exd5` and the Exchange Ruy `4.Bxc6` were both flagged,
+  the second being main-line theory. A capture is now netted against the recapture that
+  answers it: even trades no longer flag, and a genuinely bad one reports its true cost (take
+  a knight with a rook and lose the rook: 2 points, not 5). Pieces you left hanging while
+  doing something else are unaffected.
 - **Engine lines were shown from the side-to-move's perspective**, so with Black to move they
   carried the opposite sign to the eval bar and score chip beside them (e.g. `+1.31` against
   `−1.31` for the same position). All scores are now White's perspective, as everywhere else.

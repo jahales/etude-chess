@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js'
+import { Chess, type Move } from 'chess.js'
 import type { Color } from './types'
 import type { MoveGrade } from './grade'
 import { seeCaptureGain } from './see'
@@ -34,6 +34,33 @@ export function findHangingPieces(chess: Chess, color: Color): HangingPiece[] {
     }
   }
   return out
+}
+
+/** Material value used to net a capture against the recapture that answers it. */
+const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }
+
+/**
+ * Hanging pieces after `applied` was played, **net of what that move captured**.
+ *
+ * `findHangingPieces` is a static read of the position, so mid-exchange it calls
+ * a perfectly normal capture a blunder: after `1.e4 d5 2.exd5` it reports the d5
+ * pawn as hanging, and after the Exchange Ruy `4.Bxc6` it reports the bishop —
+ * both even trades, and the second is main-line theory. The recapture isn't a
+ * loss, it's the other half of a trade the player already chose.
+ *
+ * So for the piece that just moved, the material it won is subtracted from what
+ * the opponent can win back. Even trades drop out; genuinely bad ones survive
+ * with their true cost (take a knight with a rook and lose the rook: 5 − 3 = 2).
+ * Every other piece is judged statically, as before — a queen you left en prise
+ * while doing something else is still a queen you left en prise.
+ */
+export function hangingAfterMove(chess: Chess, color: Color, applied: Move): HangingPiece[] {
+  const won = applied.captured ? (PIECE_VALUE[applied.captured] ?? 0) : 0
+  return findHangingPieces(chess, color).flatMap((h) => {
+    if (h.square !== applied.to) return [h]
+    const net = h.loss - won
+    return net > 0 ? [{ ...h, loss: net }] : []
+  })
 }
 
 /** Convert a UCI/LAN move (e.g. "g1f3", "e7e8q") to SAN in the given position. */
@@ -85,7 +112,7 @@ export function buildFactBundle(input: FactBundleInput): FactBundle {
     bestMoveSan: input.bestMoveUci ? uciToSan(input.fen, input.bestMoveUci) : null,
     masterMoveSan: input.masterMoveSan,
     grade: input.grade,
-    hangingAfterMove: findHangingPieces(chess, sideToMove),
+    hangingAfterMove: hangingAfterMove(chess, sideToMove, applied),
     matchedMaster: applied.san === input.masterMoveSan,
   }
 }
