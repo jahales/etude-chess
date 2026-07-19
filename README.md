@@ -5,17 +5,20 @@ system organized around the *decision type* a position demands, with the mode
 deliberately hidden in a mixed queue so it trains the one skill every other
 trainer gives away for free: *noticing what kind of position you're in.*
 
-> **Status: v0.1.0 released (2026-07-18).** Coached guess-the-move on master games —
-> a client-side React + Stockfish WASM app. What exists: [docs/architecture.md](docs/architecture.md)
-> and [CHANGELOG.md](CHANGELOG.md). Next: v0.2 — play vs Maia. Design docs live in [docs/](docs/).
+> **Status: v0.2.0 released (2026-07-18).** Two modes, both fully client-side: coached
+> **guess-the-move** on master games, and **play vs Maia** — a human-like opponent running in
+> your browser — with a coach on every move, accuracy, and a post-game review. What exists:
+> [docs/architecture.md](docs/architecture.md) and [CHANGELOG.md](CHANGELOG.md).
+> Next: v0.3 — learn from your own games. Design docs live in [docs/](docs/).
 
 ## Running it
 
 ```
 npm install
-npm run dev      # http://localhost:5173
-npm test         # 65 unit tests
-npm run build    # typecheck + production build
+node scripts/setup-maia.mjs   # fetch the Maia nets (needed to play vs Maia)
+npm run dev                   # http://localhost:5173
+npm run verify                # typecheck + lint + 153 unit tests
+npm run build                 # typecheck + production build
 ```
 
 Fully client-side — no backend, no accounts. Stockfish runs as a WASM Web Worker from
