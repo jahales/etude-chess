@@ -25,6 +25,9 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
 3. [docs/architecture.md](docs/architecture.md) — what exists now, the module map, and where to
    make changes. [docs/roadmap.md](docs/roadmap.md) for the phase order.
 4. [docs/research/](docs/research/) — the evidence behind the design (effectiveness; engines; LLM).
+5. [docs/development-focus.md](docs/development-focus.md) — **read before adding a mode.** What the
+   priorities are and why: the "why" layer (P0) before breadth, the own-game review loop (P1),
+   produce→review in one cycle (P2). Names the real bottleneck (annotation/ontology labor).
 
 ## How to work here
 - **Sequencing is load-bearing.** Content/loop first; the **adaptive skill model is last**
