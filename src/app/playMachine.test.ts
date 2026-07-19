@@ -101,17 +101,28 @@ describe('coach feedback', () => {
     expect(late).toBe(taken) // no stale coach applied
   })
 
-  it('SET_LINES reveals engine lines; HIDE_LINES collapses them', () => {
-    const thinking = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    const shown = playReducer(thinking, { type: 'SET_LINES', lines: [{ multipv: 1, score: { type: 'cp', value: 20 }, pv: ['e2e4'] }] })
-    expect(shown.showMe).toBe(true)
-    expect(shown.lines).toHaveLength(1)
-    expect(playReducer(shown, { type: 'HIDE_LINES' }).showMe).toBe(false)
+  const START = initialPlayState.positions[0]!
+  const coachStart = (state: PlayState) =>
+    playReducer(state, { type: 'COACH_RESULT', ply: 0, fenBefore: START, yourMoveSan: 'e4', verdict: verdict('A', 0) })
+
+  it('SET_LINES reveals lines for the coached position; HIDE_LINES collapses them', () => {
+    let s = coachStart(playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' }))
+    s = playReducer(s, { type: 'SET_LINES', fen: START, lines: [{ multipv: 1, score: { type: 'cp', value: 20 }, pv: ['e2e4'] }] })
+    expect(s.showMe).toBe(true)
+    expect(s.lines).toHaveLength(1)
+    expect(playReducer(s, { type: 'HIDE_LINES' }).showMe).toBe(false)
+  })
+
+  it('drops SET_LINES computed for a different position (engine/board sync guard)', () => {
+    const s = coachStart(playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' }))
+    const stale = playReducer(s, { type: 'SET_LINES', fen: 'a-different-fen', lines: [{ multipv: 1, score: { type: 'cp', value: 0 }, pv: [] }] })
+    expect(stale.showMe).toBe(false)
+    expect(stale.lines).toEqual([])
   })
 
   it('a new move clears stale coach + revealed lines', () => {
-    let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
-    s = playReducer(s, { type: 'SET_LINES', lines: [{ multipv: 1, score: { type: 'cp', value: 0 }, pv: [] }] })
+    let s = coachStart(playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' }))
+    s = playReducer(s, { type: 'SET_LINES', fen: START, lines: [{ multipv: 1, score: { type: 'cp', value: 0 }, pv: [] }] })
     s = playReducer(s, { type: 'MAIA_MOVED', uci: 'c7c5' })
     s = playReducer(s, { type: 'MOVE', from: 'd2', to: 'd4' })
     expect(s.showMe).toBe(false)
@@ -160,14 +171,21 @@ describe('accuracy (final line) and take-backs', () => {
 describe('position eval', () => {
   it('SET_EVAL stores by ply and currentEval reads the latest', () => {
     let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
-    s = playReducer(s, { type: 'SET_EVAL', ply: 0, eval: ev(56) })
-    s = playReducer(s, { type: 'SET_EVAL', ply: 1, eval: ev(52) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 0, fen: s.positions[1]!, eval: ev(56) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 1, fen: s.positions[2]!, eval: ev(52) })
     expect(s.evalByPly[0]).toEqual(ev(56))
     expect(currentEval(s)).toEqual(ev(52))
   })
 
-  it('ignores a stale eval for a ply beyond the game', () => {
-    const s = playReducer(newGame('w'), { type: 'SET_EVAL', ply: 5, eval: ev(50) })
+  it('drops an eval whose position no longer matches (engine/board sync guard)', () => {
+    const s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
+    // e.g. a late result from before a take-back + different replay
+    const stale = playReducer(s, { type: 'SET_EVAL', ply: 1, fen: 'a-different-fen', eval: ev(50) })
+    expect(stale.evalByPly[1]).toBeUndefined()
+  })
+
+  it('ignores an eval for a ply beyond the game', () => {
+    const s = playReducer(newGame('w'), { type: 'SET_EVAL', ply: 5, fen: 'x', eval: ev(50) })
     expect(s.evalByPly[5]).toBeUndefined()
   })
 })
@@ -176,8 +194,8 @@ describe('take back', () => {
   it('undoes your move + Maia’s reply and clears their coach/eval', () => {
     let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
     s = playReducer(s, { type: 'COACH_RESULT', ply: 0, fenBefore: 'x', yourMoveSan: 'e4', verdict: verdict('C', 30) })
-    s = playReducer(s, { type: 'SET_EVAL', ply: 0, eval: ev(40) })
-    s = playReducer(s, { type: 'SET_EVAL', ply: 1, eval: ev(45) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 0, fen: s.positions[1]!, eval: ev(40) })
+    s = playReducer(s, { type: 'SET_EVAL', ply: 1, fen: s.positions[2]!, eval: ev(45) })
     const back = playReducer(s, { type: 'TAKE_BACK' })
     expect(back.sanHistory).toEqual([])
     expect(back.positions).toHaveLength(1)

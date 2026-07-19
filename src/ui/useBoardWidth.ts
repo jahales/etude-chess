@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Track a container's width (clamped) so the board stays responsive. */
-export function useBoardWidth(max = 460, min = 260) {
+export function useBoardWidth(max = 560, min = 260) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(360)
 

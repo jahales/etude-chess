@@ -6,6 +6,17 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
+### Fixed
+- **Engine/board sync (play vs Maia):** every Stockfish result now carries the FEN it was
+  computed for and is dropped if the board has moved on, so repeated take-backs can no
+  longer leave the engine showing stale evals or illegal lines.
+- **Consistent scores:** all scores (eval bar, current chip, move list, and the "Show me"
+  lines) are now from **White's perspective**, so a Black advantage always reads the same
+  way. Your own move's score is shown too — including when it isn't in the engine's top 3.
+- Maia plays closer to its rating (lower sampling temperature; it was picking too many
+  weak moves). Captured **black pieces are visible** on the dark ground, accuracy shows
+  **2 decimals**, and the board is larger.
+
 ### Added
 - **Accuracy + post-game review (v0.2):** a per-game **accuracy** score (Lichess per-move
   model, simple mean) over the moves **as played**, plus a separate **take-back count** —

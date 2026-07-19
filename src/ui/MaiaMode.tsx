@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { materialBalance } from '../domain/material'
 import type { Color, Tier } from '../domain/types'
+import { pvToSan, whiteScoreLabel } from '../domain/notation'
 import { byPhase, type Phase } from '../domain/accuracy'
 import { SHIPPED_LEVELS, type MaiaLevel } from '../engine/maia/opponent'
 import {
@@ -18,7 +19,7 @@ import {
 } from '../app/playMachine'
 import type { usePlaySession } from '../app/usePlaySession'
 import { useBoardWidth } from './useBoardWidth'
-import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
+import { EvalBar, MaterialStrip } from './Analysis'
 import { moveLabel, sideName, TIER_CLASS, TIER_TEXT } from './format'
 
 const LEVEL_BLURB: Record<number, string> = { 1100: 'beginner', 1300: 'improver', 1500: 'club player' }
@@ -115,7 +116,7 @@ function Review({ state }: { state: PlayState }) {
       </div>
     )
   }
-  const acc = Math.round(gameAccuracy(state))
+  const acc = gameAccuracy(state).toFixed(2)
   const phases = byPhase(state.coachLog)
   const rate = Math.round(takebackRate(state) * 100)
   const worst = [...state.coachLog]
@@ -172,15 +173,63 @@ function Review({ state }: { state: PlayState }) {
   )
 }
 
+/** Engine lines for the position you moved from, scored from White's view (consistent
+ * with the eval bar + move list). Your own move's score is shown first, always. */
+function ShowMe({
+  fen,
+  yourColor,
+  yourMoveSan,
+  myMoveScore,
+  bestMoveSan,
+  lines,
+}: {
+  fen: string
+  yourColor: Color
+  yourMoveSan: string
+  myMoveScore: string | undefined
+  bestMoveSan: string | null
+  lines: PlayState['lines']
+}) {
+  return (
+    <div className="lines-reveal">
+      <div className="line your-line">
+        <span className="line-score mono">{myMoveScore ?? '…'}</span>
+        <span className="line-pv mono">your {yourMoveSan}</span>
+      </div>
+      {lines.length > 0 ? (
+        lines.map((l) => (
+          <div className="line" key={l.multipv}>
+            <span className="line-score mono">{whiteScoreLabel(l.score, yourColor)}</span>
+            <span className="line-pv mono">{pvToSan(fen, l.pv).join(' ')}</span>
+          </div>
+        ))
+      ) : bestMoveSan ? (
+        <div className="line">
+          <span className="line-score mono">·</span>
+          <span className="line-pv mono">engine: {bestMoveSan}</span>
+        </div>
+      ) : (
+        <div className="line">
+          <span className="line-pv mono">analysing…</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Ambient feedback on your last move: verdict + cost, with the answer behind "Show me". */
 function CoachPanel({
   coach,
+  yourColor,
+  myMoveScore,
   showMe,
   lines,
   onReveal,
   onHide,
 }: {
   coach: LastCoach
+  yourColor: Color
+  myMoveScore: string | undefined
   showMe: boolean
   lines: PlayState['lines']
   onReveal: () => void
@@ -193,6 +242,7 @@ function CoachPanel({
         <span className="tier-badge">{v.headline}</span>
         <span className="mono">
           your {coach.yourMoveSan}
+          {myMoveScore && <> · {myMoveScore}</>}
           {v.tier !== 'A' && <> · −{Math.round(v.swing)}%</>}
         </span>
       </div>
@@ -202,17 +252,19 @@ function CoachPanel({
           Show me the best move →
         </button>
       ) : (
-        <div className="lines-reveal">
-          {v.bestMoveSan && (
-            <p className="best-move">
-              Engine&apos;s pick: <b className="mono">{v.bestMoveSan}</b>
-            </p>
-          )}
-          <LinesPanel fen={coach.fenBefore} lines={lines} />
+        <>
+          <ShowMe
+            fen={coach.fenBefore}
+            yourColor={yourColor}
+            yourMoveSan={coach.yourMoveSan}
+            myMoveScore={myMoveScore}
+            bestMoveSan={v.bestMoveSan}
+            lines={lines}
+          />
           <button className="btn ghost" type="button" onClick={onHide}>
             Hide
           </button>
-        </div>
+        </>
       )}
     </div>
   )
@@ -314,7 +366,7 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
             {state.coachLog.length > 0 && (
               <span className="acc-inline mono" title="Accuracy of your moves so far (the game as played)">
                 {' '}
-                · Accuracy {Math.round(gameAccuracy(state))}%
+                · Accuracy {gameAccuracy(state).toFixed(2)}%
                 {state.takebacks > 0 && ` · ${state.takebacks} take-back${state.takebacks === 1 ? '' : 's'}`}
               </span>
             )}
@@ -348,6 +400,8 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
             {state.lastCoach && (
               <CoachPanel
                 coach={state.lastCoach}
+                yourColor={yourColor}
+                myMoveScore={state.evalByPly[state.lastCoach.ply]?.label}
                 showMe={state.showMe}
                 lines={state.lines}
                 onReveal={play.revealLines}

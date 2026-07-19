@@ -107,8 +107,8 @@ export type PlayAction =
   | { type: 'MOVE'; from: string; to: string; promotion?: string }
   | { type: 'MAIA_MOVED'; uci: string }
   | { type: 'COACH_RESULT'; ply: number; fenBefore: string; yourMoveSan: string; verdict: CoachVerdict }
-  | { type: 'SET_EVAL'; ply: number; eval: PositionEval }
-  | { type: 'SET_LINES'; lines: AnalysisLine[] }
+  | { type: 'SET_EVAL'; ply: number; fen: string; eval: PositionEval }
+  | { type: 'SET_LINES'; fen: string; lines: AnalysisLine[] }
   | { type: 'HIDE_LINES' }
   | { type: 'TAKE_BACK' }
   | { type: 'RESIGN' }
@@ -282,13 +282,19 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
     }
 
     case 'SET_EVAL': {
-      if (action.ply < 0 || action.ply >= state.sanHistory.length) return state // stale
+      // Drop a stale eval: it must be for the position that still stands after that ply
+      // (a take-back + different replay changes positions[ply+1]). Keeps the engine in
+      // sync with the board by construction.
+      if (action.ply < 0 || state.positions[action.ply + 1] !== action.fen) return state
       const evalByPly = state.evalByPly.slice()
       evalByPly[action.ply] = action.eval
       return { ...state, evalByPly }
     }
 
     case 'SET_LINES':
+      // Drop stale lines: only show them if they were computed for the position the coach
+      // card is still displaying (else the PV would be illegal in the current position).
+      if (!state.lastCoach || state.lastCoach.fenBefore !== action.fen) return state
       return { ...state, lines: action.lines, showMe: true }
 
     case 'HIDE_LINES':

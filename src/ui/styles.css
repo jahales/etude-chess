@@ -264,7 +264,7 @@ button {
 /* Play */
 .play {
   display: grid;
-  grid-template-columns: minmax(260px, 460px) 1fr;
+  grid-template-columns: minmax(280px, 560px) 1fr;
   gap: 28px;
   align-items: start;
 }
@@ -275,7 +275,7 @@ button {
 }
 .board-frame {
   width: 100%;
-  max-width: 460px;
+  max-width: 560px;
 }
 
 /* Eval bar */
@@ -310,12 +310,14 @@ button {
 .material .cap {
   letter-spacing: -0.05em;
 }
+/* Captured-piece glyphs get a contrasting halo so they read on either theme's ground. */
 .material .cap.dark {
-  color: #1b1c18;
+  color: #202020;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.9), 0 0 2px rgba(255, 255, 255, 0.55);
 }
 .material .cap.light {
   color: #fbfbf7;
-  text-shadow: 0 0 1px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.5);
 }
 .material .mat-diff {
   margin-left: auto;
@@ -905,4 +907,15 @@ button {
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--ink);
+}
+
+/* Show-me: your move highlighted above the engine lines */
+.lines-reveal .your-line {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.4rem;
+}
+.lines-reveal .your-line .line-pv {
+  color: var(--ink);
+  font-weight: 600;
 }

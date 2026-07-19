@@ -19,8 +19,9 @@ import {
   type PlayState,
 } from './playMachine'
 
-// Modest sampling keeps Maia human-like with variety across games.
-const MAIA_TEMPERATURE = 0.5
+// Low temperature: mostly Maia's most-likely human move at its rating (stronger, still
+// some variety). Higher sampled too many weak moves — it played below its level.
+const MAIA_TEMPERATURE = 0.2
 // Grade your move for a reliable A/B/C tier; keep it snappy for move-by-move play.
 const GRADE_NODES = 400_000
 // Cheap "who's ahead" refresh for the eval bar + move scores.
@@ -95,6 +96,7 @@ export function usePlaySession(engine: AnalyserState) {
         dispatch({
           type: 'SET_EVAL',
           ply,
+          fen: state.positions[ply + 1]!, // the position after your move
           eval: {
             whitePct: whiteWinPercent(graded.playedScoreMover, yourColor),
             label: whiteScoreLabel(graded.playedScoreMover, yourColor),
@@ -135,15 +137,17 @@ export function usePlaySession(engine: AnalyserState) {
     const len = state.sanHistory.length
     if (state.status !== 'yourTurn' || len === 0 || !showEval || !analyser) return
     const ply = len - 1
+    const fen = currentFen(state)
     const perspective = sideToMove(state)
     let cancelled = false
     analyser
-      .evaluate(currentFen(state), { nodes: EVAL_NODES })
+      .evaluate(fen, { nodes: EVAL_NODES })
       .then((r) => {
         if (!cancelled)
           dispatch({
             type: 'SET_EVAL',
             ply,
+            fen,
             eval: { whitePct: whiteWinPercent(r.score, perspective), label: whiteScoreLabel(r.score, perspective) },
           })
       })
@@ -178,17 +182,16 @@ export function usePlaySession(engine: AnalyserState) {
 
   // "Show me": fetch the engine's lines for the position you moved from, on request.
   const revealLines = useCallback(async () => {
+    if (!state.lastCoach) return
+    const fen = state.lastCoach.fenBefore
     if (state.lines.length) {
-      dispatch({ type: 'SET_LINES', lines: state.lines }) // re-open without re-analysing
+      dispatch({ type: 'SET_LINES', fen, lines: state.lines }) // re-open without re-analysing
       return
     }
-    if (!analyser || !state.lastCoach) return
+    if (!analyser) return
     try {
-      const lines = await analyser.analyseLines(state.lastCoach.fenBefore, {
-        nodes: LINES_NODES,
-        multipv: LINES_MULTIPV,
-      })
-      dispatch({ type: 'SET_LINES', lines })
+      const lines = await analyser.analyseLines(fen, { nodes: LINES_NODES, multipv: LINES_MULTIPV })
+      dispatch({ type: 'SET_LINES', fen, lines })
     } catch {
       /* leave collapsed */
     }
