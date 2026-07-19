@@ -7,6 +7,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Move annotations and a "Worth studying" list (#67).** Once a game is analysed, every move
+  carries `?!`, `?` or `??` where it gave one up, and your worst moves are listed — biggest
+  first — as buttons that jump straight to the position. Deliberately only those three glyphs:
+  `!!` and `!?` are human judgments no engine number implies, and `!` needs a multi-line search
+  the coverage pass doesn't do, so none of them are guessed at.
 - **Analyse a whole game in one pass (#68).** One button scores every position of a stored
   game, so the move list shows where the game actually turned — not just the moves the coach
   happened to grade while you played. It runs a position at a time and you can keep stepping

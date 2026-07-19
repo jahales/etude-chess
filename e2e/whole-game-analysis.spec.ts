@@ -21,6 +21,10 @@ test.describe('whole-game analysis', () => {
     await page.locator('[data-square="e2"]').click()
     await page.locator('[data-square="e4"]').click()
     await expect(page.getByText('Your move.')).toBeVisible({ timeout: 60_000 })
+    // 2.Ke2 — legal after 1.e4 whatever Black replied, and bad enough to glyph.
+    await page.locator('[data-square="e1"]').click()
+    await page.locator('[data-square="e2"]').click()
+    await expect(page.getByText('Your move.')).toBeVisible({ timeout: 60_000 })
     await expect(page.locator('.coach-card')).toBeVisible({ timeout: 60_000 })
     await page.getByRole('button', { name: /Resign/ }).click()
     await expect(page.locator('.review')).toBeVisible()
@@ -39,6 +43,14 @@ test.describe('whole-game analysis', () => {
     await expect(page.getByText('Whole game analysed.')).toBeVisible({ timeout: 120_000 })
     await expect(page.locator('.mv-score')).toHaveCount(moveCount)
     const scored = moveCount
+
+    // The pass makes the bad moves findable: 2.Ke2 is glyphed in the move list
+    // and listed under "Worth studying", and clicking it jumps to the position.
+    await expect(page.locator('.movelist .glyph')).not.toHaveCount(0)
+    const study = page.locator('.study-list li').first()
+    await expect(study).toContainText('Ke2')
+    await study.locator('button').click()
+    await expect(page.locator('.mv-jump.selected')).toContainText('Ke2')
 
     // Persisted: leaving and coming back finds it already analysed, with no
     // offer to redo the work.
