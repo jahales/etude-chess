@@ -9,7 +9,7 @@ import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import Dexie from 'dexie'
 import type { PositionEval } from '../domain/gameRecord'
-import { saveGame, listGames, getGame, lastGame, countGames, gameKind, type StoredGame } from './db'
+import { saveGame, listGames, getGame, lastGame, countGames, deleteGame, gameKind, type StoredGame } from './db'
 
 function game(overrides: Partial<StoredGame> = {}): StoredGame {
   return {
@@ -140,6 +140,21 @@ describe('stored games (with IndexedDB)', () => {
 
     expect(await countGames()).toBe(1)
     expect((await listGames()).filter((g) => g.gameId === 'racy')).toHaveLength(1)
+  })
+
+  it('deletes one game and leaves the rest alone', async () => {
+    await saveGame(game({ gameId: 'keep' }))
+    await saveGame(game({ gameId: 'drop' }))
+
+    await deleteGame('drop')
+
+    expect((await listGames()).map((g) => g.gameId)).toEqual(['keep'])
+    expect(await getGame('drop')).toBeUndefined()
+    expect(await countGames()).toBe(1)
+  })
+
+  it('deleting a game that is not there is not an error', async () => {
+    await expect(deleteGame('never-existed')).resolves.toBeUndefined()
   })
 
   it('countGames matches what listGames returns', async () => {

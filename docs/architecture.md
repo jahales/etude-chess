@@ -60,6 +60,10 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
   - `src/app/replay.ts` — pure derivations for the replay screen (`buildReplayMoves`,
     `replayRows`, `coachAtCursor`, `clampCursor`); `src/domain/replay.ts` rebuilds positions
     from SAN. `src/app/useHomeStats.ts` — the Home cards' history counters.
+  - `src/persist/storage.ts` — durability: requests persistent storage on the first save and
+    reports usage. IndexedDB is **not permanent by default** — Safari evicts script-written
+    storage after ~7 days without interaction — so the library says whether it was granted
+    rather than looking permanent.
   - `src/persist/db.ts` — IndexedDB/Dexie adapter (attempts + games); best-effort, never throws.
     A stored game carries the coach's output (`coachLog`, `evalByPly`) so replay never
     re-analyses; those fields are **optional** because v0.2 records predate them. Reads go

@@ -13,7 +13,8 @@ import type { AnalyserState } from '../app/useAnalyser'
 import { usePositionAnalysis } from '../app/usePositionAnalysis'
 import { useGameAnalysis } from '../app/useGameAnalysis'
 import { accuracyReport, BATCH_NODES } from '../app/gameAnalysis'
-import { countGames, gameKind, listGames, type StoredGame } from '../persist/db'
+import { countGames, deleteGame, gameKind, listGames, type StoredGame } from '../persist/db'
+import { formatBytes, storageStatus, type StorageStatus } from '../persist/storage'
 import { BoardPanel } from './BoardPanel'
 import { LinesPanel } from './Analysis'
 import { TIER_CLASS, TIER_TEXT, sideName } from './format'
@@ -32,18 +33,34 @@ export function Library({
 }) {
   const [games, setGames] = useState<StoredGame[] | null>(null) // null = still loading
   const [total, setTotal] = useState(0)
+  const [storage, setStorage] = useState<StorageStatus | null>(null)
+  const [reload, setReload] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    void Promise.all([listGames(LIBRARY_LIMIT), countGames()]).then(([g, n]) => {
-      if (cancelled) return
-      setGames(g)
-      setTotal(n)
-    })
+    void Promise.all([listGames(LIBRARY_LIMIT), countGames(), storageStatus()]).then(
+      ([g, n, s]) => {
+        if (cancelled) return
+        setGames(g)
+        setTotal(n)
+        setStorage(s)
+      },
+    )
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reload])
+
+  const remove = async (g: StoredGame) => {
+    // Deleting a game destroys its coach data and analysis, which cannot be
+    // recomputed without replaying the engine over it. Worth a confirmation.
+    const ok = window.confirm(
+      `Delete your ${formatDate(g.createdAt)} game vs Maia ${g.level}? This cannot be undone.`,
+    )
+    if (!ok) return
+    await deleteGame(g.gameId)
+    setReload((n) => n + 1)
+  }
 
   if (games === null) return <p className="banner">Loading your games…</p>
 
@@ -83,7 +100,7 @@ export function Library({
               Take-backs
             </th>
             <th scope="col">
-              <span className="sr-only">Open</span>
+              <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
@@ -104,9 +121,18 @@ export function Library({
                 {accuracyOf(g).note && <span className="coverage-note">{accuracyOf(g).note}</span>}
               </td>
               <td className="num mono">{g.takebacks}</td>
-              <td>
+              <td className="row-actions">
                 <button className="btn ghost" type="button" onClick={() => onOpen(g)}>
                   Review →
+                </button>
+                <button
+                  className="btn ghost danger"
+                  type="button"
+                  onClick={() => void remove(g)}
+                  aria-label={`Delete the ${formatDate(g.createdAt)} game`}
+                  title="Delete this game"
+                >
+                  ✕
                 </button>
               </td>
             </tr>
@@ -114,7 +140,30 @@ export function Library({
         </tbody>
       </table>
       </div>
+      <StorageNote storage={storage} />
     </>
+  )
+}
+
+/**
+ * What we can honestly say about durability. Browsers may evict script-written
+ * storage — Safari after about a week without interaction — so when persistence
+ * has not been granted we say so rather than letting the library look permanent.
+ */
+function StorageNote({ storage }: { storage: StorageStatus | null }) {
+  if (!storage?.supported) return null
+  return (
+    <p className="storage-note">
+      {storage.persisted ? (
+        <>Saved games are marked as persistent storage.</>
+      ) : (
+        <>
+          <b>Not persistent storage.</b> Your browser may clear saved games if it needs space,
+          and Safari does so after about a week without a visit.
+        </>
+      )}
+      {storage.usageBytes != null && <> · {formatBytes(storage.usageBytes)} used</>}
+    </p>
   )
 }
 
