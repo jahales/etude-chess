@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { Attempt } from '../domain/session'
+import type { CoachEntry, PositionEval } from '../app/playMachine'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
 // committed guess is stored as telemetry for later phases. All access is
@@ -27,6 +28,23 @@ export interface StoredGame {
   /** How many moves were taken back. */
   takebacks: number
   createdAt: number
+  // --- v0.3 (#46): the coach's knowledge, stored so replay never re-analyses. ---
+  // All three are optional because records written by v0.2 don't have them; readers
+  // must tolerate `undefined` rather than assuming a shape (docs/v0.3.0-plan.md §1).
+  /** Coach verdict per move of yours, in the final line. */
+  coachLog?: CoachEntry[]
+  /** Eval after each ply, White's perspective. Sparse: gaps where eval was off. */
+  evalByPly?: (PositionEval | undefined)[]
+  /** How the game started. Absent ⇒ `'game'`; see `gameKind()`. */
+  kind?: StoredGameKind
+}
+
+/** A full game from move 1, or a position played out from somewhere else (#48). */
+export type StoredGameKind = 'game' | 'playout'
+
+/** `kind` with the default applied, so callers never branch on `undefined`. */
+export function gameKind(g: StoredGame): StoredGameKind {
+  return g.kind ?? 'game'
 }
 
 class EtudeDb extends Dexie {
@@ -75,6 +93,36 @@ export async function saveGame(g: StoredGame): Promise<void> {
   } catch (e) {
     console.warn('etude-chess: could not persist game', e)
   }
+}
+
+/** Finished games, newest first. Best-effort: `[]` if IndexedDB is unavailable. */
+export async function listGames(limit = 50): Promise<StoredGame[]> {
+  const d = getDb()
+  if (!d) return []
+  try {
+    // `createdAt` is indexed, so this sorts in the store rather than in memory.
+    return await d.games.orderBy('createdAt').reverse().limit(limit).toArray()
+  } catch (e) {
+    console.warn('etude-chess: could not list games', e)
+    return []
+  }
+}
+
+/** One finished game by its app-level `gameId` (not the Dexie `id`). */
+export async function getGame(gameId: string): Promise<StoredGame | undefined> {
+  const d = getDb()
+  if (!d) return undefined
+  try {
+    return await d.games.where('gameId').equals(gameId).first()
+  } catch (e) {
+    console.warn('etude-chess: could not load game', e)
+    return undefined
+  }
+}
+
+/** The most recently finished game, for "pick up where you left off". */
+export async function lastGame(): Promise<StoredGame | undefined> {
+  return (await listGames(1))[0]
 }
 
 export async function countAttempts(): Promise<number> {

@@ -6,7 +6,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Finished games remember what the coach knew (#46).** A stored game now carries its
+  per-move coach verdicts and per-ply evaluations, so replaying one reads them back instead
+  of re-analysing every position. Games saved by v0.2.0 still load — the new fields are
+  optional and absent means "not recorded", never an error.
 
 ## [0.2.0] — 2026-07-18
 
