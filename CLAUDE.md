@@ -12,8 +12,9 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
 ## Current status: v0.2.0 released (play vs Maia + in-game coach) — 2026-07-18
 - Two modes ship: **coached guess-the-move** (v0.1.0) and **play vs client-side Maia with an
   ambient coach** (v0.2.0). What exists: [CHANGELOG.md](CHANGELOG.md) +
-  [docs/architecture.md](docs/architecture.md). Next: **v0.3 — learn from your own games**
-  (game library/replay #39, missed-tactic drills).
+  [docs/architecture.md](docs/architecture.md). Next: **v0.3.0 — complete the core loops**;
+  the design is decision-complete in [docs/v0.3.0-plan.md](docs/v0.3.0-plan.md) (work = the
+  GitHub **v0.3.0 milestone**, one branch per issue).
 - The design is still **living**; every doc except the constitution is revisable.
 
 ## Read these before proposing anything

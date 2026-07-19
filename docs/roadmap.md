@@ -10,62 +10,67 @@ needs ~1 item per cell; adaptive selection needs a *dense* pool across all of th
 roughly 200 skills × ~30 items × a held-out split ≈ **6,000+ annotated positions**.
 Building the model before the data-generating loop exists is the classic ML mistake.
 
-## Phase 0 — Foundations (now)
-Planning docs, constitution, ADRs, agent files. **You are here.** No app code.
-- [x] Capture the design as living docs
-- [ ] Agree the v0 scope in [first-deliverable.md](first-deliverable.md)
-- [ ] Pick the v0 tech stack (proposal exists; not locked)
+> **Restructured 2026-07-19.** Versions are now the spine (the old Phase 1–4 numbering had
+> Phase 1 containing the whole product and the differentiator scheduled *before* the content
+> it consumes). Foundations are done; the mid-game intervention and play-it-out were absorbed
+> into v0.2/v0.3. The ordering principle (ADR 0007) is unchanged — content still precedes
+> the queue and the model.
 
-## Phase 1 — v0.1.0: coached guess-the-move on master games (first buildable deliverable)
-Play through a curated public-domain classic from the winner's side → at each non-trivial move,
-**commit a move + a one-line reason** → graded by win%-swing tier (engine-equal alternatives get
-full credit) → reveal the master's move + a plain-language why. **Every move is a retrieval
-event** (~25–35 per game, ~10× the density of playing), it's the self-serve analog of *lessons*
-(the top-yield activity in Southwick 2026), and it needs none of the risky components. Full spec:
-[v0.1.0-plan.md](v0.1.0-plan.md); rationale: ADRs [0011](decisions/0011-game-review-first.md) +
-[0014](decisions/0014-v0.1.0-guess-the-move.md). Then:
-- **v0.2.0 — shipped 2026-07-18.** Play vs client-side Maia (1100–1900) with an **ambient
-  in-game coach**, toggleable evaluation, accuracy + take-back count, and a post-game review
-  with by-phase leak analytics. ADRs [0013](decisions/0013-v0.1.0-play-vs-maia.md),
-  [0016](decisions/0016-maia-onnx-delivery.md) (client-side Maia delivery, proven by the
-  [spike](spikes/maia-onnx.md)), [0017](decisions/0017-in-game-coach.md) (coach during the
-  game — this absorbed the mid-game "step back and analyze" originally slated for v0.3).
-- **v0.3.0 — learn from your own games.** The telemetry we now collect becomes training
-  material: a **game library + replay** (step through a past game, jump straight to a flagged
-  moment — issue #39), and **drills from your own missed tactics** (fresh instances, untimed).
-  This is the first payoff of the play→coach loop feeding itself.
-- **v0.4.0** — opening *safety*: trap avoidance + structure/plan from your opening leaks
-- **v0.5.0** — endgame technique curriculum (tablebase-adjudicated)
-- **v0.6.0+** — the hidden-mode mixed queue (the differentiator); dedicated play-it-out
+## Shipped
+- **v0.1.0 — 2026-07-18.** Coached **guess-the-move** on master games: commit a move + a
+  one-line reason → win%-swing tier → coached reveal. (ADRs
+  [0011](decisions/0011-game-review-first.md), [0014](decisions/0014-v0.1.0-guess-the-move.md).)
+- **v0.2.0 — 2026-07-18.** **Play vs client-side Maia** (1100–1900) with an ambient in-game
+  coach, "Show me", toggleable evaluation, accuracy + take-back count, post-game review with
+  by-phase analytics. (ADRs [0013](decisions/0013-v0.1.0-play-vs-maia.md),
+  [0016](decisions/0016-maia-onnx-delivery.md), [0017](decisions/0017-in-game-coach.md) —
+  0017 absorbed the mid-game "step back and analyze".)
 
-The three drill modes are detailed in [first-deliverable.md](first-deliverable.md).
-**Justification capture** and honest metrics apply from v0.1.0 (telemetry seed).
+## v0.3.0 — Complete the core loops (next)
+Deepen the two existing modes before widening: today both modes end at "understanding" and
+drop the thread — a flagged mistake has no path back into practice. v0.3 closes the loop and
+makes the app feel like one product. **Full design: [v0.3.0-plan.md](v0.3.0-plan.md)**;
+tracked as the **v0.3.0 milestone** on GitHub.
+- Persist the coach's data with each game; **game library + replay** (#39) — "Worth another
+  look" becomes clickable.
+- **Play it out from here** vs Maia (the play-it-out task, arriving early) and the
+  **opening picker** (#41) — both ride the same start-from-position plumbing.
+- Guess-the-move loop closers: **drill your misses**, your **reason reflected back** at the
+  reveal, the same **accuracy** metric as play mode.
+- **Click through engine lines on the board**; richer play-mode "why".
+- **Curated pack: 3 → ~15 annotated classics** (our own annotations; not the #40 database).
+- **Landing redesign** (mode cards + focused setup screens, live stats) and a **theme
+  toggle + dark-palette retune** (#42).
 
-## Phase 2 — Content pipeline & the evaluative core
-Turn "we hand-picked some positions" into a repeatable curation pipeline.
-- Frequency-weighted-regret miner over Lichess data → candidate evaluative items & traps
-- The "tactics-in-a-trenchcoat" filter (forcing-line search / shallow-deep disagreement)
-- Seed the priyome taxonomy from *Woodpecker Method 2* Part 1; generate candidate
-  annotations from engine lines over annotated master games; human spot-check a sample
-- LLM justification grading against annotations
-- Family scheduling + held-out test sets, properly
+## v0.4.0 — The games corpus (content, pulled forward)
+The master-games **database**: search, filters (rating/opening/annotations), annotations
+shown in guess-the-move (#40). **Spike first** — corpus source + licensing, client-side
+size/delivery, search index — exactly as the Maia spike de-risked v0.2. Pulled ahead of the
+curricula because every later release consumes this substrate; the mixed queue is a queue
+*over a pool*, so the pool comes first.
 
-## Phase 3 — Sparring & play-it-out (Maia already client-side from v0.2.0)
-- Dedicated **play-it-out** task: from a critical moment to conversion (reuses the v0.2.0 Maia
-  opponent — no new engine work)
-- Dual-signal feedback (human-likelihood via Maia + eval via Stockfish); the Maia Platform's
-  "blunder meter" is the reference
-- Prophylactic-mode lens over the evaluative pool
+## v0.5.0 — Opening safety
+Trap avoidance + structure/plans from your opening leaks (v0.2/v0.3 telemetry says where you
+bleed; the corpus supplies the material; the v0.3 opening picker supplies the drill vehicle).
 
-## Phase 4 — The learner model & adaptivity
-Only once phases 1–3 are generating dense, labeled telemetry.
-- Multidimensional IRT skill vector with a hierarchical prior (ADR
-  [0008](decisions/0008-skill-model-multidim-irt.md))
-- Cold-start from imported games (run ~200 Lichess/Chess.com games through the classifier
-  → hundreds of pre-labeled decision points → a skill prior, no placement test)
-- ROI-/band-weighted item selection; learn the weights by correlating skill-vector
-  components against real game results across users
-- Close the loop: adaptive queue driven by the model
+## v0.6.0 — Endgame technique
+Tablebase-adjudicated technique curriculum (Syzygy; constitution §7).
+
+## v0.7.0+ — The hidden-mode mixed queue
+The differentiator (constitution §2, ADR [0002](decisions/0002-hidden-mode-mixed-queue.md)):
+one queue across decision types with the mode concealed. Deliberately last of the curricula —
+it requires the pool (v0.4) and the per-type item sources (v0.3/v0.5/v0.6) to exist.
+
+## Ongoing / cross-cutting
+- **Content pipeline & the evaluative core** (feeds v0.4–v0.7): frequency-weighted-regret
+  miner over Lichess data, the "tactics-in-a-trenchcoat" filter, priyome taxonomy seeding,
+  LLM justification grading against annotations (#13), family scheduling + held-out sets.
+- **Justification capture** and honest metrics apply from v0.1.0 onward (telemetry seed).
+
+## Last — the learner model & adaptivity
+Only once the above generates dense, labeled telemetry: multidimensional IRT skill vector
+(ADR [0008](decisions/0008-skill-model-multidim-irt.md)), cold-start from imported games,
+ROI-/band-weighted selection, and finally the adaptive queue.
 
 ## What "done" is not
 There is no phase where we claim to train *all* of chess. The ceiling
