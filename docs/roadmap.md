@@ -10,6 +10,13 @@ needs ~1 item per cell; adaptive selection needs a *dense* pool across all of th
 roughly 200 skills × ~30 items × a held-out split ≈ **6,000+ annotated positions**.
 Building the model before the data-generating loop exists is the classic ML mistake.
 
+> **Reordered 2026-07-18** by ADR [0019](decisions/0019-why-layer-next.md): the **"why" layer**
+> becomes v0.4.0 and the three curricula each move back one slot. Reason:
+> [development-focus.md](development-focus.md) and the rev. 2
+> [effectiveness research §7](research/effectiveness.md) argue the teaching layer must precede
+> any new mode, and the roadmap — written before that research existed — said the opposite.
+> **Read [development-focus.md](development-focus.md) before adding a mode.**
+
 > **Restructured 2026-07-19.** Versions are now the spine (the old Phase 1–4 numbering had
 > Phase 1 containing the whole product and the differentiator scheduled *before* the content
 > it consumes). Foundations are done; the mid-game intervention and play-it-out were absorbed
@@ -47,23 +54,54 @@ tracked as the **v0.3.0 milestone** on GitHub.
 - **Landing redesign** (mode cards + focused setup screens, live stats) and a **theme
   toggle + dark-palette retune** (#42).
 
-## v0.4.0 — Opening safety
+## v0.4.0 — The "why" layer (ADR [0019](decisions/0019-why-layer-next.md))
+**The differentiating build, and deliberately ahead of any new mode.** An engine gives the
+*what* (best move) and the *how much* (eval delta); neither teaches. The payload is the
+*transferable* reason — and for our band the **teacher's** reason beats the engine's even when
+a concrete line is the true cause, because a principle carries to the next position and a
+20-ply line does not ([effectiveness §7](research/effectiveness.md)).
+- Route: **LLM grounded in a concept ontology** (priyome families, imbalance types) and
+  cross-checked against the engine line — ADR [0012](decisions/0012-llm-grounded-explainer.md)'s
+  mechanism plus a conceptual vocabulary.
+- **Honesty gate:** an explanation ships only if it is checkable. Otherwise we show the engine
+  facts and no prose — a confidently wrong "why" is worse than none (constitution §9).
+- The real cost is the **grounding ontology**; see the bottleneck below.
+
+## v0.5.0 — Opening safety
 Trap avoidance + structure/plans from your opening leaks (v0.2/v0.3 telemetry says where you
 bleed; an attached database supplies the material; the v0.3 opening picker supplies the drill
-vehicle). *Moved up: the old v0.4 "games corpus" slot is largely answered by bring-your-own
-import in v0.3 — the pool now comes from the user, not from us.*
+vehicle). *The old v0.4 "games corpus" slot is largely answered by bring-your-own import in
+v0.3 — the pool now comes from the user, not from us.*
 
-## v0.5.0 — Endgame technique
+## v0.6.0 — Endgame technique
 Tablebase-adjudicated technique curriculum (Syzygy; constitution §7).
 
-## v0.6.0+ — The hidden-mode mixed queue
+## v0.7.0+ — The hidden-mode mixed queue
 The differentiator (constitution §2, ADR [0002](decisions/0002-hidden-mode-mixed-queue.md)):
 one queue across decision types with the mode concealed. Deliberately last of the curricula —
 it is a queue *over a pool*, so it needs the pool (the user's attached database, v0.3) and the
-per-type item sources (v0.3 own-game drills, v0.4 opening, v0.5 endgame) to exist first.
+per-type item sources (v0.3 own-game drills, v0.5 opening, v0.6 endgame) to exist first. It also
+needs v0.4: a queue that serves **un-explained** items inherits the commodity problem rather
+than solving it.
 
 ## Ongoing / cross-cutting
-- **Content pipeline & the evaluative core** (feeds v0.4–v0.6): frequency-weighted-regret
+- **Annotation / ontology labor — the project's critical path.** It shows up twice
+  independently (the positional taxonomy, and the grounding ontology for v0.4's "why" layer),
+  which is the signal that it *is* the bottleneck — not tooling, schedulers or engine
+  integration, which are solved or easy. Funded as its own workstream: seed from CC0 sources,
+  generate candidates from engine lines, human spot-check a sample.
+- **The dependency chain** — why this order isn't a preference:
+
+  ```
+  play (Maia, coached)  ─►  review  ─►  { personalized tactics queue }
+                                        { opening-safety queue       }
+                                        { skill / leak diagnosis     }
+  ```
+
+  Three of the five curriculum items are **downstream of review**: they are sourced from the
+  user's own misses, which don't exist until the review loop does. Don't build the tactics
+  generator before the loop that feeds it.
+- **Content pipeline & the evaluative core** (feeds v0.5–v0.7): frequency-weighted-regret
   miner over Lichess data, the "tactics-in-a-trenchcoat" filter, priyome taxonomy seeding,
   LLM justification grading against annotations (#13), family scheduling + held-out sets.
 - **Position search / opening explorer** over an attached database ("find games reaching this
