@@ -37,6 +37,10 @@ export interface StoredGame {
   evalByPly?: (PositionEval | undefined)[]
   /** How the game started. Absent ⇒ `'game'`; see `gameKind()`. */
   kind?: StoredGameKind
+  /** When a full-game analysis pass last completed. Absent ⇒ never analysed (#68). */
+  analysedAt?: number
+  /** Nodes per position that pass used, so a later pass can tell if it must redo the work. */
+  analysisNodes?: number
 }
 
 /** A full game from move 1, or a position played out from somewhere else (#48). */

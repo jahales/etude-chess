@@ -7,6 +7,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Analyse a whole game in one pass (#68).** One button scores every position of a stored
+  game, so the move list shows where the game actually turned — not just the moves the coach
+  happened to grade while you played. It runs a position at a time and you can keep stepping
+  through the game while it fills in, or stop it. The result is saved, so re-opening the game
+  is instant and the work is done once.
 - **Engine analysis while reviewing your own game.** The replay screen now has an eval bar and
   an "Analyse this position" button with the engine's top lines. The coach only ever graded
   *your* moves, so before this every other position in your own game was unexplained.
