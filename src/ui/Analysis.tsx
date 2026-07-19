@@ -1,6 +1,7 @@
 import type { AnalysisLine } from '../engine/analyser'
 import type { Material } from '../domain/material'
-import { pvToSan, formatScore } from '../domain/notation'
+import { pvToSan, whiteScoreLabel } from '../domain/notation'
+import { sideToMoveOf } from '../domain/replay'
 
 /**
  * Lichess-style vertical eval bar. White's fill grows from White's side of the
@@ -44,15 +45,23 @@ export function MaterialStrip({ material }: { material: Material }) {
   )
 }
 
-/** The engine's top lines — each with its score and the concrete sequence. */
+/**
+ * The engine's top lines — each with its score and the concrete sequence.
+ *
+ * Scores are shown from **White's** perspective, like every other score in the
+ * UI (architecture.md: "bar, chip, move list, lines"). UCI reports them relative
+ * to the side to move, so with Black to move the raw number has the opposite
+ * sign to the eval bar and the score chip sitting next to it.
+ */
 export function LinesPanel({ fen, lines }: { fen: string; lines: AnalysisLine[] }) {
   if (lines.length === 0) return null
+  const sideToMove = sideToMoveOf(fen)
   return (
     <div className="lines">
       <div className="lines-head">Engine lines</div>
       {lines.map((ln, i) => (
         <div key={ln.multipv} className={`line ${i === 0 ? 'best' : ''}`}>
-          <span className="line-score mono">{formatScore(ln.score)}</span>
+          <span className="line-score mono">{whiteScoreLabel(ln.score, sideToMove)}</span>
           <span className="line-pv mono">{pvToSan(fen, ln.pv, 6).join(' ')}</span>
         </div>
       ))}

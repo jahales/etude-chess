@@ -7,6 +7,9 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Engine analysis while reviewing your own game.** The replay screen now has an eval bar and
+  an "Analyse this position" button with the engine's top lines. The coach only ever graded
+  *your* moves, so before this every other position in your own game was unexplained.
 - **Game library + replay (#39).** Every finished game is saved and browsable, and you can
   walk back through any of them: click a move or use the arrow keys, with the coach's verdict
   for each of your moves and the evaluation after every move. Replay reads only what was
@@ -29,6 +32,10 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **Engine lines were shown from the side-to-move's perspective**, so with Black to move they
+  carried the opposite sign to the eval bar and score chip beside them (e.g. `+1.31` against
+  `−1.31` for the same position). All scores are now White's perspective, as everywhere else.
+- Clicking a flagged mistake that could not be loaded did nothing at all; it now says so.
 - **A finished game could be saved twice**, appearing twice in the library. Saving a game is
   now one transaction; before, the two writes a finished game triggers could both decide no
   record existed and each insert one.

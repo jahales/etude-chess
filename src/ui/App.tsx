@@ -1,8 +1,6 @@
-import { useMemo, useState, type ComponentProps } from 'react'
-import { Chessboard } from 'react-chessboard'
+import { useMemo, useState } from 'react'
 import { GAMES, type PackGame } from '../content/games'
 import type { QuizItem } from '../domain/harness'
-import { materialBalance } from '../domain/material'
 import { explain, factBundleToText, type FactBundle } from '../domain/factBundle'
 import { summarize, type Attempt } from '../domain/session'
 import type { Color } from '../domain/types'
@@ -27,8 +25,8 @@ import {
   isPromotion,
   type SessionState,
 } from '../app/sessionMachine'
-import { useBoardWidth } from './useBoardWidth'
-import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
+import { BoardPanel, type Arrows } from './BoardPanel'
+import { LinesPanel } from './Analysis'
 import {
   TIER_TEXT,
   TIER_CLASS,
@@ -39,8 +37,6 @@ import {
   sideName,
   moveLabel,
 } from './format'
-
-type Arrows = NonNullable<ComponentProps<typeof Chessboard>['customArrows']>
 
 const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞' }
 
@@ -65,6 +61,7 @@ export function App() {
   const stats = useHomeStats(homeVisits)
   // The game being replayed, plus where to land in it.
   const [replaying, setReplaying] = useState<{ game: StoredGame; cursor: number } | null>(null)
+  const [reviewJumpError, setReviewJumpError] = useState<string | null>(null)
 
   const goHome = () => {
     guess.goHome()
@@ -81,6 +78,7 @@ export function App() {
     setMode('maia')
   }
   const openReplay = (game: StoredGame, cursor = 0) => {
+    setReviewJumpError(null)
     setReplaying({ game, cursor })
     setMode('replay')
   }
@@ -91,10 +89,16 @@ export function App() {
    */
   const reviewPly = async (gameId: string, ply: number) => {
     const stored = await getGame(gameId)
+    // getGame is best-effort and returns undefined when storage is unavailable,
+    // so say so rather than letting the click do nothing at all.
     if (stored) openReplay(stored, ply + 1) // cursor N shows the position after N moves
+    else setReviewJumpError('This game could not be opened — it may not have been saved.')
   }
 
   const showSettingsGear = SETTINGS_MODES.includes(mode)
+  // Replay analyses on request, so it counts; home/library/setup never touch an engine
+  // and shouldn't report one as loading.
+  const showEnginePill = mode !== 'home' && mode !== 'library' && !mode.endsWith('-setup')
   const enginePill =
     mode === 'maia'
       ? play.maiaError
@@ -129,12 +133,20 @@ export function App() {
               ⚙
             </button>
           )}
-          <span className={`engine-pill ${pillOn ? 'on' : ''}`}>{enginePill}</span>
+          {showEnginePill && (
+            <span className={`engine-pill ${pillOn ? 'on' : ''}`}>{enginePill}</span>
+          )}
         </div>
       </header>
 
       {showSettings && showSettingsGear && (
         <SettingsPanel settings={guess.settings} onChange={guess.setSettings} />
+      )}
+
+      {reviewJumpError && (
+        <p className="banner error" role="alert">
+          {reviewJumpError}
+        </p>
       )}
 
       <main className="main">
@@ -196,7 +208,11 @@ export function App() {
         )}
         {mode === 'replay' && replaying && (
           <Replay
+            // Keyed per game so opening a different one never inherits the
+            // previous cursor or flip state.
+            key={replaying.game.gameId}
             game={replaying.game}
+            engine={engine}
             initialCursor={replaying.cursor}
             onBack={() => setMode('library')}
           />
@@ -420,13 +436,10 @@ function Play({
   onCommit: () => void
   onNext: () => void
 }) {
-  const { ref, width } = useBoardWidth()
-  const [flipped, setFlipped] = useState(false)
   const session = state.session!
   const { phase, pending, reason, result, lines, positionWhitePct, selected, index } = state
   const item = currentItem(state)!
   const boardFen = selectDisplayFen(state)
-  const whiteBottom = session.heroColor === 'w' ? !flipped : flipped
 
   const squareStyles = selected
     ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
@@ -449,39 +462,20 @@ function Play({
 
   return (
     <section className="play">
-      <div className="board-col">
-        <div className="board-row">
-          <EvalBar whitePct={positionWhitePct} whiteBottom={whiteBottom} />
-          <div className="board-frame" ref={ref}>
-            <Chessboard
-              id="board"
-              position={boardFen}
-              boardWidth={width}
-              boardOrientation={whiteBottom ? 'white' : 'black'}
-              arePiecesDraggable={phase === 'guess' && !pending && engineReady}
-              onPieceDrop={(from, to) => onDropMove(from, to)}
-              onSquareClick={onClickSquare}
-              customArrows={arrows}
-              customSquareStyles={squareStyles}
-              customBoardStyle={{ borderRadius: '6px' }}
-            />
-          </div>
-        </div>
-        <MaterialStrip material={materialBalance(boardFen)} />
-        <div className="turn-line">
-          <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
-          {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
-          <button
-            className="btn ghost flip"
-            type="button"
-            onClick={() => setFlipped((f) => !f)}
-            aria-label="Flip board"
-            title="Flip board"
-          >
-            ⇅ Flip
-          </button>
-        </div>
-      </div>
+      <BoardPanel
+        id="board"
+        fen={boardFen}
+        orientedFor={session.heroColor}
+        whitePct={positionWhitePct}
+        arePiecesDraggable={phase === 'guess' && !pending && engineReady}
+        onPieceDrop={(from, to) => onDropMove(from, to)}
+        onSquareClick={onClickSquare}
+        customArrows={arrows}
+        customSquareStyles={squareStyles}
+      >
+        <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
+        {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
+      </BoardPanel>
 
       <div className="side-col">
         <div className="game-head">

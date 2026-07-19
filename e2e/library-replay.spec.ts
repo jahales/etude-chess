@@ -62,5 +62,18 @@ test.describe('game library + replay', () => {
     // Clicking a move jumps to it.
     await page.locator('.mv-jump').nth(1).click()
     await expect(page.locator('.replay-pos')).toContainText('2 /')
+
+    // Reviewing your own game needs the engine, not just the stored verdicts:
+    // the coach only ever graded *your* moves, so every other position is
+    // unexplained without this.
+    const analyse = page.getByRole('button', { name: 'Analyse this position' })
+    await expect(analyse).toBeVisible({ timeout: 60_000 })
+    await analyse.click()
+    await expect(page.locator('.lines')).toBeVisible({ timeout: 60_000 })
+    await expect(page.locator('.replay-analysis .score-chip')).toBeVisible()
+
+    // Stepping away drops the result rather than showing it against a new position.
+    await page.locator('body').press('ArrowLeft')
+    await expect(page.locator('.lines')).toBeHidden()
   })
 })
