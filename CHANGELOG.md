@@ -48,6 +48,22 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **A finished analysis could be silently undone (#82).** The play session and the analysis
+  pass each wrote the whole game record from their own snapshot, so each reverted the other's
+  fields — finish an analysis, let a late grade land, and the game offered to analyse itself
+  again. Writes now merge, and the analysis writes only its own fields.
+- **Move glyphs no longer contradict the coach.** Before a game is analysed, the stored
+  evaluations are recorded at two different engine budgets, so comparing them invented swings
+  out of nothing — a move the coach called good could sit beside a `?!`. Glyphs now wait for
+  the whole-game pass, which scores every position the same way. Scores still show either way.
+- **Accuracy agrees with itself across screens.** Home, the library and the post-game review
+  each derived it differently; the review could show a high figure directly above a mistake it
+  hadn't counted. All three now share one calculation and say what it covers.
+- **Turning the evaluation off now also hides it on the coach card**, where it was still
+  printed.
+- **A game that can't be fully replayed can now finish an analysis** instead of stopping short
+  and starting over every time.
+- **The eval bar reads the start position** rather than sitting blank at the first move.
 - **The move list follows the cursor in a long game (#79).** Stepping through a 40-move game
   scrolled the selected move out of sight — a cursor you can't see is a transport that doesn't
   work. It now stays in view.

@@ -78,7 +78,7 @@ describe('a full-length game (47 plies)', () => {
 
   it('surfaces the moves that actually lost the game, not the first bad ones it finds', () => {
     const evals = evalsFor(sanHistory.length)
-    const moves = buildReplayMoves(longGame(), evals)
+    const moves = buildReplayMoves(longGame(), evals, { annotated: true })
     const study = movesWorthStudying(moves, 'w')
 
     expect(study.length).toBeGreaterThan(0)

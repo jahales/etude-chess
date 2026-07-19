@@ -108,14 +108,33 @@ export async function saveGame(g: StoredGame): Promise<void> {
   try {
     // Upsert by gameId so a late final-move grade can correct the stored accuracy.
     //
-    // This must run in one transaction. A finished game is saved more than once
-    // — a trailing position eval and a late final-move grade both re-fire the
-    // persist effect — and read-then-write without a transaction lets two calls
-    // both observe "no existing row" and each insert one, leaving the game
-    // duplicated in the library.
+    // One transaction: a finished game is saved more than once (a trailing eval
+    // and a late final-move grade each re-fire the persist effect), and
+    // read-then-write without one lets two calls both see "no existing row" and
+    // each insert.
+    //
+    // And a **merge**, not a replace. Two independent writers touch this row —
+    // the play session and the analysis pass — from separate snapshots. A full
+    // `put` meant each silently reverted the other's fields: finish a pass, let a
+    // late grade land, and `analysedAt` vanished so the game offered to analyse
+    // itself again.
     await d.transaction('rw', d.games, async () => {
       const existing = await d.games.where('gameId').equals(g.gameId).first()
-      await d.games.put(existing?.id != null ? { ...g, id: existing.id } : g)
+      if (!existing) {
+        await d.games.put(g)
+        return
+      }
+      // Live evals are recorded at two different node budgets (your moves at the
+      // grading budget, the opponent's at the cheaper display one). A completed
+      // pass is uniform, and must not be overwritten by them.
+      const analysed = existing.analysedAt != null
+      const { evalByPly, ...rest } = g
+      await d.games.put({
+        ...existing,
+        ...rest,
+        ...(analysed ? {} : { evalByPly }),
+        id: existing.id,
+      })
     })
   } catch (e) {
     console.warn('etude-chess: could not persist game', e)
@@ -132,6 +151,28 @@ export async function listGames(limit = 50): Promise<StoredGame[]> {
   } catch (e) {
     console.warn('etude-chess: could not list games', e)
     return []
+  }
+}
+
+/**
+ * Write the result of a whole-game analysis pass, re-reading the record inside
+ * the transaction so nothing the play session wrote in the meantime is lost.
+ * The caller's copy of the game may be minutes old.
+ */
+export async function saveAnalysis(
+  gameId: string,
+  analysis: Pick<StoredGame, 'evalByPly' | 'startEval' | 'analysedAt' | 'analysisNodes'>,
+): Promise<void> {
+  const d = getDb()
+  if (!d) return
+  try {
+    await d.transaction('rw', d.games, async () => {
+      const existing = await d.games.where('gameId').equals(gameId).first()
+      if (!existing) return
+      await d.games.put({ ...existing, ...analysis, id: existing.id })
+    })
+  } catch (e) {
+    console.warn('etude-chess: could not persist analysis', e)
   }
 }
 

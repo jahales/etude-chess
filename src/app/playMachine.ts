@@ -131,6 +131,12 @@ export function openingName(state: PlayState): string | null {
 export function gameAccuracy(state: PlayState): number {
   return meanAccuracy(state.coachLog.map((e) => e.swing))
 }
+
+/** Your moves in the game so far, whether or not the coach finished grading them. */
+export function yourMoveCount(state: PlayState): number {
+  const yourTurnAt = state.yourColor === 'w' ? 0 : 1
+  return state.sanHistory.filter((_, ply) => ply % 2 === yourTurnAt).length
+}
 /** Fraction of your moves you took back (0 = committed every time; can exceed 1). */
 export function takebackRate(state: PlayState): number {
   return state.coachLog.length === 0 ? 0 : state.takebacks / state.coachLog.length

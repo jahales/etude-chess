@@ -8,6 +8,7 @@ import {
   canTakeBack,
   displayFen,
   gameAccuracy,
+  yourMoveCount,
   takebackRate,
   openingName,
   sideToMove,
@@ -130,6 +131,11 @@ function Review({
     )
   }
   const acc = gameAccuracy(state).toFixed(2)
+  // The coach log only holds moves that finished grading before the game ended,
+  // so on a resigned game this figure can rest on a fraction of your moves — and
+  // sit directly above a mistake it doesn't account for (#74). Say what it covers.
+  const covered = state.coachLog.length
+  const yourMoves = yourMoveCount(state)
   const phases = byPhase(state.coachLog)
   const rate = Math.round(takebackRate(state) * 100)
   const worst = [...state.coachLog]
@@ -141,7 +147,14 @@ function Review({
       <div className="review-stats">
         <div className="accuracy-big">
           <span className="acc-num mono">{acc}%</span>
-          <span className="acc-label">accuracy</span>
+          <span className="acc-label">
+            accuracy
+            {covered < yourMoves && (
+              <span className="coverage-note">
+                over {covered} of {yourMoves} moves
+              </span>
+            )}
+          </span>
         </div>
         <div className="takeback-stat">
           <span className="tb-num mono">{state.takebacks}</span>
@@ -151,7 +164,10 @@ function Review({
           </span>
         </div>
       </div>
-      <p className="acc-note">Accuracy is the game as played; take-backs are tracked separately.</p>
+      <p className="acc-note">
+        Accuracy is the game as played; take-backs are tracked separately.
+        {covered < yourMoves && ' Analyse the game from Your games to score every move.'}
+      </p>
       <div className="phase-row">
         {PHASES.filter((p) => phases[p].moves > 0).map((p) => (
           <div key={p} className="phase-stat">
@@ -418,7 +434,10 @@ export function MaiaPlay({
               <CoachPanel
                 coach={state.lastCoach}
                 yourColor={yourColor}
-                myMoveScore={state.evalByPly[state.lastCoach.ply]?.label}
+                // Gated on showEval like every other score: the coach effect writes
+                // this entry regardless of the toggle, so without the guard turning
+                // the evaluation off still printed it here.
+                myMoveScore={showEval ? state.evalByPly[state.lastCoach.ply]?.label : undefined}
                 showMe={state.showMe}
                 lines={state.lines}
                 onReveal={play.revealLines}
