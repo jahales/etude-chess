@@ -1,5 +1,5 @@
 import type { Tier } from '../domain/types'
-import type { CoachEntry } from '../domain/gameRecord'
+import type { CoachEntry, PositionEval } from '../domain/gameRecord'
 import type { StoredGame } from '../persist/db'
 
 /**
@@ -27,7 +27,14 @@ export interface ReplayRow {
   b?: ReplayMove
 }
 
-export function buildReplayMoves(game: StoredGame): ReplayMove[] {
+/**
+ * `evalByPly` can be overridden so a whole-game analysis in flight (#68) lights
+ * up the move list as it goes, rather than only after it is persisted.
+ */
+export function buildReplayMoves(
+  game: StoredGame,
+  evalByPly: (PositionEval | undefined)[] | undefined = game.evalByPly,
+): ReplayMove[] {
   // Index the coach log by ply once — it only covers your moves, and a linear
   // scan per move would be quadratic on a long game.
   const byPly = new Map<number, CoachEntry>()
@@ -41,7 +48,7 @@ export function buildReplayMoves(game: StoredGame): ReplayMove[] {
       tier: coach?.tier,
       swing: coach?.swing,
       bestMoveSan: coach?.bestMoveSan,
-      score: game.evalByPly?.[ply]?.label,
+      score: evalByPly?.[ply]?.label,
     }
   })
 }

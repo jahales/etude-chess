@@ -9,6 +9,7 @@ import {
 } from '../app/replay'
 import type { AnalyserState } from '../app/useAnalyser'
 import { usePositionAnalysis } from '../app/usePositionAnalysis'
+import { useGameAnalysis } from '../app/useGameAnalysis'
 import { countGames, gameKind, listGames, type StoredGame } from '../persist/db'
 import { BoardPanel } from './BoardPanel'
 import { LinesPanel } from './Analysis'
@@ -151,8 +152,6 @@ export function Replay({
   // Derived once per game: replay is read-only, so nothing here ever changes
   // while the screen is open.
   const positions = useMemo(() => replayPositions(game.sanHistory), [game])
-  const moves = useMemo(() => buildReplayMoves(game), [game])
-  const rows = useMemo(() => replayRows(moves), [moves])
 
   // A game that couldn't be fully replayed has fewer positions than moves; the
   // cursor follows the positions, so we never index past what we rebuilt.
@@ -177,15 +176,19 @@ export function Replay({
   const coach = coachAtCursor(game, cursor)
   const truncated = positions.length <= game.sanHistory.length
 
-  // Stored data answers "how did I do"; the engine answers "what should I have
-  // played here", which the coach only ever recorded for your own moves. It runs
-  // on request, so stepping through a game still costs nothing.
+  // Two kinds of engine work, deliberately separate. The whole-game pass gives
+  // *coverage* — every position scored, so the move list shows where the game
+  // turned. The single-position analysis gives *depth* on the one you care about.
+  const whole = useGameAnalysis(engine, game, positions)
   const analysis = usePositionAnalysis(engine, fen)
 
-  // The stored eval is free and instant; a fresh analysis supersedes it for the
-  // position it was actually computed for.
-  const storedPct = cursor > 0 ? game.evalByPly?.[cursor - 1]?.whitePct : undefined
-  const whitePct = analysis.evaluation?.whitePct ?? storedPct ?? null
+  const moves = useMemo(() => buildReplayMoves(game, whole.evalByPly), [game, whole.evalByPly])
+  const rows = useMemo(() => replayRows(moves), [moves])
+
+  // A fresh deep analysis supersedes the batch score for the position it was
+  // actually computed for; otherwise fall back to whatever the pass has produced.
+  const batchPct = cursor > 0 ? whole.evalByPly?.[cursor - 1]?.whitePct : undefined
+  const whitePct = analysis.evaluation?.whitePct ?? batchPct ?? null
 
   return (
     <section className="play">
@@ -267,6 +270,18 @@ export function Replay({
         </div>
 
         <div className="replay-analysis">
+          {whole.available && !whole.analysed && (
+            <button
+              className="btn ghost"
+              type="button"
+              onClick={whole.running ? whole.cancel : whole.start}
+            >
+              {whole.running
+                ? `Analysing ${whole.progress?.done ?? 0}/${whole.progress?.total ?? 0} — stop`
+                : 'Analyse the whole game'}
+            </button>
+          )}
+          {whole.analysed && <span className="replay-coach-empty">Whole game analysed.</span>}
           {analysis.available ? (
             <>
               <button

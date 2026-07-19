@@ -70,6 +70,10 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
     Anything that belongs on "a board" goes here so it can't reach only some screens.
   - `src/app/usePositionAnalysis.ts` — analyse an arbitrary position on request (replay's
     "what should I have played here"), with the same stale-result guard the reducers use.
+  - `src/app/gameAnalysis.ts` (pure) + `useGameAnalysis.ts` — the whole-game pass (#68):
+    *coverage* at a uniform budget, as opposed to the *depth* of a single-position analysis.
+    Persists `evalByPly` plus `analysedAt`/`analysisNodes` so the work happens once; a partial
+    run is kept but never marked complete.
   - `src/ui/**` — React adapter. `App.tsx` routes
     `home | maia-setup | maia | guess-pick | guess` — Home is a card chooser, each mode
     gets a focused setup screen (`Screen` shell supplies the title + back); `MaiaMode.tsx` is the play
