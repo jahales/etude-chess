@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildReplayMoves, replayRows, coachAtCursor, clampCursor } from './replay'
 import type { StoredGame } from '../persist/db'
-import type { CoachEntry } from './playMachine'
+import type { CoachEntry } from '../domain/gameRecord'
 
 function coach(ply: number, over: Partial<CoachEntry> = {}): CoachEntry {
   return { ply, fen: `fen${ply}`, san: 'x', tier: 'A', swing: 0, bestMoveSan: null, ...over }

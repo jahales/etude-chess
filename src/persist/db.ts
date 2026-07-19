@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { Attempt } from '../domain/session'
-import type { CoachEntry, PositionEval } from '../app/playMachine'
+import type { CoachEntry, PositionEval } from '../domain/gameRecord'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
 // committed guess is stored as telemetry for later phases. All access is
@@ -88,8 +88,16 @@ export async function saveGame(g: StoredGame): Promise<void> {
   if (!d) return
   try {
     // Upsert by gameId so a late final-move grade can correct the stored accuracy.
-    const existing = await d.games.where('gameId').equals(g.gameId).first()
-    await d.games.put(existing?.id != null ? { ...g, id: existing.id } : g)
+    //
+    // This must run in one transaction. A finished game is saved more than once
+    // — a trailing position eval and a late final-move grade both re-fire the
+    // persist effect — and read-then-write without a transaction lets two calls
+    // both observe "no existing row" and each insert one, leaving the game
+    // duplicated in the library.
+    await d.transaction('rw', d.games, async () => {
+      const existing = await d.games.where('gameId').equals(g.gameId).first()
+      await d.games.put(existing?.id != null ? { ...g, id: existing.id } : g)
+    })
   } catch (e) {
     console.warn('etude-chess: could not persist game', e)
   }
@@ -105,6 +113,17 @@ export async function listGames(limit = 50): Promise<StoredGame[]> {
   } catch (e) {
     console.warn('etude-chess: could not list games', e)
     return []
+  }
+}
+
+/** How many finished games are stored. Cheap: counts the index, loads no records. */
+export async function countGames(): Promise<number> {
+  const d = getDb()
+  if (!d) return 0
+  try {
+    return await d.games.count()
+  } catch {
+    return 0
   }
 }
 

@@ -1,5 +1,9 @@
 import { Chess, type Square } from 'chess.js'
-import type { Color, Tier } from '../domain/types'
+import type { Color } from '../domain/types'
+// Re-exported so existing importers keep working; the definitions live in the
+// domain so the persistence adapter never has to import this reducer.
+export type { CoachEntry, PositionEval } from '../domain/gameRecord'
+import type { CoachEntry, PositionEval } from '../domain/gameRecord'
 import type { CoachVerdict } from '../domain/coach'
 import type { AnalysisLine } from '../engine/analyser'
 import type { MaiaLevel } from '../engine/maia/opponent'
@@ -28,34 +32,12 @@ export interface PlayResult {
   reason: EndReason
 }
 
-/** A position's engine eval (White's perspective) for the bar + move-list scores. */
-export interface PositionEval {
-  whitePct: number
-  label: string
-}
-
 /** Coach feedback on your most recent move, shown while it's your turn again. */
 export interface LastCoach {
   ply: number
   fenBefore: string
   yourMoveSan: string
   verdict: CoachVerdict
-}
-
-/**
- * One coached move of yours in the game as played — the basis for the move-list tiers,
- * accuracy, and the post-game review. Take-backs prune these (via TAKE_BACK), so this is
- * always the final line: accuracy reflects the game you actually played, while the
- * separate take-back count is what penalises fiddling (ADR 0017).
- */
-export interface CoachEntry {
-  ply: number
-  /** Position you moved from (for phase detection + the review). */
-  fen: string
-  san: string
-  tier: Tier
-  swing: number
-  bestMoveSan: string | null
 }
 
 export interface PlayState {

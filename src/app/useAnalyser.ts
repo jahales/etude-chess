@@ -8,7 +8,13 @@ export interface AnalyserState {
   error: string | null
 }
 
-/** Create one Stockfish worker for the app's lifetime; expose readiness. */
+/**
+ * Create one Stockfish worker for the app's lifetime; expose readiness.
+ *
+ * Lives in `app`, not `ui`: it owns an engine lifecycle rather than rendering
+ * anything, and the session hooks that consume its state are here too. While it
+ * sat in `ui`, `app` had to import *upward* to name `AnalyserState` (ADR 0015).
+ */
 export function useAnalyser(): AnalyserState {
   const [state, setState] = useState<AnalyserState>({ analyser: null, ready: false, error: null })
 

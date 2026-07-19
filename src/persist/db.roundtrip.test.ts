@@ -8,8 +8,8 @@
 import 'fake-indexeddb/auto'
 import { describe, it, expect, beforeEach } from 'vitest'
 import Dexie from 'dexie'
-import type { PositionEval } from '../app/playMachine'
-import { saveGame, listGames, getGame, lastGame, gameKind, type StoredGame } from './db'
+import type { PositionEval } from '../domain/gameRecord'
+import { saveGame, listGames, getGame, lastGame, countGames, gameKind, type StoredGame } from './db'
 
 function game(overrides: Partial<StoredGame> = {}): StoredGame {
   return {
@@ -126,5 +126,25 @@ describe('stored games (with IndexedDB)', () => {
 
   it('lastGame is undefined when nothing has been played', async () => {
     expect(await lastGame()).toBeUndefined()
+  })
+
+  it('keeps one row per gameId when two saves race', async () => {
+    // A finished game is saved more than once: a trailing eval and a late
+    // final-move grade both re-fire the persist effect. Without a transaction
+    // both calls read "no existing row" and each insert one, and the game shows
+    // up twice in the library.
+    await Promise.all([
+      saveGame(game({ gameId: 'racy', accuracy: 50 })),
+      saveGame(game({ gameId: 'racy', accuracy: 91.25 })),
+    ])
+
+    expect(await countGames()).toBe(1)
+    expect((await listGames()).filter((g) => g.gameId === 'racy')).toHaveLength(1)
+  })
+
+  it('countGames matches what listGames returns', async () => {
+    await saveGame(game({ gameId: 'a' }))
+    await saveGame(game({ gameId: 'b' }))
+    expect(await countGames()).toBe((await listGames()).length)
   })
 })

@@ -24,6 +24,13 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
 [0017](decisions/0017-in-game-coach.md) for the release scopes.
 
 ## Shape: pragmatic hexagonal (ports & adapters) — ADR [0015](decisions/0015-pragmatic-hexagonal.md)
+
+> **Dependencies point one way:** `domain` ← `app` ← adapters (`engine`, `persist`) ← `ui`.
+> An adapter may speak the **domain's** vocabulary; it must never import from `app`. This is
+> enforced by [`src/architecture.test.ts`](../src/architecture.test.ts), not just asserted
+> here — it went unnoticed twice while it was only prose (`persist/db.ts` importing reducer
+> types; `app` importing `AnalyserState` from `ui`). Types shared between the app and an
+> adapter belong in `src/domain` — that's what `domain/gameRecord.ts` is for.
 - **Domain core** — `src/domain/**`: pure functions + types, **no React / engine / I/O / Date.now**.
   Fully unit-tested; this is why the suite runs in ~3s. TDD here.
   - `winPercent`, `grade` (A/B/C tiers by win% swing), `material`, `notation` (SAN/score
@@ -46,6 +53,10 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
   - `src/engine/maia/` — the **`MaiaOpponent` port** (`opponent.ts`) + `maiaOpponent.ts`
     adapter driving `maiaWorker.ts` (onnxruntime-web). `encoding.ts` (112-plane Lc0 tensor),
     `decoding.ts` (1858-move policy → legal moves), `policyIndex.ts`. **GPL, arm's-length.**
+  - `src/app/useAnalyser.ts` — owns the one shared Stockfish worker. In `app`, not `ui`: it
+    manages an engine lifecycle rather than rendering, and the session hooks consume it.
+  - `src/domain/gameRecord.ts` — `CoachEntry` + `PositionEval`, the vocabulary a played game
+    is *recorded* in. In the domain so `persist` never imports from `app` (see below).
   - `src/app/replay.ts` — pure derivations for the replay screen (`buildReplayMoves`,
     `replayRows`, `coachAtCursor`, `clampCursor`); `src/domain/replay.ts` rebuilds positions
     from SAN. `src/app/useHomeStats.ts` — the Home cards' history counters.

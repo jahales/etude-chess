@@ -6,7 +6,7 @@ import { whiteScoreLabel } from '../domain/notation'
 import { evaluateAndGrade } from '../engine/grading'
 import { MaiaOnnxOpponent, maiaModelUrl } from '../engine/maia/maiaOpponent'
 import { DEFAULT_LEVEL, type MaiaLevel } from '../engine/maia/opponent'
-import type { AnalyserState } from '../ui/useAnalyser'
+import type { AnalyserState } from './useAnalyser'
 import { saveGame } from '../persist/db'
 import {
   playReducer,

@@ -11,7 +11,7 @@ import { usePlaySession } from '../app/usePlaySession'
 import { useHomeStats, type HomeStats } from '../app/useHomeStats'
 import { getGame, type StoredGame } from '../persist/db'
 import type { MaiaLevel } from '../engine/maia/opponent'
-import { useAnalyser } from './useAnalyser'
+import { useAnalyser } from '../app/useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
 import { Library, Replay } from './Library'
 import {

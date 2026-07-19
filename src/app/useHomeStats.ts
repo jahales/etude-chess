@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { countAttempts, listGames, type StoredGame } from '../persist/db'
+import { countAttempts, countGames, listGames, type StoredGame } from '../persist/db'
 
 /**
  * What the Home cards show about your own history. Everything is optional: a
@@ -17,6 +17,13 @@ export interface HomeStats {
 const EMPTY: HomeStats = { gamesPlayed: 0, decisions: 0 }
 
 /**
+ * How many recent games to scan for the last *graded* accuracy. Ungraded games
+ * are rare, so a short scan practically always finds one; if a user somehow
+ * abandoned this many games in a row, the stat is simply omitted.
+ */
+const RECENT_SCAN = 20
+
+/**
  * Reads the local history once on mount. `reloadKey` re-reads it — pass
  * something that changes when you return to Home, so finishing a game is
  * reflected without a refresh.
@@ -27,15 +34,19 @@ export function useHomeStats(reloadKey: unknown = 0): HomeStats {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      // Both are best-effort and resolve to empty rather than throwing, so a
-      // missing IndexedDB just means the cards show no stats.
-      const [games, decisions] = await Promise.all([listGames(500), countAttempts()])
+      // All best-effort: they resolve to empty rather than throwing, so a missing
+      // IndexedDB just means the cards show no stats.
+      //
+      // The count comes from the index and the accuracy from a handful of rows.
+      // Loading every game to derive two numbers would deserialize each one's
+      // whole coachLog and evalByPly — hundreds of KB, on every visit Home.
+      const [gamesPlayed, recent, decisions] = await Promise.all([
+        countGames(),
+        listGames(RECENT_SCAN),
+        countAttempts(),
+      ])
       if (cancelled) return
-      setStats({
-        gamesPlayed: games.length,
-        lastAccuracy: lastAccuracyOf(games),
-        decisions,
-      })
+      setStats({ gamesPlayed, lastAccuracy: lastAccuracyOf(recent), decisions })
     })()
     return () => {
       cancelled = true

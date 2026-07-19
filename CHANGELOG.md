@@ -25,9 +25,13 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ### Changed
 - The analysis-settings gear now appears only on the study screens it actually configures.
+- Home reads its stats from a count plus a short scan rather than loading every stored game.
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **A finished game could be saved twice**, appearing twice in the library. Saving a game is
+  now one transaction; before, the two writes a finished game triggers could both decide no
+  record existed and each insert one.
 - A tier badge showed white-on-white when its tier class sat on the badge itself rather than
   on a parent element.
 
