@@ -7,6 +7,12 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Saved games ask to stay saved (#78).** The app now requests persistent storage the first
+  time a game is saved, and the library states plainly whether it was granted. Browsers may
+  clear script-written storage when short of space, and Safari does so after about a week
+  without a visit — so a library that looked permanent could quietly empty.
+- **Delete a game, and see what storage is used (#81).** Each row has a delete button with a
+  confirmation, since a game's coach data and analysis can't be recovered.
 - **Move annotations and a "Worth studying" list (#67).** Once a game is analysed, every move
   carries `?!`, `?` or `??` where it gave one up, and your worst moves are listed — biggest
   first — as buttons that jump straight to the position. Deliberately only those three glyphs:

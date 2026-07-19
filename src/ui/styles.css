@@ -1267,3 +1267,24 @@ button {
   display: inline;
   font-size: 0.85em;
 }
+
+/* Library row actions + storage durability note (#78, #81) */
+.row-actions {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+.btn.danger {
+  color: var(--ink-faint);
+  padding: 0.25rem 0.5rem;
+}
+.btn.danger:hover {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+}
+.storage-note {
+  margin: 0.8rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}

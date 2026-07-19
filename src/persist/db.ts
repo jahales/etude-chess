@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { Attempt } from '../domain/session'
 import type { CoachEntry, PositionEval } from '../domain/gameRecord'
+import { ensurePersistence } from './storage'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
 // committed guess is stored as telemetry for later phases. All access is
@@ -93,9 +94,17 @@ export async function saveAttempt(a: StoredAttempt): Promise<void> {
   }
 }
 
+// Persistence is requested once per session, on the first game saved — after the
+// user has created something worth keeping, not on load (see storage.ts).
+let persistenceRequested = false
+
 export async function saveGame(g: StoredGame): Promise<void> {
   const d = getDb()
   if (!d) return
+  if (!persistenceRequested) {
+    persistenceRequested = true
+    void ensurePersistence()
+  }
   try {
     // Upsert by gameId so a late final-move grade can correct the stored accuracy.
     //
@@ -123,6 +132,17 @@ export async function listGames(limit = 50): Promise<StoredGame[]> {
   } catch (e) {
     console.warn('etude-chess: could not list games', e)
     return []
+  }
+}
+
+/** Remove one stored game. Not recoverable — callers confirm first. */
+export async function deleteGame(gameId: string): Promise<void> {
+  const d = getDb()
+  if (!d) return
+  try {
+    await d.games.where('gameId').equals(gameId).delete()
+  } catch (e) {
+    console.warn('etude-chess: could not delete game', e)
   }
 }
 
