@@ -9,9 +9,11 @@ type** (concrete / evaluative / technique / prophylactic / play-it-out), whose s
 feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) and
 [docs/decision-types.md](docs/decision-types.md) before doing design work.
 
-## Current status: v0.1.0 released (coached guess-the-move) — 2026-07-18
-- The app is **built and shipped**. What exists: [CHANGELOG.md](CHANGELOG.md) +
-  [docs/architecture.md](docs/architecture.md). Next major: **v0.2 — play vs Maia** (issue #14).
+## Current status: v0.2.0 released (play vs Maia + in-game coach) — 2026-07-18
+- Two modes ship: **coached guess-the-move** (v0.1.0) and **play vs client-side Maia with an
+  ambient coach** (v0.2.0). What exists: [CHANGELOG.md](CHANGELOG.md) +
+  [docs/architecture.md](docs/architecture.md). Next: **v0.3 — learn from your own games**
+  (game library/replay #39, missed-tactic drills).
 - The design is still **living**; every doc except the constitution is revisable.
 
 ## Read these before proposing anything

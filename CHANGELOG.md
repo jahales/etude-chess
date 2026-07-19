@@ -6,41 +6,41 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
-### Fixed
-- **Engine/board sync (play vs Maia):** every Stockfish result now carries the FEN it was
-  computed for and is dropped if the board has moved on, so repeated take-backs can no
-  longer leave the engine showing stale evals or illegal lines.
-- **Consistent scores:** all scores (eval bar, current chip, move list, and the "Show me"
-  lines) are now from **White's perspective**, so a Black advantage always reads the same
-  way. Your own move's score is shown too — including when it isn't in the engine's top 3.
-- Maia plays closer to its rating (lower sampling temperature; it was picking too many
-  weak moves). Captured **black pieces are visible** on the dark ground, accuracy shows
-  **2 decimals**, and the board is larger.
+_Nothing yet._
+
+## [0.2.0] — 2026-07-18
+
+**Play vs Maia, coached on every move.** A second mode alongside guess-the-move: play a full
+game against a human-like opponent that runs entirely in your browser, with a coach watching.
 
 ### Added
-- **Accuracy + post-game review (v0.2):** a per-game **accuracy** score (Lichess per-move
-  model, simple mean) over the moves **as played**, plus a separate **take-back count** —
-  accuracy rewards the final game, the take-back count is the "did you commit?" penalty.
-  Shown live and headlining a **post-game review**: accuracy, an opening/middlegame/endgame
-  breakdown, and your worst moments with the better move. Framed as this game's move
-  quality, not a skill rating (constitution §9, §12).
-- **In-game coach (v0.2, ADR 0017):** an ambient coach on every move — you move, **Maia
-  replies immediately**, and Stockfish grades your move (tier + how much it cost + what it
-  dropped). The better move stays hidden behind **"Show me"** so a live verdict doesn't bias
-  your next decision; **Take back** undoes the pair. Plus an **evaluation** you can toggle
-  off (bar + exact current score + a score on every move in the list), the **opening** name,
-  and **Draw / Resign**. One shared Stockfish worker serves both guess-grading and the coach.
-- **Play vs Maia (v0.2, #14):** play a full game against the client-side, human-like Maia
-  opponent — pick your colour and level (1100 / 1300 / 1500), click or drag to move, Maia
-  replies from a single forward pass. A pure `playMachine` reducer + `usePlaySession` hook
-  drive it; the Maia worker + wasm are lazy-loaded only when a game starts (never on the
-  guess-the-move path), and finished games are stored locally for the coming coached review.
-- **Maia spike (toward v0.2, #14):** client-side Maia-1 inference proven end-to-end —
-  Maia-1900 runs in-browser (onnxruntime-web wasm in a Web Worker) and returns legal,
-  human-like moves. Reusable foundation: a `MaiaOpponent` port + onnxruntime adapter, a
-  pure 112-plane Lc0 encoder and 1858-move policy decoder (unit-tested), an opt-in Node
-  oracle, and a headless-browser proof. See [docs/spikes/maia-onnx.md](docs/spikes/maia-onnx.md)
-  and ADR [0016](docs/decisions/0016-maia-onnx-delivery.md). Not yet wired into the app.
+- **Play vs client-side Maia (#14).** Pick your colour and level (**1100–1900**) and play a
+  full game against Maia — a neural net trained to predict *human* moves at a rating, so it
+  makes the mistakes you will actually face. Fully client-side (onnxruntime-web in a Web
+  Worker); no backend. The worker + wasm load only when a game starts.
+- **An ambient in-game coach** (ADR [0017](docs/decisions/0017-in-game-coach.md)). You move,
+  Maia replies immediately, and Stockfish grades your move — tier, what it cost, and what it
+  dropped. The better move stays behind **"Show me"** so the verdict does not bias your next
+  decision; **Take back** undoes the pair.
+- **Scores everywhere, toggleable.** Eval bar, exact current score, and a score on every move
+  in the list — all from White's perspective. Switch the evaluation off to play on your own
+  judgment.
+- **Accuracy + post-game review.** Per-game accuracy over the moves *as played*, with a
+  separate **take-back count**; the review adds an opening/middlegame/endgame breakdown and
+  your worst moments with the better move. This is the game's move quality — not a skill
+  rating or a claim of transfer (constitution §9, §12).
+- Opening name, **Draw / Resign**, board flip, and a material strip.
+
+### Engineering
+- **`MaiaOpponent` port + onnxruntime adapter**, arm's-length in its own Web Worker exactly
+  like Stockfish (both GPL, both with NOTICEs). Pure 112-plane Lc0 encoder + 1858-move policy
+  decoder, unit-tested. See [docs/spikes/maia-onnx.md](docs/spikes/maia-onnx.md) and ADR
+  [0016](docs/decisions/0016-maia-onnx-delivery.md).
+- Pure `playMachine` reducer + `usePlaySession` hook (the ADR 0015 shape); one shared
+  Stockfish worker now serves both modes.
+- **Engine/board sync by construction:** every engine result carries the FEN it was computed
+  for and is dropped if the board has moved on.
+- 153 unit tests + Playwright e2e; CI runs verify + e2e on every PR.
 
 ## [0.1.0] — 2026-07-18
 
@@ -70,5 +70,6 @@ no-backend React app.
 - **CI** (typecheck → lint → test → build + Playwright E2E), fast `npm run verify`, ESLint.
 - ~100 unit tests + an end-to-end smoke test.
 
-[Unreleased]: https://github.com/jahales/etude-chess/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jahales/etude-chess/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jahales/etude-chess/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jahales/etude-chess/releases/tag/v0.1.0

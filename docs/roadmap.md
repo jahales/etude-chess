@@ -24,13 +24,16 @@ event** (~25–35 per game, ~10× the density of playing), it's the self-serve a
 (the top-yield activity in Southwick 2026), and it needs none of the risky components. Full spec:
 [v0.1.0-plan.md](v0.1.0-plan.md); rationale: ADRs [0011](decisions/0011-game-review-first.md) +
 [0014](decisions/0014-v0.1.0-guess-the-move.md). Then:
-- **v0.2.0** — **play vs client-side Maia** + the same coached review on your own games;
-  by-phase leak analytics begin (ADR [0013](decisions/0013-v0.1.0-play-vs-maia.md)). The
-  client-side-Maia delivery risk is **de-risked** — a spike proves Maia-1 runs in-browser
-  (ADR [0016](decisions/0016-maia-onnx-delivery.md), [spike report](spikes/maia-onnx.md)).
-- **v0.3.0** — tactics from *your own missed tactics* (fresh instances, untimed). _(The
-  mid-game "step back and analyze" intervention moved **into v0.2** as coach-every-move —
-  ADR [0017](decisions/0017-in-game-coach.md).)_
+- **v0.2.0 — shipped 2026-07-18.** Play vs client-side Maia (1100–1900) with an **ambient
+  in-game coach**, toggleable evaluation, accuracy + take-back count, and a post-game review
+  with by-phase leak analytics. ADRs [0013](decisions/0013-v0.1.0-play-vs-maia.md),
+  [0016](decisions/0016-maia-onnx-delivery.md) (client-side Maia delivery, proven by the
+  [spike](spikes/maia-onnx.md)), [0017](decisions/0017-in-game-coach.md) (coach during the
+  game — this absorbed the mid-game "step back and analyze" originally slated for v0.3).
+- **v0.3.0 — learn from your own games.** The telemetry we now collect becomes training
+  material: a **game library + replay** (step through a past game, jump straight to a flagged
+  moment — issue #39), and **drills from your own missed tactics** (fresh instances, untimed).
+  This is the first payoff of the play→coach loop feeding itself.
 - **v0.4.0** — opening *safety*: trap avoidance + structure/plan from your opening leaks
 - **v0.5.0** — endgame technique curriculum (tablebase-adjudicated)
 - **v0.6.0+** — the hidden-mode mixed queue (the differentiator); dedicated play-it-out
