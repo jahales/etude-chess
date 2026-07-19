@@ -7,6 +7,12 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Game library + replay (#39).** Every finished game is saved and browsable, and you can
+  walk back through any of them: click a move or use the arrow keys, with the coach's verdict
+  for each of your moves and the evaluation after every move. Replay reads only what was
+  stored, so it never re-runs the engine. **"Worth another look" is now navigation** — click a
+  flagged mistake in the post-game review and it opens the game at that move, which is the
+  loop v0.3 exists to close.
 - **A friendlier front door (#47).** Home is now a chooser: one card per mode, each with a
   one-line pitch and a live stat from your own history (last game's accuracy, games played,
   decisions committed). Picking a card opens a focused setup screen with a way back, instead
@@ -19,6 +25,11 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ### Changed
 - The analysis-settings gear now appears only on the study screens it actually configures.
+- Home gained a third card, **Your games**, once there was a library for it to open.
+
+### Fixed
+- A tier badge showed white-on-white when its tier class sat on the badge itself rather than
+  on a parent element.
 
 ## [0.2.0] — 2026-07-18
 

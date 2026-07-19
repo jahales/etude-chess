@@ -53,7 +53,8 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
   - `src/ui/**` — React adapter. `App.tsx` routes
     `home | maia-setup | maia | guess-pick | guess` — Home is a card chooser, each mode
     gets a focused setup screen (`Screen` shell supplies the title + back); `MaiaMode.tsx` is the play
-    screen + coach; `Analysis.tsx` holds the eval bar, material, engine lines.
+    screen + coach; `Analysis.tsx` holds the eval bar, material, engine lines; `Library.tsx` is the
+    stored-game table + the read-only replay screen.
   - `public/engine/`, `public/models/` — vendored **Stockfish WASM** and the fetched **Maia
     nets** (both GPL; see their `NOTICE.md`). Nets are fetched by `scripts/setup-maia.mjs`,
     not committed.
