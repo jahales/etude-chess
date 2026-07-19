@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { replayPositions } from '../domain/replay'
 import {
   buildReplayMoves,
@@ -442,11 +442,22 @@ function ReplayCell({
   cursor: number
   onJump: (c: number) => void
 }) {
-  if (!move) return <span />
   // Cursor N shows the position after N moves, so move `ply` is selected at N = ply + 1.
-  const selected = cursor === move.ply + 1
+  const selected = move != null && cursor === move.ply + 1
+  const ref = useRef<HTMLButtonElement | null>(null)
+
+  // The move list is a scroll box. On a full-length game the cursor quickly moves
+  // below the fold, and a selection you cannot see is a transport that does not
+  // work. `block: 'nearest'` scrolls the list by the minimum needed and leaves the
+  // page alone.
+  useEffect(() => {
+    if (selected) ref.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
+
+  if (!move) return <span />
   return (
     <button
+      ref={ref}
       type="button"
       className={`mv-cell mono mv-jump ${selected ? 'selected' : ''}`}
       aria-current={selected ? 'true' : undefined}
