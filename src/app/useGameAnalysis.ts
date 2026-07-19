@@ -25,6 +25,8 @@ import {
 export interface GameAnalysis {
   /** Evaluations known so far — the stored ones, plus whatever this pass has produced. */
   evalByPly: (PositionEval | undefined)[] | undefined
+  /** Evaluation of the position before move 0, once the pass has computed it. */
+  startEval: PositionEval | undefined
   progress: AnalysisProgress | null
   running: boolean
   /** Already covered by a completed pass at this budget. */
@@ -40,6 +42,7 @@ export function useGameAnalysis(
   positions: readonly string[],
 ): GameAnalysis {
   const [evalByPly, setEvalByPly] = useState(game.evalByPly)
+  const [startEval, setStartEval] = useState(game.startEval)
   const [progress, setProgress] = useState<AnalysisProgress | null>(null)
   const [running, setRunning] = useState(false)
   // Completion has to be tracked here as well as read off the record: we persist
@@ -55,6 +58,7 @@ export function useGameAnalysis(
   useEffect(() => {
     runIdRef.current++
     setEvalByPly(game.evalByPly)
+    setStartEval(game.startEval)
     setProgress(null)
     setRunning(false)
     setCompletedHere(false)
@@ -78,7 +82,23 @@ export function useGameAnalysis(
       // Accumulated locally as well as in state: the save at the end needs the
       // whole set, and reading it back out of state would race the last update.
       let acc = game.evalByPly
+      let startEval = game.startEval
       let done = 0
+
+      // The start position, so move 1 has something to be measured against.
+      // Without it the first move of every game is permanently unscorable (#74).
+      if (!startEval && positions[0]) {
+        try {
+          const { score } = await analyser.evaluate(positions[0], { nodes: BATCH_NODES })
+          startEval = {
+            whitePct: whiteWinPercent(score, sideToMoveOf(positions[0])),
+            label: whiteScoreLabel(score, sideToMoveOf(positions[0])),
+          }
+        } catch {
+          // Non-fatal: the first move simply stays unmeasured.
+        }
+      }
+      if (runIdRef.current !== runId) return
       for (const ply of plies) {
         if (runIdRef.current !== runId) return // cancelled or unmounted
         // positions[ply + 1] is the position *after* move `ply`, which is what
@@ -102,6 +122,7 @@ export function useGameAnalysis(
       }
 
       if (runIdRef.current !== runId) return
+      setStartEval(startEval)
       setRunning(false)
 
       // Persist so re-opening the game is instant. Only claim the pass completed
@@ -112,6 +133,7 @@ export function useGameAnalysis(
       await saveGame({
         ...game,
         evalByPly: acc,
+        startEval,
         ...(complete ? { analysedAt: Date.now(), analysisNodes: BATCH_NODES } : {}),
       })
     })()
@@ -124,6 +146,7 @@ export function useGameAnalysis(
 
   return {
     evalByPly,
+    startEval,
     progress,
     running,
     analysed: completedHere || isAnalysed(game),

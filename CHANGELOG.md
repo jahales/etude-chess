@@ -42,6 +42,12 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **Accuracy no longer overstates itself (#74).** The figure was a mean over the moves the
+  coach *finished grading before the game ended* — so resigning left it computed from your
+  early, good moves, and a game could show "99.18% accuracy" directly above a move flagged as
+  a 16% mistake. It is now recomputed from a completed whole-game analysis where one exists,
+  and where it doesn't, it says what it covers ("over 3 of 21 moves") instead of implying it
+  covers everything.
 - **The coach called normal captures blunders.** "It leaves your pawn on d5 hanging" fired
   mid-exchange, because the hanging check read the position statically and never counted what
   the move had just won — so `1.e4 d5 2.exd5` and the Exchange Ruy `4.Bxc6` were both flagged,

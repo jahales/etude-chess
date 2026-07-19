@@ -1254,3 +1254,16 @@ button {
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
+
+/* Accuracy coverage note — says what the figure rests on when it isn't the whole game (#74). */
+.coverage-note {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  font-family: var(--sans);
+  font-variant-numeric: normal;
+}
+.playing-as .coverage-note {
+  display: inline;
+  font-size: 0.85em;
+}

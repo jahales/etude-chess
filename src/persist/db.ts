@@ -41,6 +41,12 @@ export interface StoredGame {
   analysedAt?: number
   /** Nodes per position that pass used, so a later pass can tell if it must redo the work. */
   analysisNodes?: number
+  /**
+   * Evaluation of the position *before* move 0. `evalByPly` is indexed by the
+   * move it follows, so without this the first move of a game has nothing to be
+   * measured against and can never be scored (#74).
+   */
+  startEval?: PositionEval
 }
 
 /** A full game from move 1, or a position played out from somewhere else (#48). */

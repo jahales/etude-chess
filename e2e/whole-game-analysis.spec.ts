@@ -57,6 +57,11 @@ test.describe('whole-game analysis', () => {
     await page.locator('.games-table tbody tr').first().getByRole('button', { name: 'Review →' }).click()
     await expect(page.getByText('Whole game analysed.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Analyse the whole game' })).toBeHidden()
+    // #74: with every move measured, the accuracy figure covers the whole game and
+    // carries no "over N of M moves" qualifier. (The partial case is timing-dependent
+    // — whether a grade lands before you resign — so it is unit-tested, not here.)
+    await expect(page.locator('.playing-as')).toContainText('% accuracy')
+    await expect(page.locator('.playing-as')).not.toContainText('over')
     expect(await page.locator('.mv-score').count()).toBe(scored)
   })
 })
