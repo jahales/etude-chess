@@ -86,7 +86,8 @@ draw/resign · local-first persistence of attempts and games.
 CI runs verify + e2e on every PR. See [testing.md](testing.md), [dev-workflow.md](dev-workflow.md).
 
 ## What's next
-Roadmap in [roadmap.md](roadmap.md). Next: **v0.3 — learn from your own games** (game
-library/replay + jump-to-position [#39], drills from your own missed tactics). Deferred and
-tracked as issues: master-games database [#40], opening picker [#41], theme toggle [#42],
-underpromotion in play mode [#43]. The adaptive skill model stays **last** (ADR 0007).
+Roadmap in [roadmap.md](roadmap.md). Next: **v0.3.0 — complete the core loops** — design is
+decision-complete in [v0.3.0-plan.md](v0.3.0-plan.md); work is the GitHub **v0.3.0
+milestone** (library/replay #39, play-it-out + opening picker #41, drill-your-misses,
+reveal enrichment, curated pack, landing redesign, theme #42). Then **v0.4 — the games
+corpus** (#40, spike first). The adaptive skill model stays **last** (ADR 0007).
