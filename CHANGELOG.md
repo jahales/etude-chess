@@ -48,6 +48,9 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - Home gained a third card, **Your games**, once there was a library for it to open.
 
 ### Fixed
+- **The move list follows the cursor in a long game (#79).** Stepping through a 40-move game
+  scrolled the selected move out of sight — a cursor you can't see is a transport that doesn't
+  work. It now stays in view.
 - **Accuracy no longer overstates itself (#74).** The figure was a mean over the moves the
   coach *finished grading before the game ended* — so resigning left it computed from your
   early, good moves, and a game could show "99.18% accuracy" directly above a move flagged as
