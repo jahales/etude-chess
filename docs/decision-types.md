@@ -39,7 +39,7 @@ evaluative items in early phases rather than a separate content pool.
 **Play-it-out.** Plugs the biggest hole in single-move trainers: they structurally
 cannot train calculation stamina or grinding technique. From the critical moment,
 against a *human-like* opponent (Maia), to conversion. Depends on a Maia backend, so
-it lands in a later phase (see [roadmap.md](roadmap.md)).
+it lands in a later phase (see [backlog.md](backlog.md)).
 
 ## The classifier (heuristic)
 

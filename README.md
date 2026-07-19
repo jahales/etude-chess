@@ -44,7 +44,7 @@ deep calculation stamina, or "worse-but-tricky" practical defense — see
 | [docs/constitution.md](docs/constitution.md) | Non-negotiable principles that govern every later decision |
 | [docs/learning-science.md](docs/learning-science.md) | The cognitive-science grounding, with sources |
 | [docs/decision-types.md](docs/decision-types.md) | The core taxonomy (concrete / evaluative / technique / prophylactic / play-out) |
-| [docs/roadmap.md](docs/roadmap.md) | Phased plan — curricula first, adaptive engine last |
+| [docs/backlog.md](docs/backlog.md) | **Epics in priority order** — curricula first, adaptive engine last |
 | [docs/development-focus.md](docs/development-focus.md) | **Where the leverage is** — why these priorities, and the one bottleneck |
 | [docs/v0.1.0-plan.md](docs/v0.1.0-plan.md) | **The concrete first release** + technology selection |
 | [docs/first-deliverable.md](docs/first-deliverable.md) | The multi-mode drill trainer (medium-term, fed by review) |

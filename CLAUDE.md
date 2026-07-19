@@ -23,7 +23,9 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
    an amendment — don't quietly work around it.
 2. [docs/decisions/](docs/decisions/) — the ADR log. Decisions already made, with reasons.
 3. [docs/architecture.md](docs/architecture.md) — what exists now, the module map, and where to
-   make changes. [docs/roadmap.md](docs/roadmap.md) for the phase order.
+   make changes. [docs/backlog.md](docs/backlog.md) — **epics in priority order, no version
+   numbers** (ADR [0020](docs/decisions/0020-backlog-of-epics.md)). A version is a *cut* we name
+   when work is pulled off the backlog, never a slot we plan into.
 4. [docs/research/](docs/research/) — the evidence behind the design (effectiveness; engines; LLM).
 5. [docs/development-focus.md](docs/development-focus.md) — **read before adding a mode.** What the
    priorities are and why: the "why" layer (P0) before breadth, the own-game review loop (P1),

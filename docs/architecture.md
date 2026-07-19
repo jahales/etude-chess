@@ -116,7 +116,7 @@ draw/resign · local-first persistence of attempts and games.
 CI runs verify + e2e on every PR. See [testing.md](testing.md), [dev-workflow.md](dev-workflow.md).
 
 ## What's next
-Roadmap in [roadmap.md](roadmap.md). Next: **v0.3.0 — complete the core loops** — design is
+Roadmap in [backlog.md](backlog.md). Next: **v0.3.0 — complete the core loops** — design is
 decision-complete in [v0.3.0-plan.md](v0.3.0-plan.md); work is the GitHub **v0.3.0
 milestone** (library/replay #39, play-it-out + opening picker #41, drill-your-misses,
 reveal enrichment, curated pack, landing redesign, theme #42). Then **v0.4 — the games
