@@ -53,3 +53,21 @@ server**. The engine and app are fine; the harness was the problem.
 The engine's UCI output format is validated by unit tests over `uci.ts` against captured real
 output. When touching engine plumbing, a quick Node smoke test (drive `stockfish` via
 `sendCommand`, read stdout) confirms the real engine still emits what the parsers expect.
+
+
+## The Maia nets and skipped e2e (2026-07-19)
+
+Specs that play a game need the Maia nets, which are too large to commit. They `test.skip`
+when the nets are absent — convenient locally, and for a while a trap in CI: with no nets
+there, **4 of 7 e2e specs skipped** while merges were gated on the resulting green check.
+A skipped test and a passing test look identical on a check mark.
+
+Two changes make that non-repeatable:
+
+- **CI fetches and caches the nets** (`actions/cache` keyed on `scripts/setup-maia.mjs`), so
+  the specs can actually run.
+- **CI sets `REQUIRE_MAIA_NETS=1`**, and `e2e/globalSetup.ts` fails the whole run before any
+  test if a net is missing. A silent degradation back to skipping is now impossible; a fetch
+  failure is loud.
+
+Locally nothing changes — run `node scripts/setup-maia.mjs` once, or accept the skips.

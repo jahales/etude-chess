@@ -29,5 +29,20 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+
+      # The Maia nets are too large to commit (5 x 3.5 MB). Without them the specs
+      # that play a game skip, which is how 4 of 7 went unverified here while
+      # merges were gated on this job. Cache them, then require them.
+      - name: Cache Maia nets
+        uses: actions/cache@v4
+        with:
+          path: public/models
+          key: maia-nets-${{ hashFiles('scripts/setup-maia.mjs') }}
+      - name: Fetch Maia nets
+        run: node scripts/setup-maia.mjs
+
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+        env:
+          # Turns "nets missing -> skip" into "nets missing -> fail the run".
+          REQUIRE_MAIA_NETS: '1'

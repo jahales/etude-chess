@@ -1,12 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { existsSync } from 'node:fs'
+import { hasMaiaNets, MAIA_SKIP_REASON } from './maiaNets'
 
 // #68: analyse every position of a stored game in one pass, so the move list
 // shows where the game turned rather than only the moves the coach graded.
-const hasModel = existsSync('public/models/maia-1300.onnx')
 
 test.describe('whole-game analysis', () => {
-  test.skip(!hasModel, 'run `node scripts/setup-maia.mjs` to fetch the Maia nets')
+  test.skip(!hasMaiaNets, MAIA_SKIP_REASON)
 
   test('analyses a stored game, scores every move, and persists the result', async ({ page }) => {
     test.setTimeout(180_000)
