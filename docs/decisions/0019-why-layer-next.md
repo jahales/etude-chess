@@ -1,6 +1,10 @@
 # 0019 — The "why" layer is the next major build, via a grounded concept ontology
 
-**Status:** Accepted · 2026-07-18
+**Status:** Accepted · 2026-07-18 · **sequencing clause superseded by ADR
+[0020](0020-backlog-of-epics.md) (2026-07-19)** — the *reasoning* below stands and remains the
+argument for the epic's priority; what is withdrawn is the claim that the layer *is v0.4.0*.
+Versions are no longer planned in advance. The epic sits below the database in
+[../backlog.md](../backlog.md), because the grounding ontology is seeded from a corpus.
 **Extends:** ADR [0012](0012-llm-grounded-explainer.md) (the LLM renders facts, never evaluates)
 and ADR [0007](0007-content-first-adaptive-last.md) (content first, adaptivity last).
 **Evidence:** [../research/effectiveness.md §7](../research/effectiveness.md) ·
@@ -64,9 +68,12 @@ the one that changes.
    transfer we have not measured.
 
 ## Consequences
-- **v0.4.0 becomes the "why" layer**; opening safety → v0.5.0, endgame → v0.6.0, mixed queue →
+> ⚠️ Superseded by ADR [0020](0020-backlog-of-epics.md). Renumbering four releases to express
+> one priority change is exactly the churn that motivated moving to a backlog of epics — this
+> bullet is left in place as the evidence for that decision rather than edited away.
+- ~~**v0.4.0 becomes the "why" layer**; opening safety → v0.5.0, endgame → v0.6.0, mixed queue →
   v0.7.0. Second renumbering in a week, which is the cost of the roadmap having been written
-  before the rev. 2 research existed.
+  before the rev. 2 research existed.~~
 - The mixed queue moves further out. That is uncomfortable — it is the differentiator — but it
   is a *queue over a pool*, and a queue that serves un-explained items inherits the commodity
   problem rather than solving it.

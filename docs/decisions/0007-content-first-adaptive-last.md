@@ -25,4 +25,4 @@ Sequence the build **content-first**:
 - The strategic bet is to attack the **content/labor** bottleneck (seed taxonomy from
   *Woodpecker Method 2*, generate candidate annotations from engine lines over annotated
   master games, human spot-check) rather than the engineering one.
-- Drives the whole [../roadmap.md](../roadmap.md). Constitution §11.
+- Drives the whole [../backlog.md](../backlog.md). Constitution §11.

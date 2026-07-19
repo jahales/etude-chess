@@ -3,7 +3,7 @@
 **Status:** Accepted · 2026-07-18
 **Applies to:** v0.2.0 play-vs-Maia. Amends the timing of ADR
 [0013](0013-v0.1.0-play-vs-maia.md) and pulls the mid-game intervention forward from
-v0.3 (see [../roadmap.md](../roadmap.md)).
+v0.3 (see [../backlog.md](../backlog.md)).
 
 ## Context
 ADR 0013 chose **play-then-review**: play a full game against Maia, then review the

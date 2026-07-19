@@ -1,6 +1,6 @@
 # Development focus — where the leverage is
 
-> Forward-looking companion to [roadmap.md](roadmap.md). The roadmap says *what* ships in
+> Forward-looking companion to [backlog.md](backlog.md). The roadmap says *what* ships in
 > what order; this says *why these and not the tempting alternatives*, and what the one
 > real bottleneck is. Written 2026-07-18 alongside the rev. 2 research update
 > ([research/effectiveness.md §7–8](research/effectiveness.md)). Treat as a standing
