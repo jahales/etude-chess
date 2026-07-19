@@ -9,6 +9,7 @@ import {
   canTakeBack,
   displayFen,
   gameAccuracy,
+  takebackRate,
   openingName,
   sideToMove,
   type LastCoach,
@@ -18,7 +19,7 @@ import {
 import type { usePlaySession } from '../app/usePlaySession'
 import { useBoardWidth } from './useBoardWidth'
 import { EvalBar, MaterialStrip, LinesPanel } from './Analysis'
-import { sideName, TIER_CLASS, TIER_TEXT } from './format'
+import { moveLabel, sideName, TIER_CLASS, TIER_TEXT } from './format'
 
 const LEVEL_BLURB: Record<number, string> = { 1100: 'beginner', 1300: 'improver', 1500: 'club player' }
 
@@ -100,21 +101,43 @@ function describeResult(result: PlayResult): string {
 
 const PHASES: Phase[] = ['opening', 'middlegame', 'endgame']
 
-/** Post-game review: first-attempt accuracy, by-phase, and your worst moments. */
+/** Move number label ("12." / "12…") for your move at `ply`, given your colour. */
+function plyLabel(ply: number, yourColor: Color): string {
+  return moveLabel(Math.floor(ply / 2) + 1, yourColor)
+}
+
+/** Post-game review: final-line accuracy, take-back count, by-phase, and worst moments. */
 function Review({ state }: { state: PlayState }) {
+  if (state.coachLog.length === 0) {
+    return (
+      <div className="review">
+        <p className="acc-note">No moves to review.</p>
+      </div>
+    )
+  }
   const acc = Math.round(gameAccuracy(state))
-  const phases = byPhase(state.firstAttempts)
-  const worst = [...state.firstAttempts]
-    .filter((a) => a.swing >= 2)
+  const phases = byPhase(state.coachLog)
+  const rate = Math.round(takebackRate(state) * 100)
+  const worst = [...state.coachLog]
+    .filter((e) => e.swing >= 5)
     .sort((a, b) => b.swing - a.swing)
     .slice(0, 3)
   return (
     <div className="review">
-      <div className="accuracy-big">
-        <span className="acc-num mono">{acc}%</span>
-        <span className="acc-label">accuracy</span>
+      <div className="review-stats">
+        <div className="accuracy-big">
+          <span className="acc-num mono">{acc}%</span>
+          <span className="acc-label">accuracy</span>
+        </div>
+        <div className="takeback-stat">
+          <span className="tb-num mono">{state.takebacks}</span>
+          <span className="acc-label">
+            take-back{state.takebacks === 1 ? '' : 's'}
+            {state.takebacks > 0 && ` · ${rate}% of moves`}
+          </span>
+        </div>
       </div>
-      <p className="acc-note">Your first move at each position — take-backs don&apos;t count.</p>
+      <p className="acc-note">Accuracy is the game as played; take-backs are tracked separately.</p>
       <div className="phase-row">
         {PHASES.filter((p) => phases[p].moves > 0).map((p) => (
           <div key={p} className="phase-stat">
@@ -129,15 +152,15 @@ function Review({ state }: { state: PlayState }) {
         <div className="worst-moments">
           <h3>Worth another look</h3>
           <ul>
-            {worst.map((a) => (
-              <li key={a.ply}>
-                <span className="mono">{Math.floor(a.ply / 2) + 1}.</span> you played{' '}
-                <b className="mono">{a.san}</b>
-                <span className="lost"> −{Math.round(a.swing)}%</span>
-                {a.bestMoveSan && a.bestMoveSan !== a.san && (
+            {worst.map((e) => (
+              <li key={e.fen}>
+                <span className="mono">{plyLabel(e.ply, state.yourColor)}</span> you played{' '}
+                <b className="mono">{e.san}</b>
+                <span className="lost"> −{Math.round(e.swing)}%</span>
+                {e.bestMoveSan && e.bestMoveSan !== e.san && (
                   <>
                     {' '}
-                    · best <b className="mono">{a.bestMoveSan}</b>
+                    · best <b className="mono">{e.bestMoveSan}</b>
                   </>
                 )}
               </li>
@@ -288,10 +311,11 @@ export function MaiaPlay({ play, onNewGame, onHome }: { play: PlaySession; onNew
           {opening && <p className="opening mono">{opening}</p>}
           <p className="playing-as">
             You are <b>{sideName(yourColor)}</b>.
-            {state.firstAttempts.length > 0 && (
-              <span className="acc-inline mono" title="Accuracy of your first move at each position">
+            {state.coachLog.length > 0 && (
+              <span className="acc-inline mono" title="Accuracy of your moves so far (the game as played)">
                 {' '}
                 · Accuracy {Math.round(gameAccuracy(state))}%
+                {state.takebacks > 0 && ` · ${state.takebacks} take-back${state.takebacks === 1 ? '' : 's'}`}
               </span>
             )}
           </p>

@@ -83,7 +83,9 @@ describe('coach feedback', () => {
     })
     expect(s.lastCoach?.verdict.tier).toBe('B')
     expect(s.lastCoach?.fenBefore).toBe(initialPlayState.positions[0])
-    expect(s.coachLog).toEqual([{ ply: 0, san: 'e4', tier: 'B', swing: 8 }])
+    expect(s.coachLog).toEqual([
+      { ply: 0, fen: initialPlayState.positions[0], san: 'e4', tier: 'B', swing: 8, bestMoveSan: null },
+    ])
   })
 
   it('ignores a stale grade for a move no longer at that ply', () => {
@@ -118,30 +120,36 @@ describe('coach feedback', () => {
   })
 })
 
-describe('first-attempt accuracy', () => {
-  const START = initialPlayState.positions[0]!
-  const coach = (state: PlayState, san: string, tier: 'A' | 'B' | 'C', swing: number) =>
-    playReducer(state, { type: 'COACH_RESULT', ply: 0, fenBefore: START, yourMoveSan: san, verdict: verdict(tier, swing) })
+describe('accuracy (final line) and take-backs', () => {
+  const coach = (state: PlayState, san: string, tier: 'A' | 'B' | 'C', swing: number, best: string | null = null) =>
+    playReducer(state, {
+      type: 'COACH_RESULT',
+      ply: state.sanHistory.length - 1,
+      fenBefore: state.positions[state.sanHistory.length - 1]!,
+      yourMoveSan: san,
+      verdict: { ...verdict(tier, swing), bestMoveSan: best },
+    })
 
-  it('records your first move at a position and scores accuracy from it', () => {
+  it('scores accuracy from your graded move', () => {
     let s = playReducer(newGame('w'), { type: 'MOVE', from: 'e2', to: 'e4' })
     s = coach(s, 'e4', 'B', 8)
-    expect(s.firstAttempts).toHaveLength(1)
-    expect(s.firstAttempts[0]).toMatchObject({ fen: START, san: 'e4', swing: 8 })
+    expect(s.coachLog).toHaveLength(1)
     expect(gameAccuracy(s)).toBeCloseTo(moveAccuracy(8), 5)
+    expect(s.takebacks).toBe(0)
   })
 
-  it('keeps the first attempt after a take-back + replay (no farming the score)', () => {
+  it('accuracy tracks the final line — take back a mistake, replay a good move, count the take-back', () => {
     let s = pair(newGame('w'), 'e2', 'e4', 'c7c5')
-    s = coach(s, 'e4', 'C', 30) // first attempt: a mistake
+    s = coach(s, 'e4', 'C', 30) // your kept move so far is a mistake
     s = playReducer(s, { type: 'TAKE_BACK' })
-    expect(s.firstAttempts).toHaveLength(1) // survives take-back
-    // replay a better move from the same position
+    expect(s.coachLog).toEqual([]) // final line no longer contains it
+    expect(s.takebacks).toBe(1)
+    // replay a good move from the same position
     s = playReducer(s, { type: 'MOVE', from: 'd2', to: 'd4' })
     s = coach(s, 'd4', 'A', 0)
-    expect(s.firstAttempts).toHaveLength(1) // not overwritten
-    expect(s.firstAttempts[0]!.san).toBe('e4')
-    expect(gameAccuracy(s)).toBeCloseTo(moveAccuracy(30), 5) // still reflects the mistake
+    expect(s.coachLog).toHaveLength(1)
+    expect(gameAccuracy(s)).toBeCloseTo(moveAccuracy(0), 5) // reflects the kept move
+    expect(s.takebacks).toBe(1) // but the take-back is still counted
   })
 
   it('accuracy is 100 with no moves yet', () => {

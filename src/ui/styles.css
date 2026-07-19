@@ -888,3 +888,21 @@ button {
 .worst-moments .lost {
   color: var(--bad);
 }
+
+/* Review: accuracy + take-back stats side by side */
+.review-stats {
+  display: flex;
+  gap: 1.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.takeback-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.tb-num {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink);
+}

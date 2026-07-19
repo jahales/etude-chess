@@ -42,21 +42,15 @@ export interface LastCoach {
   verdict: CoachVerdict
 }
 
-/** One coached move of yours, for the move-list tiers + post-game review. */
+/**
+ * One coached move of yours in the game as played — the basis for the move-list tiers,
+ * accuracy, and the post-game review. Take-backs prune these (via TAKE_BACK), so this is
+ * always the final line: accuracy reflects the game you actually played, while the
+ * separate take-back count is what penalises fiddling (ADR 0017).
+ */
 export interface CoachEntry {
   ply: number
-  san: string
-  tier?: Tier
-  swing?: number
-}
-
-/**
- * Your FIRST move at a position (keyed by the FEN you moved from). Recorded once and
- * kept across take-backs, so accuracy rewards good first instincts — a take-back is a
- * learning aid, not a way to farm the score (ADR 0017).
- */
-export interface FirstAttempt {
-  ply: number
+  /** Position you moved from (for phase detection + the review). */
   fen: string
   san: string
   tier: Tier
@@ -73,9 +67,10 @@ export interface PlayState {
   status: PlayStatus
   selected: string | null
   lastCoach: LastCoach | null
+  /** Your coached moves in the final line (take-backs prune them). */
   coachLog: CoachEntry[]
-  /** Your first move at each position faced — the basis for accuracy (survives take-back). */
-  firstAttempts: FirstAttempt[]
+  /** How many times you took a move back this game — the "did you commit?" metric. */
+  takebacks: number
   /** Eval after each committed move, indexed by sanHistory move index (White's view). */
   evalByPly: (PositionEval | undefined)[]
   /** "Show me": engine lines for lastCoach.fenBefore, revealed only on request. */
@@ -97,7 +92,7 @@ export const initialPlayState: PlayState = {
   selected: null,
   lastCoach: null,
   coachLog: [],
-  firstAttempts: [],
+  takebacks: 0,
   evalByPly: [],
   showMe: false,
   lines: [],
@@ -150,9 +145,13 @@ export function canTakeBack(state: PlayState): boolean {
 export function openingName(state: PlayState): string | null {
   return detectOpening(state.sanHistory)
 }
-/** This game's accuracy (0–100) over your first attempt at each position. */
+/** This game's accuracy (0–100) over your moves in the final line. */
 export function gameAccuracy(state: PlayState): number {
-  return meanAccuracy(state.firstAttempts.map((a) => a.swing))
+  return meanAccuracy(state.coachLog.map((e) => e.swing))
+}
+/** Fraction of your moves you took back (0 = committed every time; can exceed 1). */
+export function takebackRate(state: PlayState): number {
+  return state.coachLog.length === 0 ? 0 : state.takebacks / state.coachLog.length
 }
 
 // ---------- move helpers ----------
@@ -262,24 +261,12 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
       if (state.sanHistory[action.ply] !== action.yourMoveSan) return state
       const entry: CoachEntry = {
         ply: action.ply,
+        fen: action.fenBefore,
         san: action.yourMoveSan,
         tier: action.verdict.tier,
         swing: action.verdict.swing,
+        bestMoveSan: action.verdict.bestMoveSan,
       }
-      // Record a first attempt only the first time you move from this position.
-      const firstAttempts = state.firstAttempts.some((a) => a.fen === action.fenBefore)
-        ? state.firstAttempts
-        : [
-            ...state.firstAttempts,
-            {
-              ply: action.ply,
-              fen: action.fenBefore,
-              san: action.yourMoveSan,
-              tier: action.verdict.tier,
-              swing: action.verdict.swing,
-              bestMoveSan: action.verdict.bestMoveSan,
-            },
-          ]
       return {
         ...state,
         lastCoach: {
@@ -289,7 +276,6 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
           verdict: action.verdict,
         },
         coachLog: [...state.coachLog.filter((e) => e.ply !== action.ply), entry],
-        firstAttempts,
         showMe: false,
         lines: [],
       }
@@ -317,6 +303,7 @@ export function playReducer(state: PlayState, action: PlayAction): PlayState {
         sanHistory: state.sanHistory.slice(0, newLen),
         coachLog: state.coachLog.filter((e) => e.ply < newLen),
         evalByPly: state.evalByPly.slice(0, newLen),
+        takebacks: state.takebacks + 1,
         lastCoach: null,
         showMe: false,
         lines: [],

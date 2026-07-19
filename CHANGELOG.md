@@ -7,12 +7,12 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
-- **First-attempt accuracy + post-game review (v0.2):** a per-game **accuracy** score
-  (Lichess/CAPS model) computed over your *first* move at each position — take-backs don't
-  count, so it rewards good first instincts. Shown live during play and headlining a
-  **post-game review**: accuracy, an opening/middlegame/endgame breakdown, and your worst
-  moments with the better move. Framed as this game's move quality, not a skill rating
-  (constitution §9, §12).
+- **Accuracy + post-game review (v0.2):** a per-game **accuracy** score (Lichess per-move
+  model, simple mean) over the moves **as played**, plus a separate **take-back count** —
+  accuracy rewards the final game, the take-back count is the "did you commit?" penalty.
+  Shown live and headlining a **post-game review**: accuracy, an opening/middlegame/endgame
+  breakdown, and your worst moments with the better move. Framed as this game's move
+  quality, not a skill rating (constitution §9, §12).
 - **In-game coach (v0.2, ADR 0017):** an ambient coach on every move — you move, **Maia
   replies immediately**, and Stockfish grades your move (tier + how much it cost + what it
   dropped). The better move stays hidden behind **"Show me"** so a live verdict doesn't bias

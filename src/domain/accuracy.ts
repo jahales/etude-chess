@@ -1,9 +1,10 @@
 import { Chess } from 'chess.js'
 
 // Per-game accuracy for play-vs-Maia (ADR 0017). Grounded in the same win%-swing the
-// coach grades on — this is a measure of *this game's* move quality (the Lichess/CAPS
-// accuracy model), not a skill rating or a claim of transfer (constitution §9, §12).
-// It's computed over your FIRST attempt at each position, so take-backs can't inflate it.
+// coach grades on — a measure of *this game's* move quality, not a skill rating or a
+// claim of transfer (constitution §9, §12). The per-move formula is Lichess's accuracy
+// model; the game figure is a plain mean of those (not Lichess's volatility-weighted /
+// harmonic blend), so it will differ somewhat from Lichess/chess.com for the same game.
 
 export type Phase = 'opening' | 'middlegame' | 'endgame'
 

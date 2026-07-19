@@ -22,8 +22,10 @@ export interface StoredGame {
   sanHistory: string[]
   outcome: 'you' | 'maia' | 'draw'
   reason: string
-  /** This game's first-attempt accuracy (0–100). */
+  /** This game's accuracy (0–100), over the moves as played. */
   accuracy: number
+  /** How many moves were taken back. */
+  takebacks: number
   createdAt: number
 }
 
@@ -67,7 +69,9 @@ export async function saveGame(g: StoredGame): Promise<void> {
   const d = getDb()
   if (!d) return
   try {
-    await d.games.add(g)
+    // Upsert by gameId so a late final-move grade can correct the stored accuracy.
+    const existing = await d.games.where('gameId').equals(g.gameId).first()
+    await d.games.put(existing?.id != null ? { ...g, id: existing.id } : g)
   } catch (e) {
     console.warn('etude-chess: could not persist game', e)
   }
