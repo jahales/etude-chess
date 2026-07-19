@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { existsSync } from 'node:fs'
+import { hasMaiaNets, MAIA_SKIP_REASON } from './maiaNets'
 
 // v0.2: play vs Maia with the ambient in-game coach (ADR 0017). You move → Maia replies
 // immediately → the coach grades your move, with the best move hidden behind "Show me";
 // you can take the pair back. Needs the nets (node scripts/setup-maia.mjs); skips otherwise.
-const hasModel = existsSync('public/models/maia-1300.onnx')
 
 test.describe('play vs Maia + ambient coach', () => {
-  test.skip(!hasModel, 'run `node scripts/setup-maia.mjs` to fetch the Maia nets')
+  test.skip(!hasMaiaNets, MAIA_SKIP_REASON)
 
   test('move → Maia replies → coach feedback → show me → take back', async ({ page }) => {
     await page.goto('/')

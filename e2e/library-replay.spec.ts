@@ -1,13 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { existsSync } from 'node:fs'
+import { hasMaiaNets, MAIA_SKIP_REASON } from './maiaNets'
 
 // v0.3 §3 (#39): a finished game is browsable and walkable. The point of the
 // feature is that a flagged mistake has a way back into the position, so the
 // test follows that thread end to end. Needs the Maia nets to produce a game.
-const hasModel = existsSync('public/models/maia-1300.onnx')
 
 test.describe('game library + replay', () => {
-  test.skip(!hasModel, 'run `node scripts/setup-maia.mjs` to fetch the Maia nets')
+  test.skip(!hasMaiaNets, MAIA_SKIP_REASON)
 
   test('play → resign → jump from the review → browse the library → step through', async ({
     page,

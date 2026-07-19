@@ -5,12 +5,11 @@ import { test, expect } from '@playwright/test'
 // and returns a legal, human-like move. Needs the binaries in place:
 //   node scripts/setup-maia.mjs
 // Skipped automatically if the model isn't present, so it never breaks CI.
-import { existsSync } from 'node:fs'
+import { hasMaiaNets, MAIA_SKIP_REASON } from './maiaNets'
 
-const hasModel = existsSync('public/models/maia-1900.onnx')
 
 test.describe('Maia ONNX in-browser', () => {
-  test.skip(!hasModel, 'run `node scripts/setup-maia.mjs` to fetch the Maia model + wasm')
+  test.skip(!hasMaiaNets, MAIA_SKIP_REASON)
 
   test('runs Maia-1900 in a Worker and returns a human-like move', async ({ page }) => {
     await page.goto('/maia-probe.html')

@@ -5,6 +5,9 @@ import { defineConfig, devices } from '@playwright/test'
 // Worker, so we avoid parallel engine contention.
 export default defineConfig({
   testDir: './e2e',
+  // Specs that play a game skip without the Maia nets. Convenient locally, a trap
+  // in CI — so CI sets REQUIRE_MAIA_NETS=1 and this turns the skip into a failure.
+  globalSetup: './e2e/globalSetup.ts',
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
