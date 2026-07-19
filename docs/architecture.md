@@ -47,6 +47,9 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
     adapter driving `maiaWorker.ts` (onnxruntime-web). `encoding.ts` (112-plane Lc0 tensor),
     `decoding.ts` (1858-move policy → legal moves), `policyIndex.ts`. **GPL, arm's-length.**
   - `src/persist/db.ts` — IndexedDB/Dexie adapter (attempts + games); best-effort, never throws.
+    A stored game carries the coach's output (`coachLog`, `evalByPly`) so replay never
+    re-analyses; those fields are **optional** because v0.2 records predate them. Reads go
+    through `listGames`/`getGame`/`lastGame`.
   - `src/ui/**` — React adapter. `App.tsx` routes home/guess/maia; `MaiaMode.tsx` is the play
     screen + coach; `Analysis.tsx` holds the eval bar, material, engine lines.
   - `public/engine/`, `public/models/` — vendored **Stockfish WASM** and the fetched **Maia

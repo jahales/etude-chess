@@ -175,9 +175,14 @@ export function usePlaySession(engine: AnalyserState) {
       accuracy: gameAccuracy(state),
       takebacks: state.takebacks,
       createdAt: createdAtRef.current,
+      // The coach's knowledge travels with the game so replay reads it back
+      // instead of re-analysing every position (#46).
+      coachLog: state.coachLog,
+      evalByPly: state.evalByPly,
+      kind: 'game',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.status, state.result, state.gameId, state.coachLog, state.takebacks])
+  }, [state.status, state.result, state.gameId, state.coachLog, state.evalByPly, state.takebacks])
 
   useEffect(() => () => opponentRef.current?.dispose(), [])
 
