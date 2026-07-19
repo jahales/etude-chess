@@ -19,9 +19,10 @@ import {
   type PlayState,
 } from './playMachine'
 
-// Low temperature: mostly Maia's most-likely human move at its rating (stronger, still
-// some variety). Higher sampled too many weak moves — it played below its level.
-const MAIA_TEMPERATURE = 0.2
+// 0 = argmax: Maia always plays its single most-likely human move for that rating — the
+// strongest it gets at a given level, and the right default for slow games. (Sampling
+// added variety but cost real strength.) Games still diverge because your moves do.
+const MAIA_TEMPERATURE = 0
 // Grade your move for a reliable A/B/C tier; keep it snappy for move-by-move play.
 const GRADE_NODES = 400_000
 // Cheap "who's ahead" refresh for the eval bar + move scores.

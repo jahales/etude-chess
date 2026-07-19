@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises'
 
 // Keep in sync with SHIPPED_LEVELS in src/engine/maia/opponent.ts (plus 1900 for the
 // spike probe/tests). Each net is a GPL-3.0 Maia-1 ONNX (~3.5 MB).
-const LEVELS = [1100, 1300, 1500, 1900]
+const LEVELS = [1100, 1300, 1500, 1700, 1900]
 const url = (lvl) => `https://huggingface.co/shermansiu/maia-${lvl}/resolve/main/model.onnx`
 const path = (lvl) => `public/models/maia-${lvl}.onnx`
 

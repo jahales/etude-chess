@@ -22,7 +22,13 @@ import { useBoardWidth } from './useBoardWidth'
 import { EvalBar, MaterialStrip } from './Analysis'
 import { moveLabel, sideName, TIER_CLASS, TIER_TEXT } from './format'
 
-const LEVEL_BLURB: Record<number, string> = { 1100: 'beginner', 1300: 'improver', 1500: 'club player' }
+const LEVEL_BLURB: Record<number, string> = {
+  1100: 'beginner',
+  1300: 'improver',
+  1500: 'club player',
+  1700: 'strong club',
+  1900: 'expert',
+}
 
 type PlaySession = ReturnType<typeof usePlaySession>
 
@@ -71,7 +77,10 @@ export function MaiaSetup({
               </button>
             ))}
           </div>
-          <span className="maia-level-blurb">{LEVEL_BLURB[level] ?? 'human-like'}</span>
+          <span className="maia-level-blurb">
+            {LEVEL_BLURB[level] ?? 'human-like'} · Lichess-style rating, so pick above your
+            OTB number
+          </span>
         </fieldset>
       </div>
       <button className="btn primary" type="button" onClick={start}>
