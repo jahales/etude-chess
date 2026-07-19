@@ -7,10 +7,18 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **A friendlier front door (#47).** Home is now a chooser: one card per mode, each with a
+  one-line pitch and a live stat from your own history (last game's accuracy, games played,
+  decisions committed). Picking a card opens a focused setup screen with a way back, instead
+  of every option living on one long page. Before you've played anything the stats stay
+  blank rather than showing zeroes.
 - **Finished games remember what the coach knew (#46).** A stored game now carries its
   per-move coach verdicts and per-ply evaluations, so replaying one reads them back instead
   of re-analysing every position. Games saved by v0.2.0 still load — the new fields are
   optional and absent means "not recorded", never an error.
+
+### Changed
+- The analysis-settings gear now appears only on the study screens it actually configures.
 
 ## [0.2.0] — 2026-07-18
 

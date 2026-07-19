@@ -12,6 +12,7 @@ test.describe('play vs Maia + ambient coach', () => {
   test('move → Maia replies → coach feedback → show me → take back', async ({ page }) => {
     await page.goto('/')
 
+    await page.getByRole('button', { name: /Play a coached game/ }).click()
     await page.getByRole('button', { name: /Play vs Maia/ }).click()
     await expect(page.getByText('Your move.')).toBeVisible({ timeout: 60_000 })
 

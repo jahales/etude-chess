@@ -9,7 +9,8 @@ test('play the master move through to the graded analysis reveal', async ({ page
   // The engine boots (WASM Worker handshake).
   await expect(page.getByText('engine ready')).toBeVisible({ timeout: 60_000 })
 
-  // Start the Opera Game (first card).
+  // Home is a chooser (v0.3): pick the mode, then the game.
+  await page.getByRole('button', { name: /Study a master game/ }).click()
   await page.getByRole('button', { name: 'Study this game' }).first().click()
   await expect(page.getByText(/to move · position 1 of/)).toBeVisible()
   await expect(page.getByText('Philidor Defense')).toBeVisible() // detected opening (#5)
