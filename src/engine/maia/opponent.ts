@@ -14,9 +14,13 @@ export interface MaiaMove {
 export const MAIA_LEVELS = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900] as const
 export type MaiaLevel = (typeof MAIA_LEVELS)[number]
 
-/** The levels v0.2 ships (fetched by scripts/setup-maia.mjs) — a bracket around ~1200 USCF. */
-export const SHIPPED_LEVELS = [1100, 1300, 1500] as const satisfies readonly MaiaLevel[]
-export const DEFAULT_LEVEL: MaiaLevel = 1300
+/**
+ * The levels we ship (fetched by scripts/setup-maia.mjs). Maia's numbers are Lichess-style
+ * online ratings, which tend to sit *below* a USCF standard rating for the same player —
+ * so the ladder runs up to 1900 to stay challenging.
+ */
+export const SHIPPED_LEVELS = [1100, 1300, 1500, 1700, 1900] as const satisfies readonly MaiaLevel[]
+export const DEFAULT_LEVEL: MaiaLevel = 1500
 
 export interface MaiaMoveOpts {
   /** 0 ≈ argmax (strongest human move); higher samples the policy for variety. */
