@@ -94,12 +94,20 @@ describe('coverByMass', () => {
 })
 
 describe('trapValue', () => {
-  const base: TrapInput = { frequency: 0.03, swing: 25, practical: 0.45, expected: 0.3 }
+  const base: TrapInput = {
+    frequency: 0.03,
+    swing: 25,
+    practical: 0.45,
+    expected: 0.3,
+    games: 400,
+  }
 
   it('scores a bad move that overperforms — the line worth preparing', () => {
     // Played 3% of the time, gives up 25 win%, yet scores .45 where .30 is deserved.
     expect(trapValue(base)).toBeGreaterThan(0)
-    expect(outperformance(base)).toBeCloseTo(0.15)
+    // Positive, but below the raw .15 gap: even 400 games are shrunk a little.
+    expect(outperformance(base)).toBeGreaterThan(0.1)
+    expect(outperformance(base)).toBeLessThan(0.15)
   })
 
   it('ignores a bad move that people already punish', () => {
@@ -108,7 +116,9 @@ describe('trapValue', () => {
   })
 
   it('ignores a sound main line however popular', () => {
-    expect(trapValue({ frequency: 0.6, swing: 2, practical: 0.55, expected: 0.5 })).toBe(0)
+    expect(
+      trapValue({ frequency: 0.6, swing: 2, practical: 0.55, expected: 0.5, games: 5000 }),
+    ).toBe(0)
   })
 
   it('ignores an inaccuracy just below the trap threshold', () => {
@@ -122,10 +132,55 @@ describe('trapValue', () => {
 
   it('catches a club gambit that is only mildly unsound but overperforms', () => {
     // The Albin at 1500–1900: ~3.9% of replies to 2.c4, gives up roughly 5 win%,
-    // and still scores 50.9% where ~42% is deserved. A higher gate would throw
-    // away the whole gambit family, which is the material most worth studying.
-    const albin = { frequency: 0.039, swing: 5.5, practical: 0.509, expected: 0.42 }
+    // and still scores 50.9% where ~42% is deserved, over 511 games. A higher
+    // gate would throw away the whole gambit family — the material most worth
+    // studying at this level.
+    const albin = { frequency: 0.039, swing: 5.5, practical: 0.509, expected: 0.42, games: 511 }
     expect(trapValue(albin)).toBeGreaterThan(0)
+  })
+
+  it('refuses to call a six-game fluke a trap', () => {
+    // Straight from the first real run: this outranked everything else at 1.76
+    // on five wins from six games. Small samples produce enormous apparent
+    // outperformance and will dominate any unguarded ranking.
+    const fluke = { frequency: 0.3, swing: 10.9, practical: 0.83, expected: 0.3, games: 6 }
+    expect(trapValue(fluke)).toBe(0)
+  })
+
+  it('prefers the better-evidenced of two findings that look identical', () => {
+    // The honest property. A thin sample with a *huge* gap can legitimately
+    // outrank a well-sampled small edge — that is what the hard floor is for,
+    // not shrinkage. What shrinkage guarantees is this: same observed numbers,
+    // more evidence, higher score.
+    const shared = { frequency: 0.1, swing: 10, practical: 0.55, expected: 0.4 }
+    expect(trapValue({ ...shared, games: 800 })).toBeGreaterThan(
+      trapValue({ ...shared, games: 60 }),
+    )
+  })
+
+  it('leaves a well-sampled score almost unshrunk', () => {
+    const raw = 0.47 - 0.4
+    const shrunk = outperformance({
+      frequency: 0.16,
+      swing: 6.5,
+      practical: 0.47,
+      expected: 0.4,
+      games: 317,
+    })
+    // 317 games against a 100-game prior keeps ~76% of the observed gap.
+    expect(shrunk).toBeGreaterThan(raw * 0.7)
+    expect(shrunk).toBeLessThan(raw)
+  })
+
+  it('collapses a thin score toward what the evaluation deserves', () => {
+    const shrunk = outperformance({
+      frequency: 0.3,
+      swing: 10.9,
+      practical: 0.83,
+      expected: 0.3,
+      games: 6,
+    })
+    expect(shrunk).toBeLessThan(0.53 * 0.25) // raw gap was 0.53
   })
 
   it('ranks the more common of two equally unsound traps higher', () => {

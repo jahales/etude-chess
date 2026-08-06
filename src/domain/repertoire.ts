@@ -145,15 +145,46 @@ export interface TrapInput {
   practical: number
   /** What the resulting position is worth to the mover, 0–1 (win% / 100). */
   expected: number
+  /** How many games the practical score is computed from. */
+  games: number
 }
 
 /**
+ * Pseudo-count for shrinking `practical` toward `expected`. At this many games
+ * the observed rate carries half the weight. Chosen because the standard error
+ * of a win rate at n≈50 is around 7 points, which is the size of the effects we
+ * are trying to detect — below that we cannot tell a trap from a coin flip.
+ */
+export const TRAP_PRIOR_GAMES = 100
+
+/**
+ * Games below which we decline to call anything a trap at all.
+ *
+ * Shrinkage alone is not enough, because a small sample with a *large* apparent
+ * gap survives it: six games at 83% against a 30% expectation still shrinks to
+ * a score that outranks a genuine 317-game finding. Database samples are also
+ * correlated in ways the binomial ignores — a handful of games between the same
+ * two players, or one popular follow-up blunder. So there is a hard floor, and
+ * what it excludes is reported rather than dropped.
+ */
+export const TRAP_MIN_GAMES = 50
+
+/**
  * How much better a move does in practice than its evaluation deserves, 0–1.
+ *
+ * The observed score is shrunk toward the evaluation in proportion to how
+ * little evidence backs it, because the raw difference is worthless at low
+ * counts: five wins from six games reads as an 83% score and will outrank any
+ * genuine finding. Shrinkage leaves a well-sampled move essentially untouched
+ * (n=317 moves by under a point) while collapsing a six-game fluke.
+ *
  * Clamped at zero: a move that under-performs its evaluation is not a trap, it
  * is just a bad move people already punish.
  */
 export function outperformance(t: TrapInput): number {
-  return Math.max(0, t.practical - t.expected)
+  const n = Math.max(0, t.games)
+  const shrunk = (t.practical * n + t.expected * TRAP_PRIOR_GAMES) / (n + TRAP_PRIOR_GAMES)
+  return Math.max(0, shrunk - t.expected)
 }
 
 /**
@@ -167,6 +198,10 @@ export function outperformance(t: TrapInput): number {
  */
 export function trapValue(t: TrapInput): number {
   if (t.swing < TRAP_MIN_SWING) return 0
+  // Below this we genuinely cannot tell. Returning 0 is a refusal to guess, not
+  // a claim the move is sound — the crawler reports what it excluded on these
+  // grounds so a rare-but-vicious line is visible rather than disappeared.
+  if (t.games < TRAP_MIN_GAMES) return 0
   return t.frequency * t.swing * outperformance(t)
 }
 

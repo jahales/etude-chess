@@ -183,6 +183,15 @@ That reads: played 3.1% of the time here, gives up 34.5 win%, and **still scores
 position only deserves 12%** — so the refutation is not common knowledge at this band. That gap
 is where study time pays, and it is the list you cannot write from memory.
 
+**Sample size is guarded, and it matters more than it sounds.** The first real run ranked a
+six-game line at the top with an apparent 83% score, burying a 317-game finding beneath it —
+small samples produce enormous apparent outperformance and will dominate an unguarded ranking.
+So the observed score is shrunk toward the engine's expectation in proportion to how little
+evidence backs it (`TRAP_PRIOR_GAMES`), and anything under `TRAP_MIN_GAMES` is not ranked at
+all. What the floor excludes is printed under *"too few to judge"* rather than dropped, because
+a rare line might be the vicious one — we just can't tell it from a coin flip yet, and a bigger
+book is the answer rather than a lower floor.
+
 It also reports what it *didn't* cover — nodes that hit the evaluation cap, and lines that ran
 out of book. A coverage cap that stays silent reads as "we covered everything" when it did not.
 

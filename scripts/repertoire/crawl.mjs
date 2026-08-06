@@ -31,6 +31,8 @@ import {
   rankOurMoves,
   totalGames,
   trapValue,
+  TRAP_MIN_GAMES,
+  TRAP_MIN_SWING,
 } from '../../src/domain/repertoire.ts'
 import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
@@ -114,6 +116,7 @@ export async function crawl(config) {
     truncatedNodes: [],
     outOfBook: [],
     engineFallbacks: [],
+    tooRareToJudge: [],
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
   }
@@ -314,10 +317,23 @@ export async function crawl(config) {
           swing: c.swing,
           practical: c.practical,
           expected: c.expected,
+          games: gamesFor(c.stats),
         }
         const tv = trapValue(t)
         const byMass = coveredUcis.has(c.stats.uci)
         const byTrap = isTrap(t, o.trapThreshold)
+
+        // A move that looks like a trap but has too few games to judge is
+        // reported rather than dropped: it might be the vicious rare line, and
+        // silently discarding it would read as "there is nothing here".
+        if (!byTrap && t.swing >= TRAP_MIN_SWING && t.games < TRAP_MIN_GAMES && t.practical > t.expected) {
+          report.tooRareToJudge.push({
+            line: [...item.line, c.san].join(' '),
+            games: t.games,
+            swing: Number(t.swing.toFixed(1)),
+            practical: Number(t.practical.toFixed(3)),
+          })
+        }
         if (!byMass && !byTrap) continue
 
         if (byTrap) {
@@ -498,6 +514,15 @@ traps found     ${r.traps.length}`)
             `   [${(t.frequency * 100).toFixed(1)}% of games, −${t.swing} win%, ` +
             `scores ${(t.practical * 100).toFixed(0)}% vs ${(t.expected * 100).toFixed(0)}% deserved, n=${t.games}]`,
         )
+      }
+    }
+    if (r.tooRareToJudge.length) {
+      console.log(
+        `
+${r.tooRareToJudge.length} line(s) look like traps but have under ${TRAP_MIN_GAMES} games — too few to judge:`,
+      )
+      for (const t of r.tooRareToJudge.slice(0, 8)) {
+        console.log(`  ${t.line}   [n=${t.games}, -${t.swing} win%, scored ${(t.practical * 100).toFixed(0)}%]`)
       }
     }
     if (r.truncatedNodes.length) {
