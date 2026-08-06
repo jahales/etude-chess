@@ -12,7 +12,7 @@
 // Output has the same shape the explorer returns, so localBook.mjs is a
 // drop-in replacement for explorer.mjs in the crawler.
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createReadStream, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
@@ -186,25 +186,51 @@ const SEVENZIP_CANDIDATES = [
   '7z',
 ].filter(Boolean)
 
+function sevenZip() {
+  const exe = SEVENZIP_CANDIDATES.find((p) => p === '7z' || existsSync(p))
+  if (!exe) {
+    throw new Error(
+      `7-Zip was not found. Install it, set SEVENZIP_PATH, or extract the archive ` +
+        `and pass the .pgn directly.`,
+    )
+  }
+  return exe
+}
+
 /**
  * Byte source for a local file. `.7z` is streamed through 7-Zip rather than
- * extracted first: Lumbra's Gigabase ships 1.5 GB archives that expand to
- * something like 10 GB of PGN, and there is no reason to put that on disk when
- * we read it once, sequentially, and usually stop early.
+ * extracted first: Lumbra's Gigabase ships ~1 GB archives that expand to
+ * gigabytes, and there is no reason to put that on disk when we read it once,
+ * sequentially, and usually stop early.
+ *
+ * The archive is listed first so we can extract *the PGN member* rather than
+ * whatever 7-Zip happens to emit. Lumbra publishes both a PGN build and a Scid
+ * build, and the Scid one (`.si5`/`.sg5`/`.sn5`) is binary — streaming that
+ * through a PGN parser yields "scanned 0 games" with no indication why.
  */
 function fileSource(path) {
   if (!/\.7z$/i.test(path)) {
     return createReadStream(path)
   }
-  const exe = SEVENZIP_CANDIDATES.find((p) => p === '7z' || existsSync(p))
-  if (!exe) {
+  const exe = sevenZip()
+
+  const listing = spawnSync(exe, ['l', '-ba', '-slt', path], { encoding: 'utf8', maxBuffer: 1 << 24 })
+  const members = [...String(listing.stdout ?? '').matchAll(/^Path = (.+)$/gm)].map((m) => m[1].trim())
+  const pgn = members.find((f) => /\.pgn$/i.test(f))
+  if (!pgn) {
+    const scid = members.filter((f) => /\.s[ing][45]$/i.test(f))
     throw new Error(
-      `${path} is a 7z archive but 7-Zip was not found. Install it, set SEVENZIP_PATH, ` +
-        `or extract the archive and pass the .pgn directly.`,
+      scid.length
+        ? `${path} is a Scid database (${scid.map((f) => f.replace(/^.*[\\/]/, '')).join(', ')}), not PGN.\n` +
+          `  Scid's move encoding is a stateful per-piece scheme — reading it means reimplementing\n` +
+          `  Scid's own decoder. Download the PGN build of this database instead, or convert it\n` +
+          `  with Scid vs. PC ("scidt -x"), then pass the .pgn to --file.`
+        : `${path} contains no .pgn member. Found: ${members.join(', ') || '(nothing)'}`,
     )
   }
-  // `x -so` writes the extracted member to stdout, so we never materialise it.
-  const proc = spawn(exe, ['x', '-so', path], { stdio: ['ignore', 'pipe', 'ignore'] })
+
+  // `x -so <member>` writes just that file to stdout, so we never materialise it.
+  const proc = spawn(exe, ['x', '-so', path, pgn], { stdio: ['ignore', 'pipe', 'ignore'] })
   proc.on('error', (e) => proc.stdout.destroy(e))
   return proc.stdout
 }
