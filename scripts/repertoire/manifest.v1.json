@@ -1,0 +1,197 @@
+{
+  "$comment": [
+    "The repertoire, as branches to crawl. This is the machine-readable form of",
+    "docs/repertoire-v1.md — that file says why these openings and not others;",
+    "this one says where each crawl starts. Change them together.",
+    "",
+    "A forced `line` pins the OPENING CHOICE and stops. Everything past it is the",
+    "generator's job: which deviations to cover, how deep, and where the line goes",
+    "quiet. Forcing a whole main line would make this a memorisation deck with extra",
+    "steps (constitution §1).",
+    "",
+    "Branches nest. A sweeper such as `d4 d5 c4` covers the rare replies and hands",
+    "each named branch its own subtree; build.mjs derives the boundaries and",
+    "refuses to run if any of them leaves a gap. See src/domain/repertoirePlan.ts."
+  ],
+  "entries": [
+    {
+      "id": "d4-sidelines",
+      "name": "1.d4 — irregular replies",
+      "color": "w",
+      "line": "d4",
+      "why": "Everything that is not 1...d5, 1...Nf6, 1...f5 or 1...e5. Mostly move-order tries that transpose; the point is not to be surprised."
+    },
+    {
+      "id": "qg-sidelines",
+      "name": "Queen's Gambit — rare 2nd moves",
+      "color": "w",
+      "line": "d4 d5 c4",
+      "why": "The tail after 2.c4: early bishop sorties and pawn moves. Two of the repertoire's confirmed traps live here, both punished the same way — take on d5 and hit b7."
+    },
+    {
+      "id": "qgd-exchange",
+      "name": "QGD Exchange — the Carlsbad",
+      "color": "w",
+      "line": "d4 d5 c4 e6 cxd5",
+      "why": "One structure, one plan: the minority attack with b4-b5. The best understanding-per-unit-theory in the repertoire, which is why the Exchange rather than the main line."
+    },
+    {
+      "id": "qga",
+      "name": "QGA — do not chase the pawn",
+      "color": "w",
+      "line": "d4 d5 c4 dxc4 e3",
+      "why": "The priority line. White does not rush to regain c4; develop and let the attempt to HOLD the pawn cost Black the position. The break to know is a4 against ...b5.",
+      "maxPly": 13
+    },
+    {
+      "id": "slav-white",
+      "name": "Slav — the White side",
+      "color": "w",
+      "line": "d4 d5 c4 c6 Nf3",
+      "why": "The same structure we play as Black. Learning it from both sides is the point of pairing the Queen's Gambit with the Slav."
+    },
+    {
+      "id": "albin",
+      "name": "Albin Counter-Gambit",
+      "color": "w",
+      "line": "d4 d5 c4 e5 dxe5",
+      "why": "Common at this band and objectively bad, which is exactly the combination worth an evening. Note the trap here is OURS to avoid: 4.e3?? Bb4+ is the Lasker Trap, and the generator will not show it because it only ever picks sound moves for us."
+    },
+    {
+      "id": "marshall-defence",
+      "name": "Marshall Defence",
+      "color": "w",
+      "line": "d4 d5 c4 Nf6 cxd5",
+      "why": "Refuted by taking the centre. A clean illustration that a developing move can be a mistake if it ignores the middle of the board."
+    },
+    {
+      "id": "chigorin",
+      "name": "Chigorin Defence",
+      "color": "w",
+      "line": "d4 d5 c4 Nc6",
+      "why": "Sideline coverage. Black gives up the centre for piece play; we are happy to take it."
+    },
+    {
+      "id": "indian-sidelines",
+      "name": "1...Nf6 2.c4 — the rest",
+      "color": "w",
+      "line": "d4 Nf6 c4",
+      "why": "Benoni, ...c6 and ...b6 move orders. Where theory explodes, so depth here is set by measured frequency, not ambition."
+    },
+    {
+      "id": "indian-e6",
+      "name": "1...Nf6 2.c4 e6 — Nimzo/QGD complex",
+      "color": "w",
+      "line": "d4 Nf6 c4 e6",
+      "why": "Plan level only. Many of these transpose straight back into the Queen's Gambit lines above."
+    },
+    {
+      "id": "indian-g6",
+      "name": "1...Nf6 2.c4 g6 — King's Indian / Grünfeld",
+      "color": "w",
+      "line": "d4 Nf6 c4 g6",
+      "why": "Plan level only. Two completely different games depending on whether Black plays ...d6 or ...d5; knowing which one you are in is most of the battle."
+    },
+    {
+      "id": "budapest",
+      "name": "Budapest Gambit",
+      "color": "w",
+      "line": "d4 Nf6 c4 e5 dxe5",
+      "why": "Common here, and carries a smothered-mate trap for the greedy White player. Worth knowing from the side that is supposed to be better."
+    },
+    {
+      "id": "dutch",
+      "name": "Dutch Defence",
+      "color": "w",
+      "line": "d4 f5 g3",
+      "why": "Sideline coverage. Fianchetto and take the long diagonal; the h1-a8 diagonal is what 1...f5 gave away."
+    },
+    {
+      "id": "englund",
+      "name": "Englund Gambit",
+      "color": "w",
+      "line": "d4 e5 dxe5",
+      "why": "Objectively junk that scores absurdly well below 1600 — the definition of a line worth preparing. Take the pawn and keep it."
+    },
+
+    {
+      "id": "caro",
+      "name": "Caro-Kann — White's 2nd move",
+      "color": "b",
+      "line": "e4 c6",
+      "why": "Everything except 2.d4: the two-knights, 2.c4, 2.Nf3 and the pass moves. Mostly transpositions back into the main structures."
+    },
+    {
+      "id": "caro-2d4",
+      "name": "Caro-Kann — 2.d4 d5, White's 3rd move",
+      "color": "b",
+      "line": "e4 c6 d4 d5",
+      "why": "The junction of the whole defence. White must now commit: push, take, or defend e4. The three main answers each get their own branch; this covers the rest (3.Nd2, 3.f3, 3.Be3).",
+      "$massNote": "3.Nc3, 3.e5 and 3.exd5 are exactly 85% of this node, so the default coverage target is met before a single move this branch owns is reached — and it covers nothing. Raised so the tail it exists for gets in.",
+      "massTarget": 0.97
+    },
+    {
+      "id": "caro-classical",
+      "name": "Caro-Kann Classical — 3.Nc3 dxe4",
+      "color": "b",
+      "line": "e4 c6 d4 d5 Nc3 dxe4",
+      "why": "The Classical, heading for ...Bf5 — the problem bishop gets outside the pawn chain before ...e6 shuts it in. Learning THIS rather than 4...Nd7 also sidesteps 5.Qe2 Ngf6?? 6.Nd6#, which is the one Caro-Kann trap everyone falls for once."
+    },
+    {
+      "id": "caro-advance",
+      "name": "Caro-Kann Advance — 3.e5 Bf5",
+      "color": "b",
+      "line": "e4 c6 d4 d5 e5 Bf5",
+      "why": "A French structure with the good bishop already outside — the entire point of playing 1...c6 rather than 1...e6."
+    },
+    {
+      "id": "caro-exchange",
+      "name": "Caro-Kann Exchange and Panov — 3.exd5 cxd5",
+      "color": "b",
+      "line": "e4 c6 d4 d5 exd5 cxd5",
+      "why": "White chooses between the quiet Exchange (4.Bd3) and the Panov (4.c4), which hands us an IQP position — the same structure the Queen's Gambit gives us from the other side."
+    },
+    {
+      "id": "d4-black",
+      "name": "1.d4 d5 — White's 2nd move",
+      "color": "b",
+      "line": "d4 d5",
+      "why": "The London, Jobava and Colle setups, which appear constantly at this band and are played almost regardless of what we do. Plans, not theory."
+    },
+    {
+      "id": "slav",
+      "name": "Slav — White's 3rd move",
+      "color": "b",
+      "line": "d4 d5 c4 c6",
+      "why": "The c6-d5 chain, the same one the Caro-Kann builds. One structural idea covers the entire Black repertoire."
+    },
+    {
+      "id": "slav-main",
+      "name": "Slav main line — 3.Nf3 Nf6",
+      "color": "b",
+      "line": "d4 d5 c4 c6 Nf3 Nf6",
+      "why": "Where ...dxc4 followed by ...Bf5 becomes available: the resource that makes the Slav more than a passive defence."
+    },
+    {
+      "id": "slav-exchange",
+      "name": "Exchange Slav — 3.cxd5 cxd5",
+      "color": "b",
+      "line": "d4 d5 c4 c6 cxd5 cxd5",
+      "why": "Appears constantly and is far less drawish than its reputation below master level. Symmetry is not equality; the half-open c-file is the whole game."
+    },
+    {
+      "id": "english",
+      "name": "1.c4 — into Slav structures",
+      "color": "b",
+      "line": "c4 c6",
+      "why": "Steer toward the same c6-d5 chain rather than learning a separate anti-English system."
+    },
+    {
+      "id": "reti",
+      "name": "1.Nf3 — into Slav structures",
+      "color": "b",
+      "line": "Nf3 d5",
+      "why": "Same idea: take the centre and transpose into what we already know."
+    }
+  ]
+}

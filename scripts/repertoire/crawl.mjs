@@ -128,10 +128,18 @@ export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
   const { engine, explorer, canon = null, ourColor, forcedLine = [] } = o
 
+  /**
+   * `SAN line → branch id` for subtrees another manifest entry owns. Empty for a
+   * standalone crawl; see src/domain/repertoirePlan.ts for how a multi-branch
+   * build derives it, and why a repertoire needs it at all.
+   */
+  const delegations = o.delegations instanceof Map ? o.delegations : new Map(Object.entries(o.delegations ?? {}))
+
   const nodes = new Map()
   const report = {
     expanded: 0,
-    terminal: { quiet: 0, 'depth-cap': 0, 'out-of-book': 0, 'no-sound-move': 0 },
+    terminal: { quiet: 0, 'depth-cap': 0, 'out-of-book': 0, 'no-sound-move': 0, delegated: 0 },
+    delegated: [],
     traps: [],
     truncatedNodes: [],
     outOfBook: [],
@@ -174,6 +182,43 @@ export async function crawl(config) {
   const basePly = forcedSans.length
 
   const queue = [{ fen: rootFen, ply: basePly, line: [...forcedSans] }]
+
+  /**
+   * Queue a move's position, unless another branch of the manifest owns it.
+   *
+   * The boundary is handled here rather than when the position is dequeued so
+   * that a delegated trap never enters `awaitingPunishment`: its refutation is
+   * crawled and verified in the owning branch, and reporting it as "unverified"
+   * here would be a warning about work that has in fact been done. Returns true
+   * when it was delegated, and records the branch on the move so the PGN can
+   * point at it.
+   */
+  const enqueue = (child, fen, ply, line) => {
+    const owner = delegations.get(line.join(' '))
+    if (!owner) {
+      queue.push({ fen, ply, line })
+      return false
+    }
+    if (child) child.delegatedTo = owner
+    const key = fenKey(fen)
+    if (!nodes.has(key)) {
+      const sideToMove = new Chess(fen).turn()
+      nodes.set(key, {
+        fen,
+        ply,
+        sideToMove,
+        ours: sideToMove === ourColor,
+        line,
+        children: [],
+        terminal: true,
+        terminalReason: 'delegated',
+        delegatedTo: owner,
+      })
+      report.terminal.delegated++
+      report.delegated.push({ line: line.join(' '), to: owner })
+    }
+    return true
+  }
 
   /**
    * Settle a trap's punishment from a win% we already have. Must be reachable
@@ -372,19 +417,20 @@ export async function crawl(config) {
           report.terminal['no-sound-move']++
           continue
         }
-        node.children.push({
+        const fallback = {
           san: applied.san,
           uci: engineBest,
           fen: applied.fen,
           reason: 'ours-engine',
           swing: 0,
-        })
+        }
+        node.children.push(fallback)
         report.engineFallbacks.push({ line: [...item.line, applied.san].join(' '), san: applied.san })
-        queue.push({ fen: applied.fen, ply: item.ply + 1, line: [...item.line, applied.san] })
+        enqueue(fallback, applied.fen, item.ply + 1, [...item.line, applied.san])
         continue
       }
       const c = best._c
-      node.children.push({
+      const chosen = {
         san: c.san,
         uci: c.stats.uci,
         fen: c.fen,
@@ -396,8 +442,9 @@ export async function crawl(config) {
         frequency: Number(c.frequency.toFixed(4)),
         replyBranching: best.replyBranching,
         score: Number(ourMoveScore(best).toFixed(3)),
-      })
-      queue.push({ fen: c.fen, ply: item.ply + 1, line: [...item.line, c.san] })
+      }
+      node.children.push(chosen)
+      enqueue(chosen, c.fen, item.ply + 1, [...item.line, c.san])
     } else {
       // Many moves: frequency mass, plus anything that overperforms its eval.
       const cover = coverByMass(
@@ -466,14 +513,15 @@ export async function crawl(config) {
           evalCp: c.evalCp,
         }
         node.children.push(child)
+        const handedOff = enqueue(child, c.fen, item.ply + 1, [...item.line, c.san])
         // Verified when we reach the position after it — see awaitingPunishment.
-        if (byTrap) {
+        // Not when another branch owns it: that branch does the verifying.
+        if (byTrap && !handedOff) {
           awaitingPunishment.set(fenKey(c.fen), {
             child,
             line: [...item.line, c.san].join(' '),
           })
         }
-        queue.push({ fen: c.fen, ply: item.ply + 1, line: [...item.line, c.san] })
       }
     }
   }
@@ -633,7 +681,7 @@ async function main() {
     console.log(`
 ── done in ${secs}s ─────────────────────────────
 positions       ${result.nodes.size}   (expanded ${r.expanded})
-terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}
+terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}${r.terminal.delegated ? ` · delegated ${r.terminal.delegated}` : ''}
 decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.band}` : `band only (no canonical source)`}
 engine searches ${engine.searchCount()}
 explorer        ${JSON.stringify(explorer.stats())}

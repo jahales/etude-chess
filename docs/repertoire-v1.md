@@ -1,11 +1,16 @@
 # Repertoire v1 — the curated base
 
-> The **input spec** for the repertoire generator (`scripts/repertoire/`, issue #88). It says
-> *which* openings we build; the generator decides *how deep* and *which deviations* from data.
-> Rationale for building openings at all, at this point in the backlog: ADR
+> The **input spec** for the repertoire generator (`scripts/repertoire/`, issues #88 and #92). It
+> says *which* openings we build; the generator decides *how deep* and *which deviations* from
+> data. Rationale for building openings at all, at this point in the backlog: ADR
 > [0021](decisions/0021-opening-repertoire-generator.md).
 >
-> Target player: the owner, USCF ~1400. Last updated 2026-08-05.
+> The machine-readable form of this file is
+> [`manifest.v1.json`](../scripts/repertoire/manifest.v1.json) — 25 branches, one crawl each.
+> **Change them together.** Build the whole thing with
+> [`build.mjs`](../scripts/repertoire/README.md#building-the-whole-repertoire--buildmjs).
+>
+> Target player: the owner, USCF ~1400. Last updated 2026-08-06.
 
 ## The shape of the thing
 
@@ -99,15 +104,44 @@ rating-banded explorer data surfaces the moves that quietly overperform at this 
 
 ## Sources
 
+Two books, two jobs, decided by whose move it is. What actually built v1:
+
 | Source | Job |
 |---|---|
-| Lichess **masters** explorer | The spine — what is principled and tested. |
-| Lichess **amateur** explorer, rating-banded | The deviations — what we actually meet, and which junk profits. |
-| Caissabase 2024 (local, 5.4M games) | Optional offline cross-check. Its `Moves` BLOB needs shakmaty's move-generation order to decode, so it is deliberately **off the critical path**. |
+| **Lumbra's Gigabase OTB**, 800k games at 2200–2900 | The spine — what is principled. Decides **our** moves. |
+| **Lichess monthly dump**, 300k games at 1500–1900 blitz/rapid | The deviations — what we actually meet, and which junk profits. Decides **theirs**, and is the only thing `trapValue` runs on. |
+| Lichess **explorer API** | The fallback when there is no local book. Same interface; not reproducible, since it is a moving window rather than a fixed month. |
+| Caissabase 2024 (local, 5.4M games) | Not used. Its `Moves` BLOB needs shakmaty's move-generation order to decode, so it is deliberately **off the critical path**. |
+
+The asymmetry is deliberate and it shows in the first-move profile: our band opens 1.e4 61% of
+the time, masters 42%. Using band data to pick our own moves would teach us what 1400s happen
+to play; using master data to predict theirs would prepare us for opponents who do not exist.
 
 ## Expansion, in order
 
-1. Queen's Gambit subtree only — validate branching numbers and the trap detector.
-2. Rest of the 1.d4 White repertoire.
-3. Caro-Kann, then Slav.
-4. 1.e4 as White.
+1. ~~Queen's Gambit subtree only — validate branching numbers and the trap detector.~~ Done
+   2026-08-05. It found two traps that survived cross-month replication and an 8× change in
+   engine budget, and roughly a dozen defects in the pipeline that produced them.
+2. ~~Rest of the 1.d4 White repertoire.~~ Done 2026-08-06 (#92).
+3. ~~Caro-Kann, then Slav.~~ Done 2026-08-06 (#92).
+4. **1.e4 as White** — the next cut, and deliberately not part of v1. One first move at a time.
+
+Also not covered, and worth stating rather than discovering across the board: **irregular White
+first moves** (1.b3, 1.f4, 1.g3, 1.Nc3) have no Black branch. They are rare enough at this band
+that the answer is "play a normal developing move and transpose", which is not something a
+crawl of 300k games has much to say about.
+
+## What it costs to learn
+
+The generator reports this rather than guessing at it — the number the London section above
+said we would have. `build.mjs` counts, per branch and in total:
+
+- **decisions of ours** — positions where you must know which move you play. The thing to
+  memorise, and the honest price of the repertoire.
+- **replies of theirs** — opponent moves you have a prepared answer to. The thing being bought.
+- **quiet targets** — terminal positions that pose a judgment. The items actually worth
+  training, and the reason this is a repertoire rather than a deck.
+
+The current numbers live in `out/repertoire/summary.json` after a build. Read `ourDecisions`
+first: if it ever climbs past what one person can hold, the answer is to cut branches from this
+file, not to crawl shallower.

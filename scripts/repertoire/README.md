@@ -175,7 +175,111 @@ The default when `--book` is not given. Same `query(fen)` interface, so the craw
 knows nor cares which it is talking to. Rating-banded via `--ratings 1600,1800` (explorer
 buckets, comma-separated — not the `min-max` range `buildBook.mjs` takes).
 
-## First run — the Queen's Gambit
+## Building the whole repertoire — `build.mjs`
+
+`crawl.mjs` produces **one** branch. `build.mjs` produces the repertoire: every branch of
+[`manifest.v1.json`](manifest.v1.json), one engine process, one PGN holding a game per branch.
+
+```bash
+node scripts/repertoire/build.mjs --book out/band.json --canon-book out/otb.json --nodes 1000000
+```
+
+```
+--manifest <path>   branch list                     (default: manifest.v1.json)
+--out      <dir>    output directory                (default: out/repertoire)
+--book / --canon-book   as crawl.mjs — band and masters
+--only     a,b,c    build these branch ids only
+--nodes    400000   engine budget per position
+--max-ply  10       floor for the per-branch depth cap
+--resume            skip branches already built
+--check             validate the manifest and exit — no engine, no crawling
+```
+
+### Why a manifest rather than a shell loop
+
+Because branches **overlap, and overlapping branches disagree**. A sweeper crawl from
+`d4 d5 c4` picks its own answer to 2...e6; the curated QGD Exchange crawl forces 3.cxd5. Both
+are sound. A repertoire containing both is not a repertoire — the one property it must have is
+that you know which move you play.
+
+So each branch **owns** its subtree. Any other branch reaching into it stops at the boundary
+and says who covers it, in the JSON and in the PGN:
+
+```
+(2... dxc4 { [%eval 0.43] } {covered in the "qga" line})
+```
+
+The boundary is derived, not written by hand
+([`src/domain/repertoirePlan.ts`](../../src/domain/repertoirePlan.ts)): it sits one ply past a
+branch's own prefix — the first position where two branches could differ — and ownership goes
+to the *shortest* branch reaching through it, so `1.d4` hands 1...d5 to the Queen's Gambit
+sweeper rather than to the QGD Exchange buried beneath it.
+
+Two consequences worth knowing. `--only` still derives boundaries from the **whole** manifest,
+so rebuilding one branch cannot produce something that contradicts the branches it skipped. And
+a trap whose subtree is delegated is *not* reported as unverified — the owning branch does that
+verification, and printing "punishment not verified" over a line that has in fact been checked
+trains you to ignore the warning that matters.
+
+### The check that runs before the engine does
+
+```bash
+node scripts/repertoire/build.mjs --check
+```
+
+The one that earns its keep is the **coverage gap**. When a branch stops at a boundary the
+owner picks up from its own prefix, so every ply the owner forces beyond that boundary is a
+position neither branch examined. Harmless when those plies are *ours* — a single choice we
+were going to make anyway. A hole when any of them is the opponent's:
+
+```
+error: [caro] stops at "e4 c6 d4" for "caro-advance", which then assumes e5 —
+       the opponent's alternatives there are covered by nothing.
+       Add an entry whose line is "e4 c6 d4 d5".
+```
+
+That manifest would have produced a Caro-Kann with no answer to 3.Nc3 or 3.exd5, and it would
+have looked complete. Nothing is crawled until the plan is clean.
+
+### Writing a manifest entry
+
+A forced `line` pins the **opening choice** and stops. Everything past it is the generator's
+job: which deviations to cover, how deep, where the line goes quiet. Forcing a whole main line
+would make this a memorisation deck with extra steps (constitution §1).
+
+```json
+{
+  "id": "qgd-exchange",
+  "name": "QGD Exchange — the Carlsbad",
+  "color": "w",
+  "line": "d4 d5 c4 e6 cxd5",
+  "why": "One structure, one plan: the minority attack with b4-b5."
+}
+```
+
+`why` becomes the comment before the first move, so a drill says what it is drilling.
+
+**Depth is per-branch.** Every branch crawls the same *distance* past its prefix, not to the
+same *ply*: `maxPly = prefix + 6`, and `minPly = prefix + 2`. Both matter. A flat depth cap
+leaves a branch starting at ply 6 two moves to find a quiet position while handing a
+"don't be surprised by 1...c5" sweeper a nine-ply tree. And a flat *floor* is worse: the
+Caro-Kann Advance opens `1.e4 c6 2.d4 d5 3.e5 Bf5`, which is already quiet at ply 6 — so the
+branch terminated on its own root and was one node with no content. The prefix is scaffolding to
+reach the position worth studying; it cannot also be the study. Override either per entry.
+
+Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`.
+`massTarget` earns its keep on a sweeper whose popular replies all belong to other branches —
+after `1.e4 c6 2.d4 d5`, White's 3.Nc3, 3.e5 and 3.exd5 are *exactly* 85% of the node, so the
+default target is met before a single move that branch owns is reached and it covers nothing.
+The build reports any branch that ends up in that state rather than letting it pass as a branch
+with nothing to do:
+
+```
+⚠ 1 branch(es) covered nothing of their own:
+  caro-2d4   [4 positions, 3 handed to other branches — raise its massTarget or drop it]
+```
+
+## Crawling a single line — `crawl.mjs`
 
 ```bash
 node scripts/repertoire/crawl.mjs --color white --line "d4 d5 c4 dxc4" --book out/book.json --out out/qga
@@ -238,11 +342,46 @@ book is the answer rather than a lower floor.
 It also reports what it *didn't* cover — nodes that hit the evaluation cap, and lines that ran
 out of book. A coverage cap that stays silent reads as "we covered everything" when it did not.
 
+### What a whole build reports
+
+`build.mjs` writes `summary.json` alongside the branches and prints the same numbers:
+
+```
+positions       1,043
+to memorise     118 decisions of ours, answering 402 of theirs
+quiet targets   197
+```
+
+**`to memorise` is the honest price of the repertoire** — positions where you must know which
+move you play. It is the number [repertoire-v1.md](../../docs/repertoire-v1.md) promised rather
+than guessed when it cut the London ("a number we will have, not a guess"). If it ever climbs
+past what one person can hold, the fix is to cut branches from the manifest, not to crawl
+shallower: a shallower crawl buys the same repertoire with the quiet positions chopped off, and
+the quiet positions are the part worth training.
+
+Traps are ranked across the **whole** repertoire, each tagged with the branch it was found in,
+so the list answers "what should I study first" rather than "what did this crawl happen to see".
+
+### A note on `--trap` and `--nodes`
+
+The default threshold of `0.05` is high for this band. Measured on a 300k-game 1500–1900 book,
+real club traps land between **0.005 and 0.05**: the Albin Counter-Gambit scores 0.0154 and the
+Chigorin 0.0096 — both lines any 1400 will meet, neither of which the default flags. v1 was
+built with `--trap 0.01`. The constant in [`repertoire.ts`](../../src/domain/repertoire.ts) is
+unchanged, because one build's distribution is not enough evidence to move a default.
+
+`--nodes` is a real trade. v1 was built at **120,000**, which is the budget the cross-month
+replication was run at — of five traps that budget found in the Queen's Gambit, two survived both
+a different month and an 8× change in budget. Higher budgets are better and cost linearly: at
+roughly half a second per 400k-node search on a laptop, the full manifest at 400k is a matter of
+hours rather than one.
+
 ## Importing into En Croissant
 
-Open En Croissant → **Files** → import `<out>.pgn`, then point the repertoire trainer at it. The
-`?!`/`?`/`??` suffixes on opponent moves and the `{quiet: N playable moves}` comments come
-through as annotations.
+Open En Croissant → **Files** → import `out/repertoire/repertoire.pgn` (or a single branch's
+`<out>.pgn`), then point the repertoire trainer at it. One game per branch, each named in its
+`[Event]` header. The `?!`/`?`/`??` suffixes on opponent moves and the
+`{quiet: N playable moves}` comments come through as annotations.
 
 ## Caveats
 

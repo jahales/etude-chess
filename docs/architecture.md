@@ -60,6 +60,14 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
   - `src/app/replay.ts` — pure derivations for the replay screen (`buildReplayMoves`,
     `replayRows`, `coachAtCursor`, `clampCursor`); `src/domain/replay.ts` rebuilds positions
     from SAN. `src/app/useHomeStats.ts` — the Home cards' history counters.
+  - `src/domain/repertoire.ts` · `repertoirePgn.ts` · `repertoirePlan.ts` — the opening
+    repertoire generator's judgment: coverage and trap scoring, the quiet-position test, PGN
+    rendering, and branch ownership across a manifest of crawls (ADRs
+    [0021](decisions/0021-opening-repertoire-generator.md),
+    [0022](decisions/0022-repertoire-branch-ownership.md)). **In the domain although only
+    `scripts/repertoire/` uses them today** — they are pure rules, and `epic:opening` will want
+    them. Deliberately **runtime-import-free** (`import type` only) so the `.mjs` scripts can
+    load them under Node's type stripping; they therefore speak win% and never centipawns.
   - `src/persist/storage.ts` — durability: requests persistent storage on the first save and
     reports usage. IndexedDB is **not permanent by default** — Safari evicts script-written
     storage after ~7 days without interaction — so the library says whether it was granted

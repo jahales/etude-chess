@@ -41,11 +41,18 @@ data/
 syzygy/
 scratch/
 
-# Repertoire generator output and its explorer cache (issue #88).
-# Regenerate with scripts/repertoire/crawl.mjs — see that directory's README.
+# Repertoire generator working output and its explorer cache (issues #88, #92).
+# Regenerate with scripts/repertoire/build.mjs — see that directory's README.
 /out/
 .explorer-cache/
 .masters-cache/
+
+# ...but the built repertoire itself IS tracked. It is our own prose plus
+# engine-computed facts (ADR 0018 §2-3), it is the artefact the generator exists
+# to produce, and an hour of engine time is a poor thing to ask of a reader who
+# just wants to import it. Needed because *.pgn is excluded above.
+!/repertoire/
+!/repertoire/*.pgn
 
 # Downloaded game databases (Lumbra's Gigabase, Caissabase, Lichess dumps…).
 # Multi-hundred-MB third-party data: never committed, always re-downloadable,

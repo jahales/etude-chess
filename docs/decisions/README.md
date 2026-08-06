@@ -29,5 +29,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0019](0019-why-layer-next.md) | The "why" layer, via a grounded concept ontology | Accepted (sequencing clause superseded by 0020) |
 | [0020](0020-backlog-of-epics.md) | Plan with a prioritized backlog of epics; versions are cuts, not slots | Accepted |
 | [0021](0021-opening-repertoire-generator.md) | Generate an opening repertoire from explorer data + engine, terminating at quiet positions | Accepted |
+| [0022](0022-repertoire-branch-ownership.md) | One repertoire from many crawls: each branch owns its subtree | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.

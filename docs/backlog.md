@@ -80,6 +80,12 @@ Trap avoidance plus structures and plans, sourced from where *you* actually blee
 picker (#41) is the drill vehicle; an attached database supplies the material.
 
 - **Depends on:** the database (material) and review-loop telemetry (targets).
+- **Partly unblocked.** The offline generator (#88, ADR
+  [0021](decisions/0021-opening-repertoire-generator.md)) now produces the material itself —
+  `repertoire/` holds a 25-branch repertoire as annotated JSON, each line terminating at a
+  quiet position with its statistics and trap scores. So this epic no longer waits on an
+  attached database for *opening* material; it still waits on review-loop telemetry to know
+  where you actually bleed.
 
 ### 6. Endgame technique · `epic:endgame`
 Tablebase-adjudicated technique curriculum (Syzygy; constitution §7).

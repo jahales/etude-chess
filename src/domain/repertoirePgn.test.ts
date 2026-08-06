@@ -247,3 +247,110 @@ describe('toPgn', () => {
     expect(() => toPgn({ ...base, nodes: new Map(), rootFen: START })).not.toThrow()
   })
 })
+
+describe('toPgn — branches another crawl owns', () => {
+  const delegatedTree = () =>
+    new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          { san: 'd5', fen: AFTER_D5, reason: 'mass' as const, delegatedTo: 'queens-gambit' },
+          { san: 'Nf6', fen: AFTER_NF6, reason: 'mass' as const },
+        ]),
+      ],
+      [
+        fenKey(AFTER_D5),
+        node([], { terminal: true, terminalReason: 'delegated', delegatedTo: 'queens-gambit' }),
+      ],
+      [fenKey(AFTER_NF6), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })],
+    ])
+
+  it('says which branch covers a position it stopped at', () => {
+    expect(toPgn({ ...base, nodes: delegatedTree(), rootFen: START })).toContain(
+      'covered in the "queens-gambit" line',
+    )
+  })
+
+  it('takes the main line through content this game actually has', () => {
+    // Following the most popular reply into a subtree that lives elsewhere would
+    // make the main line a single pointer and bury everything crawled here in a
+    // variation — unusable as a drill.
+    const pgn = toPgn({ ...base, nodes: delegatedTree(), rootFen: START })
+    expect(pgn).toContain('1. d4 Nf6')
+    expect(pgn).toContain('(1... d5')
+  })
+
+  it('still follows the most popular reply when nothing is delegated', () => {
+    const nodes = delegatedTree()
+    nodes.get(fenKey(AFTER_D4))!.children[0]!.delegatedTo = undefined
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain('1. d4 d5')
+  })
+
+  it('falls back to the first child when every reply is delegated', () => {
+    const nodes = delegatedTree()
+    nodes.get(fenKey(AFTER_D4))!.children[1]!.delegatedTo = 'elsewhere'
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain('1. d4 d5')
+  })
+
+  it('points a delegated trap at the branch that covers it, not at a warning', () => {
+    // `punished` is undefined here because this crawl never checked — the owning
+    // branch did. Printing "punishment not verified" over a line that has in
+    // fact been verified trains you to ignore the warning that matters.
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          {
+            san: 'd5',
+            fen: AFTER_D5,
+            reason: 'trap' as const,
+            frequency: 0.04,
+            practical: 0.51,
+            expected: 0.42,
+            games: 511,
+            delegatedTo: 'albin',
+          },
+        ]),
+      ],
+      [fenKey(AFTER_D5), node([], { terminal: true, terminalReason: 'delegated', delegatedTo: 'albin' })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('covered in the "albin" line')
+    expect(pgn).not.toContain('not verified')
+    // and the trap's own numbers survive alongside it
+    expect(pgn).toContain('they score 51% where 42% is deserved')
+  })
+
+  it('says where a move is covered exactly once', () => {
+    // The move's comment and the position after it both used to announce the
+    // same delegation, which reads as two different facts.
+    const pgn = toPgn({ ...base, nodes: delegatedTree(), rootFen: START })
+    expect(pgn.match(/covered in the "queens-gambit" line/g)).toHaveLength(1)
+  })
+})
+
+describe('toPgn — naming a branch', () => {
+  const simple = new Map([[fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])]])
+
+  it('puts the branch name in the Event header', () => {
+    expect(toPgn({ ...base, nodes: simple, rootFen: START, name: 'QGD Exchange' })).toContain(
+      '[Event "Repertoire — White: QGD Exchange"]',
+    )
+  })
+
+  it('keeps the bare header when there is no name', () => {
+    expect(toPgn({ ...base, nodes: simple, rootFen: START })).toContain('[Event "Repertoire — White"]')
+  })
+
+  it('opens with why the branch is in the repertoire', () => {
+    const pgn = toPgn({ ...base, nodes: simple, rootFen: START, why: 'the Carlsbad structure' })
+    expect(pgn).toMatch(/\{the Carlsbad structure\}\s*1\. d4/)
+  })
+
+  it('strips braces from prose, which would close the comment early', () => {
+    const pgn = toPgn({ ...base, nodes: simple, rootFen: START, why: 'a {nested} brace' })
+    expect(pgn).toContain('{a nested brace}')
+  })
+})
