@@ -373,3 +373,35 @@ describe('readBranch — resuming without losing the rest of the repertoire', ()
     expect(mergePgn([reused, ...fresh].map((r) => r.pgn)).match(/\[Event /g)).toHaveLength(2)
   })
 })
+
+describe('the PGN a build actually emits', () => {
+  // Ground truth over logic. Every unit test above passed while the generated
+  // repertoire loaded in no parser at all: three `{…}` comments in a row on one
+  // move, and a comment after a closing parenthesis. Both are legal by the
+  // spec, both are rejected by chess.js — which is this project's own parser.
+  const load = (pgn) => {
+    const chess = new Chess()
+    chess.loadPgn(pgn)
+    return chess.history()
+  }
+
+  it('loads every branch, delegations and traps and all', async () => {
+    for (const r of await build()) expect(() => load(r.pgn), r.entry.id).not.toThrow()
+  })
+
+  it('loads the merged file one game at a time', async () => {
+    const merged = mergePgn((await build()).map((r) => r.pgn))
+    const games = merged.split(/\n\s*\n(?=\[Event )/).filter((g) => g.trim())
+    expect(games).toHaveLength(2)
+    for (const g of games) expect(() => load(g)).not.toThrow()
+  })
+
+  it('replays the curated prefix as the start of the main line', async () => {
+    const exchange = byId(await build(), 'exchange')
+    expect(load(exchange.pgn).slice(0, 5)).toEqual(['d4', 'd5', 'c4', 'e6', 'cxd5'])
+  })
+
+  it('never puts two comments in a row', async () => {
+    for (const r of await build()) expect(r.pgn, r.entry.id).not.toMatch(/\}\s*\{/)
+  })
+})

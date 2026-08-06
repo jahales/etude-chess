@@ -142,23 +142,26 @@ function evalComment(child: RepertoireChild): string | null {
  * ADR 0012: state the fact bundle, don't hand down a verdict.
  */
 function childComment(child: RepertoireChild): string | null {
-  // Where another branch owns everything after this move, that is the whole
-  // story — including for a trap, whose refutation is crawled and verified
-  // there. Said once, on the move, rather than repeated by the position after.
-  const covered = child.delegatedTo ? `{covered in the "${child.delegatedTo}" line}` : null
+  // One comment, always. Everything a move has to say goes inside a single pair
+  // of braces — see `mergeComments` for what two of them in a row cost.
+  const bits: string[] = []
 
   if (child.reason === 'trap' || child.reason === 'mass+trap') {
-    const bits: string[] = ['trap']
+    bits.push('trap')
     if (typeof child.frequency === 'number') bits.push(`${pct(child.frequency)} play this`)
     if (typeof child.practical === 'number' && typeof child.expected === 'number') {
       bits.push(`they score ${pct(child.practical)} where ${pct(child.expected)} is deserved`)
     }
     if (typeof child.games === 'number') bits.push(`n=${child.games}`)
-    const head = `{${bits.join(' · ')}}`
-    // Saying where it is covered beats both alternatives: claiming a punishment
-    // this crawl never checked, and warning about one that has in fact been
-    // checked in the branch that owns it.
-    if (covered) return `${head} ${covered}`
+  }
+
+  if (child.delegatedTo) {
+    // Where another branch owns everything after this move, that is the rest of
+    // the story — including for a trap, whose refutation is crawled and verified
+    // there. Saying so beats both alternatives: claiming a punishment this crawl
+    // never checked, and warning about one that has in fact been checked.
+    bits.push(`covered in the "${child.delegatedTo}" line`)
+  } else if (child.reason === 'trap' || child.reason === 'mass+trap') {
     // A trap whose refutation does not actually leave us better is worse than
     // no trap at all — you would drill it as a win and reach an equal game.
     //
@@ -166,26 +169,24 @@ function childComment(child: RepertoireChild): string | null {
     // never ran (the position transposed into one already visited, or sat on the
     // depth cap), and treating "not verified" as "verified" is precisely the
     // silent-success failure this annotation exists to prevent.
-    if (child.punished !== true) {
-      if (child.punished === false) {
-        const after =
-          typeof child.afterReplyWinPercent === 'number'
-            ? ` (only ${child.afterReplyWinPercent.toFixed(0)}% after our reply)`
-            : ''
-        return `${head} {WARNING: punishment unconfirmed${after} — play it out, don't trust the label}`
-      }
-      return `${head} {punishment not verified — play it out yourself}`
+    if (child.punished === false) {
+      const after =
+        typeof child.afterReplyWinPercent === 'number'
+          ? ` (only ${child.afterReplyWinPercent.toFixed(0)}% after our reply)`
+          : ''
+      bits.push(`WARNING: punishment unconfirmed${after} — play it out, don't trust the label`)
+    } else if (child.punished !== true) {
+      bits.push('punishment not verified — play it out yourself')
     }
-    return head
+  } else if (child.reason === 'ours-engine') {
+    bits.push('engine refutation — too rare to appear in human play')
+  } else if (child.reason === 'ours' && child.source === 'band') {
+    // Worth flagging: past this point the move is not backed by master practice,
+    // so it is a reasonable choice rather than established theory.
+    bits.push('beyond master theory — chosen from club play')
   }
-  if (covered) return covered
-  if (child.reason === 'ours-engine') return '{engine refutation — too rare to appear in human play}'
-  // Worth flagging: past this point the move is not backed by master practice,
-  // so it is a reasonable choice rather than established theory.
-  if (child.reason === 'ours' && child.source === 'band') {
-    return '{beyond master theory — chosen from club play}'
-  }
-  return null
+
+  return bits.length ? `{${bits.join(' · ')}}` : null
 }
 
 function token(san: string, ply: number, needsNumber: boolean): string {
@@ -243,6 +244,13 @@ function emitFrom(
   const mainNote = childComment(main)
   if (mainNote) out.push(mainNote)
 
+  // Work out the continuation first. When the main line stops here its only
+  // token is the terminal note, and a comment sitting after a closing
+  // parenthesis is something real parsers reject — so it is folded onto the
+  // move, ahead of the variations, where it also reads better.
+  const rest = main.delegatedTo ? [] : emitFrom(nodes, main.fen, ply + 1, alts.length > 0)
+  while (rest.length && isComment(rest[0]!)) out.push(rest.shift()!)
+
   for (const alt of alts) {
     const inner = [token(`${alt.san}${annotate(alt)}`, ply, true)]
     const altEval = evalComment(alt)
@@ -252,11 +260,33 @@ function emitFrom(
     // Not into a branch someone else owns: the move's own comment says where it
     // is covered, and descending would only repeat that on the position after.
     if (!alt.delegatedTo) inner.push(...emitFrom(nodes, alt.fen, ply + 1, true))
-    out.push(`(${inner.join(' ')})`)
+    out.push(`(${mergeComments(inner).join(' ')})`)
   }
 
-  // After a variation closes, a following black move must restate its number.
-  if (!main.delegatedTo) out.push(...emitFrom(nodes, main.fen, ply + 1, alts.length > 0))
+  // After a variation closes, a following black move must restate its number —
+  // which `rest` was already built with.
+  out.push(...rest)
+  return out
+}
+
+const isComment = (t: string) => t.startsWith('{') && t.endsWith('}')
+
+/**
+ * Fold runs of adjacent `{…}` comments into one.
+ *
+ * Two comments in a row are legal by the PGN spec and rejected by real parsers
+ * — chess.js among them, which is this project's own. A move carrying an
+ * evaluation, a fact bundle and a terminal note emitted three of them, so the
+ * generated repertoire did not load anywhere. The file looked perfect.
+ */
+function mergeComments(tokens: string[]): string[] {
+  const out: string[] = []
+  for (const t of tokens) {
+    const prev = out[out.length - 1]
+    if (isComment(t) && prev && isComment(prev)) {
+      out[out.length - 1] = `${prev.slice(0, -1).trimEnd()} · ${t.slice(1).trimStart()}`
+    } else out.push(t)
+  }
   return out
 }
 
@@ -320,5 +350,5 @@ export function toPgn(input: PgnInput): string {
     ...(input.provenance?.minDepth ? [`[MinDepth "${input.provenance.minDepth}"]`] : []),
   ]
 
-  return `${headers.join('\n')}\n\n${wrap([...tokens, '*'])}\n`
+  return `${headers.join('\n')}\n\n${wrap(mergeComments([...tokens, '*']))}\n`
 }

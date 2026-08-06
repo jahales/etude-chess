@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { Chess } from 'chess.js'
 import { fenKey, toPgn, type RepertoireNode } from './repertoirePgn'
 
 // Real FENs, so the fenKey plumbing is exercised rather than stubbed.
@@ -352,5 +353,68 @@ describe('toPgn — naming a branch', () => {
   it('strips braces from prose, which would close the comment early', () => {
     const pgn = toPgn({ ...base, nodes: simple, rootFen: START, why: 'a {nested} brace' })
     expect(pgn).toContain('{a nested brace}')
+  })
+})
+
+describe('toPgn — output a real parser will accept', () => {
+  // Ground truth, not logic. The generator emitted three consecutive `{…}`
+  // comments on one move — legal by the spec, rejected by chess.js, which is
+  // this project's own parser. The file looked perfect and loaded nowhere.
+  const loads = (pgn: string) => {
+    const chess = new Chess()
+    chess.loadPgn(pgn)
+    return chess.history()
+  }
+
+  it('folds a move carrying an eval, a fact bundle and a terminal note into one comment', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          {
+            san: 'd5',
+            fen: AFTER_D5,
+            reason: 'mass+trap' as const,
+            evalCp: 36,
+            frequency: 0.45,
+            practical: 0.51,
+            expected: 0.42,
+            games: 511,
+            punished: true,
+          },
+        ]),
+      ],
+      [fenKey(AFTER_D5), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 5 } })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).not.toMatch(/\}\s*\{/)
+    expect(pgn).toContain('[%eval 0.36]')
+    expect(pgn).toContain('quiet: 5 playable moves')
+    expect(loads(pgn)).toEqual(['d4', 'd5'])
+  })
+
+  it('emits no adjacent comments inside a variation either', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          { san: 'd5', fen: AFTER_D5, reason: 'mass' as const, evalCp: 36 },
+          { san: 'Nf6', fen: AFTER_NF6, reason: 'trap' as const, evalCp: 68, frequency: 0.2, games: 90 },
+        ]),
+      ],
+      [fenKey(AFTER_D5), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 5 } })],
+      [fenKey(AFTER_NF6), node([], { terminal: true, terminalReason: 'out-of-book', games: 12 })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).not.toMatch(/\}\s*\{/)
+    expect(loads(pgn)).toEqual(['d4', 'd5'])
+  })
+
+  it('keeps the opening prose and the first move loadable together', () => {
+    const nodes = new Map([[fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])]])
+    const pgn = toPgn({ ...base, nodes, rootFen: START, why: 'the Carlsbad', name: 'QGD' })
+    expect(loads(pgn)).toEqual(['d4'])
   })
 })
