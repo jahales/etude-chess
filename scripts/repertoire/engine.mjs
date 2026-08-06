@@ -10,7 +10,6 @@
 // and `ucinewgame` before each search so a warm hash can't change an answer.
 
 import { spawn } from 'node:child_process'
-import { availableParallelism } from 'node:os'
 import { createInterface } from 'node:readline'
 import { parseBestMove, parseInfoLine } from '../../src/engine/uci.ts'
 
@@ -26,7 +25,20 @@ export const DEFAULT_ENGINE_PATH = `${process.env.APPDATA}\\org.encroissant.app\
 export function createEngine(opts = {}) {
   const {
     path = process.env.STOCKFISH_PATH || DEFAULT_ENGINE_PATH,
-    threads = Math.max(1, Math.min(8, availableParallelism() - 2)),
+    // ONE thread, deliberately. Fixed `go nodes` is not sufficient for
+    // reproducibility — multithreaded search splits work by thread scheduling,
+    // so the same position at the same budget returns different scores run to
+    // run. Measured: three 8-thread searches of one position gave top-move
+    // scores of -31, -35 and -31 with different move orders, and one returned
+    // the same move twice in its MultiPV list. Scores wobble ~10cp, which at a
+    // 5 win% trap gate silently flips findings in and out — it is what made a
+    // cross-month replication look like month-to-month variation when the
+    // underlying data was stable to within one percentage point.
+    //
+    // Single-threaded is slower per search and worth it: without it nothing
+    // downstream is reproducible, and architecture.md's claim that engine calls
+    // are reproducible is simply untrue.
+    threads = 1,
     hashMb = 256,
   } = opts
 
