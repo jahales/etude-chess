@@ -174,9 +174,20 @@ async function* sniffAndDecompress(source) {
   yield* rewound() // plain text
 }
 
-/** Turn the byte source into a stream readline can consume. */
+/**
+ * Turn the byte source into a stream readline can consume.
+ *
+ * The no-op error listener is load-bearing. When we stop at `--max-games` the
+ * pipeline is torn down mid-flight and emits ERR_STREAM_PREMATURE_CLOSE
+ * *asynchronously*, after the consumer has already stopped iterating — so it
+ * reaches no try/catch and crashes the process as an unhandled 'error' event.
+ * With a listener attached it stays a normal stream error: still delivered to
+ * whoever is iterating, no longer fatal to whoever is not.
+ */
 function decompressedStream(source) {
-  return Readable.from(sniffAndDecompress(source))
+  const stream = Readable.from(sniffAndDecompress(source))
+  stream.on('error', () => {})
+  return stream
 }
 
 const SEVENZIP_CANDIDATES = [
@@ -210,7 +221,8 @@ function sevenZip() {
  */
 function fileSource(path) {
   if (!/\.7z$/i.test(path)) {
-    return createReadStream(path)
+    const stream = createReadStream(path)
+    return { stream, close: () => stream.destroy() }
   }
   const exe = sevenZip()
 
@@ -232,7 +244,18 @@ function fileSource(path) {
   // `x -so <member>` writes just that file to stdout, so we never materialise it.
   const proc = spawn(exe, ['x', '-so', path, pgn], { stdio: ['ignore', 'pipe', 'ignore'] })
   proc.on('error', (e) => proc.stdout.destroy(e))
-  return proc.stdout
+  // Same reason as decompressedStream: killing 7-Zip mid-write raises EPIPE on
+  // this pipe after we have stopped reading it.
+  proc.stdout.on('error', () => {})
+  return {
+    stream: proc.stdout,
+    // Stopping early is the normal case — we read a prefix of a multi-GB
+    // archive. Kill 7-Zip rather than leaving it writing into a closed pipe.
+    close: () => {
+      proc.kill()
+      proc.stdout.destroy()
+    },
+  }
 }
 
 /**
@@ -292,6 +315,11 @@ async function* resumableFetch(url, { retries = 8 } = {}) {
  */
 async function* streamGames(input) {
   const rl = createInterface({ input: decompressedStream(input), crlfDelay: Infinity })
+  // readline re-emits its input's errors on the Interface itself. When we stop
+  // early the input is torn down mid-write, and with nothing listening *here*
+  // that becomes an unhandled 'error' event and kills the process — after the
+  // book is already complete. Anyone still iterating gets the error regardless.
+  rl.on('error', () => {})
   let headers = {}
   let sawHeaders = false
 
@@ -354,11 +382,13 @@ export async function buildBook(opts) {
   const book = new Map()
   const speedSet = new Set(speeds.map((s) => s.toLowerCase()))
 
-  const source = file ? fileSource(file) : Readable.from(resumableFetch(DUMP(month)))
-  // Breaking out of the consumer unwinds the generator chain, which cancels the
-  // download; this is the belt to that braces.
-  const cancel = () => source.destroy()
-
+  let aborted = false
+  const { stream: source, close } = file
+    ? fileSource(file)
+    : (() => {
+        const stream = Readable.from(resumableFetch(DUMP(month)))
+        return { stream, close: () => stream.destroy() }
+      })()
   let seen = 0
   let kept = 0
   const chess = new Chess()
@@ -366,7 +396,10 @@ export async function buildBook(opts) {
   try {
     for await (const { headers, movetext } of streamGames(source)) {
       seen++
-      if (kept >= maxGames) break
+      if (kept >= maxGames) {
+        aborted = true
+        break
+      }
 
       const outcome = outcomeIndex(headers.Result)
       if (outcome < 0) continue
@@ -406,8 +439,14 @@ export async function buildBook(opts) {
         onProgress?.({ seen, kept, positions: book.size })
       }
     }
+  } catch (err) {
+    // Stopping at --max-games means tearing down a pipeline that is still
+    // producing: 7-Zip mid-write, a socket mid-body. The resulting
+    // ERR_STREAM_PREMATURE_CLOSE is the abort working, not a failure — but only
+    // when we are the ones who asked for it.
+    if (!aborted) throw err
   } finally {
-    cancel()
+    close()
   }
 
   // Prune the long tail: a move seen twice carries no usable win rate, and the
