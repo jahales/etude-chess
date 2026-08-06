@@ -19,12 +19,15 @@ export const DEFAULT_ENGINE_PATH = `${process.env.APPDATA}\\org.encroissant.app\
 /**
  * @param {object} [opts]
  * @param {string} [opts.path]    engine binary
+ * @param {string[]} [opts.args]  argv for it — lets a test point `path` at
+ *                                node and run a scripted fake engine
  * @param {number} [opts.threads]
  * @param {number} [opts.hashMb]
  */
 export function createEngine(opts = {}) {
   const {
     path = process.env.STOCKFISH_PATH || DEFAULT_ENGINE_PATH,
+    args = [],
     // ONE thread, deliberately. Fixed `go nodes` is not sufficient for
     // reproducibility — multithreaded search splits work by thread scheduling,
     // so the same position at the same budget returns different scores run to
@@ -42,7 +45,7 @@ export function createEngine(opts = {}) {
     hashMb = 256,
   } = opts
 
-  const proc = spawn(path, [], { stdio: ['pipe', 'pipe', 'ignore'] })
+  const proc = spawn(path, args, { stdio: ['pipe', 'pipe', 'ignore'] })
   proc.on('error', (e) => {
     throw new Error(`could not start Stockfish at ${path}: ${e.message}`)
   })

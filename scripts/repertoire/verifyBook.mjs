@@ -42,7 +42,7 @@ export function learnedTotal(meta) {
  * position they are filed under. Catches key corruption and any drift between
  * how the book was written and how it is read back.
  */
-function checkLegality(positions, sampleSize = 400) {
+export function checkLegality(positions, sampleSize = 400) {
   const keys = Object.keys(positions)
   const step = Math.max(1, Math.floor(keys.length / sampleSize))
   const bad = []
