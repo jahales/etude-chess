@@ -271,6 +271,22 @@ describe('rankOurMoves', () => {
     expect(rankOurMoves([wide, narrow])[0]!.move.san).toBe('cxd5')
   })
 
+  it('ignores evaluation differences inside the soundness gate (constitution §3)', () => {
+    // The measured failure this prevents: with an evaluation term, the
+    // repertoire chose 3.Nc3 against the Slav at a 120k node budget and 3.cxd5
+    // at 1M — both sound, both master moves — rerouting the whole subtree. §3:
+    // "engine ordering within a tier is an artifact that flips with depth and
+    // version." Same move, different swing, must score identically.
+    const cheap = candidate('cxd5', 0, 3, 0.4)
+    const dearer = { ...cheap, swing: 4.9 }
+    expect(ourMoveScore(dearer)).toBe(ourMoveScore(cheap))
+  })
+
+  it('still refuses a move outside the gate however learnable', () => {
+    const unsound = candidate('h4', 30, 0, 0.9)
+    expect(rankOurMoves([unsound])).toEqual([])
+  })
+
   it('lets branching outweigh a small evaluation edge — the learnability trade', () => {
     const sharper = candidate('Bg5', 0, 9, 0.5) // best move, nine replies to learn
     const simpler = candidate('cxd5', 3, 2, 0.5) // 3 win% worse, two replies

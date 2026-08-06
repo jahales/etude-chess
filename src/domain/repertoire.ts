@@ -306,16 +306,29 @@ export interface OurMoveCandidate {
 }
 
 export interface RankingWeights {
-  soundness?: number
   branching?: number
   popularity?: number
 }
 
-/** Branching is weighted highest on purpose — see `rankOurMoves`. */
+/**
+ * Branching and popularity only — **not** how far a candidate sits from the
+ * engine's favourite.
+ *
+ * Constitution §3: "engine ordering within a tier is an artifact that flips
+ * with depth and version." Every candidate here has already passed the
+ * soundness gate at TIER_A_MAX_SWING, which is the project's own definition of
+ * "as good as best" — so ranking them against each other by evaluation is
+ * ordering within a tier, exactly what §3 forbids.
+ *
+ * This was measured, not theorised. With a soundness term the repertoire chose
+ * 3.Nc3 against the Slav at a 120k node budget and 3.cxd5 at 1M — both sound,
+ * both from master practice — which rerouted the whole subtree and silently
+ * changed which lines were even examined. A repertoire you memorise must not
+ * depend on an engine setting.
+ */
 export const DEFAULT_WEIGHTS: Required<RankingWeights> = {
-  soundness: 0.3,
-  branching: 0.45,
-  popularity: 0.25,
+  branching: 0.6,
+  popularity: 0.4,
 }
 
 /**
@@ -338,13 +351,11 @@ export function soundCandidates(
 export function ourMoveScore(
   c: OurMoveCandidate,
   weights: RankingWeights = {},
-  maxSwing: number = SOUNDNESS_MAX_SWING,
   branchingReference: number = BRANCHING_REFERENCE,
 ): number {
   const w = { ...DEFAULT_WEIGHTS, ...weights }
-  const soundness = maxSwing === 0 ? 1 : Math.max(0, 1 - c.swing / maxSwing)
   const branching = Math.max(0, 1 - Math.max(0, c.replyBranching) / branchingReference)
-  return w.soundness * soundness + w.branching * branching + w.popularity * c.frequency
+  return w.branching * branching + w.popularity * c.frequency
 }
 
 /**
@@ -360,9 +371,10 @@ export function rankOurMoves(
   maxSwing: number = SOUNDNESS_MAX_SWING,
   branchingReference: number = BRANCHING_REFERENCE,
 ): OurMoveCandidate[] {
+  // The engine's role is to *veto* unsound moves, not to choose between sound
+  // ones — hence the gate here and no evaluation term in the score.
   return soundCandidates(candidates, maxSwing).sort(
     (a, b) =>
-      ourMoveScore(b, weights, maxSwing, branchingReference) -
-      ourMoveScore(a, weights, maxSwing, branchingReference),
+      ourMoveScore(b, weights, branchingReference) - ourMoveScore(a, weights, branchingReference),
   )
 }
