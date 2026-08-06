@@ -16,7 +16,7 @@
 // IO, orchestration and reporting.
 
 import { writeFile, mkdir } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
 import { negate, winPercent } from '../../src/domain/winPercent.ts'
@@ -66,6 +66,14 @@ export const DEFAULTS = {
   maxEvalPerNode: 20,
 }
 
+/**
+ * Win% we must reach after replying to a trap for the punishment to count.
+ * A trap that gives up real evaluation should leave us clearly better; if our
+ * reply only equalises, the line is not a trap we can punish and drilling it as
+ * one teaches false confidence.
+ */
+export const PUNISHED_MIN_WIN_PERCENT = 55
+
 function applyUci(fen, uci) {
   const c = new Chess(fen)
   const move = c.move({
@@ -101,7 +109,12 @@ async function evalAfter(engine, fen, uci, o) {
   const line = r.lines[0]
   if (!line) return null
   // The child's score is from the *replier's* view; negate for the mover's.
-  return { ...applied, moverWp: winPercent(negate(line.score)), score: line.score }
+  return {
+    ...applied,
+    moverWp: winPercent(negate(line.score)),
+    score: line.score,
+    depth: r.depth ?? 0,
+  }
 }
 
 export async function crawl(config) {
@@ -119,7 +132,16 @@ export async function crawl(config) {
     tooRareToJudge: [],
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
+    unpunishedTraps: [],
+    minDepth: Infinity,
   }
+
+  /**
+   * Trap children awaiting confirmation that the punishment is real. A trap is
+   * only worth drilling if our reply actually leaves us better; one that merely
+   * equalises would be memorised as a win and reached as an equal game.
+   */
+  const awaitingPunishment = new Map()
 
   const root = new Chess()
   /** Follow the curated prefix verbatim before the crawler starts choosing. */
@@ -164,6 +186,23 @@ export async function crawl(config) {
     const { deep, bestWp, quiet } = await assess(engine, item.fen, o)
     node.bestWinPercent = Number(bestWp.toFixed(2))
     node.quiet = quiet
+    if (deep.depth) report.minDepth = Math.min(report.minDepth, deep.depth)
+
+    // We are to move here, so bestWp is *our* standing after the opponent's
+    // move. If that move was flagged a trap, this is where we find out whether
+    // the punishment exists.
+    const pendingTrap = awaitingPunishment.get(key)
+    if (pendingTrap) {
+      awaitingPunishment.delete(key)
+      pendingTrap.child.afterReplyWinPercent = Number(bestWp.toFixed(1))
+      pendingTrap.child.punished = bestWp >= PUNISHED_MIN_WIN_PERCENT
+      if (!pendingTrap.child.punished) {
+        report.unpunishedTraps.push({
+          line: pendingTrap.line,
+          afterReplyWinPercent: Number(bestWp.toFixed(1)),
+        })
+      }
+    }
 
     if (item.ply >= o.minPly && quiet.quiet) {
       node.terminal = true
@@ -236,7 +275,15 @@ export async function crawl(config) {
         expected: after.moverWp / 100,
         frequency: frequency(m, total),
         practical: practicalScore(m, sideToMove),
+        // `after.score` is from the replier's view; PGN [%eval] is White's.
+        evalCp:
+          after.score.type === 'cp'
+            ? sideToMove === 'w'
+              ? -after.score.value
+              : after.score.value
+            : undefined,
       })
+      if (after.depth) report.minDepth = Math.min(report.minDepth, after.depth)
     }
 
     if (ours) {
@@ -349,7 +396,7 @@ export async function crawl(config) {
           })
         }
 
-        node.children.push({
+        const child = {
           san: c.san,
           uci: c.stats.uci,
           fen: c.fen,
@@ -357,8 +404,19 @@ export async function crawl(config) {
           swing: Number(c.swing.toFixed(2)),
           frequency: Number(c.frequency.toFixed(4)),
           trapValue: Number(tv.toFixed(4)),
-          games: gamesFor(c.stats),
-        })
+          games: t.games,
+          practical: Number(c.practical.toFixed(3)),
+          expected: Number(c.expected.toFixed(3)),
+          evalCp: c.evalCp,
+        }
+        node.children.push(child)
+        // Verified when we reach the position after it — see awaitingPunishment.
+        if (byTrap) {
+          awaitingPunishment.set(fenKey(c.fen), {
+            child,
+            line: [...item.line, c.san].join(' '),
+          })
+        }
         queue.push({ fen: c.fen, ply: item.ply + 1, line: [...item.line, c.san] })
       }
     }
@@ -491,6 +549,14 @@ async function main() {
         forcedSans: result.forcedSans,
         ourColor,
         date: new Date().toISOString().slice(0, 10),
+        provenance: {
+          // Basename only — the full path leaks a home directory into a file
+          // that is meant to be shareable.
+          engine: basename(args.engine ? String(args.engine) : DEFAULT_ENGINE_PATH),
+          nodes: result.options.deepNodes,
+          threads: 1,
+          minDepth: Number.isFinite(result.report.minDepth) ? result.report.minDepth : undefined,
+        },
       }),
       'utf8',
     )
@@ -514,6 +580,13 @@ traps found     ${r.traps.length}`)
             `   [${(t.frequency * 100).toFixed(1)}% of games, −${t.swing} win%, ` +
             `scores ${(t.practical * 100).toFixed(0)}% vs ${(t.expected * 100).toFixed(0)}% deserved, n=${t.games}]`,
         )
+      }
+    }
+    if (r.unpunishedTraps.length) {
+      console.log(`
+⚠ ${r.unpunishedTraps.length} trap(s) we could not actually punish:`)
+      for (const t of r.unpunishedTraps) {
+        console.log(`  ${t.line}   [only ${t.afterReplyWinPercent}% after our reply]`)
       }
     }
     if (r.tooRareToJudge.length) {

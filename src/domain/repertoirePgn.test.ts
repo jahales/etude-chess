@@ -58,7 +58,93 @@ describe('toPgn', () => {
     expect(pgn).toContain('d5') // sound: no suffix
     expect(pgn).not.toContain('d5?')
     expect(pgn).toContain('Nf6??')
-    expect(pgn).toContain('{trap: overperforms its evaluation}')
+    expect(pgn).toContain('{trap')
+  })
+
+  it('states the facts behind a trap, not just the label', () => {
+    // What decides whether a line is worth your evening is how often you meet
+    // it and how much score you leak — not the word "trap".
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          {
+            san: 'Nf6',
+            fen: AFTER_NF6,
+            reason: 'trap',
+            swing: 12,
+            frequency: 0.048,
+            practical: 0.45,
+            expected: 0.33,
+            games: 627,
+            punished: true,
+          },
+        ]),
+      ],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('5% play this')
+    expect(pgn).toContain('they score 45% where 33% is deserved')
+    expect(pgn).toContain('n=627')
+  })
+
+  it('warns when a trap’s punishment never materialised', () => {
+    // Drilling this as a win and reaching an equal game is worse than not
+    // knowing the line at all.
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          {
+            san: 'Nf6',
+            fen: AFTER_NF6,
+            reason: 'trap',
+            swing: 12,
+            games: 200,
+            punished: false,
+            afterReplyWinPercent: 52,
+          },
+        ]),
+      ],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('WARNING: punishment unconfirmed')
+    expect(pgn).toContain('only 52% after our reply')
+  })
+
+  it('emits [%eval] so the trainer can graph the line', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours', evalCp: 24 }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass', evalCp: -137 }])],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('[%eval 0.24]')
+    expect(pgn).toContain('[%eval -1.37]')
+  })
+
+  it('records how the evaluations were produced', () => {
+    // An evaluation without its conditions cannot be trusted: multithreaded
+    // Stockfish at a fixed node count is not reproducible.
+    const nodes = new Map([[fenKey(START), node([])]])
+    const pgn = toPgn({
+      ...base,
+      nodes,
+      rootFen: START,
+      provenance: { engine: 'Stockfish 17', nodes: 120000, threads: 1, minDepth: 18 },
+    })
+    expect(pgn).toContain('[Engine "Stockfish 17"]')
+    expect(pgn).toContain('[EngineNodes "120000"]')
+    expect(pgn).toContain('[EngineThreads "1"]')
+    expect(pgn).toContain('[Reproducible "yes"]')
+    expect(pgn).toContain('[MinDepth "18"]')
+  })
+
+  it('says outright when the numbers are not reproducible', () => {
+    const nodes = new Map([[fenKey(START), node([])]])
+    const pgn = toPgn({ ...base, nodes, rootFen: START, provenance: { threads: 8 } })
+    expect(pgn).toContain('[Reproducible "no — multithreaded search"]')
   })
 
   it('never annotates our own moves', () => {
