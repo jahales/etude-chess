@@ -36,6 +36,14 @@ const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Vari
  */
 const MAX_TRANSITIONS = 1_500_000
 
+/**
+ * Hard ceiling on how far we will search for a zstd frame boundary. Real frames
+ * in these dumps are a few MB; anything past this means the stream is damaged,
+ * and without a limit the search silently consumes the entire file into one
+ * buffer — which presents as a hang, not an error.
+ */
+const MAX_FRAME_BYTES = 64 << 20
+
 const ZSTD_FRAME = 0xfd2fb528 // bytes 28 b5 2f fd, read little-endian
 const SKIPPABLE_LO = 0x184d2a50
 const SKIPPABLE_HI = 0x184d2a5f
@@ -138,6 +146,17 @@ async function* decompressFrames(source) {
         end = buf.length
         break
       }
+      // A zstd frame here is a few MB. If we have swallowed far more than that
+      // without finding a boundary, the stream is damaged — most likely a cache
+      // file left inconsistent by an interrupted write. Say so and stop, rather
+      // than quietly eating the rest of the file into one buffer, which reads
+      // from the outside as an unexplained hang.
+      if (buf.length > MAX_FRAME_BYTES) {
+        throw new Error(
+          `no zstd frame boundary within ${MAX_FRAME_BYTES >> 20} MB — the stream looks damaged. ` +
+            `If this is a cached dump, delete it under db/cache and let it re-download.`,
+        )
+      }
     }
 
     let out
@@ -156,6 +175,13 @@ async function* decompressFrames(source) {
           }
         }
         if (next === -1) {
+          if (buf.length > MAX_FRAME_BYTES) {
+            throw new Error(
+              `could not decode a zstd frame within ${MAX_FRAME_BYTES >> 20} MB — the stream ` +
+                `looks damaged. If this is a cached dump, delete it under db/cache.`,
+              { cause: err },
+            )
+          }
           if (await pullAtLeast(4 << 20)) continue
           throw new Error('could not decode zstd frame at end of stream', { cause: err })
         }
@@ -220,7 +246,11 @@ async function* sniffAndDecompress(source) {
  * whoever is iterating, no longer fatal to whoever is not.
  */
 function decompressedStream(source) {
-  const stream = Readable.from(sniffAndDecompress(source))
+  // highWaterMark is in *objects* here, and our objects are whole 32 MiB
+  // decompressed frames — the default of 16 lets the stream sit on half a
+  // gigabyte of them while readline works through the first. Two is plenty to
+  // keep the consumer fed.
+  const stream = Readable.from(sniffAndDecompress(source), { highWaterMark: 2 })
   stream.on('error', () => {})
   return stream
 }
@@ -588,7 +618,13 @@ export async function buildBook(opts) {
 
       kept++
       if (kept % 25_000 === 0) {
-        onProgress?.({ seen, kept, positions: book.size })
+  onProgress?.({
+          seen,
+          kept,
+          positions: book.size,
+          transitions: transitions.size,
+          heapMb: Math.round(process.memoryUsage().heapUsed / 1048576),
+        })
       }
     }
   } catch (err) {
@@ -703,8 +739,10 @@ async function main() {
     maxGames: a['max-games'] ? Number(a['max-games']) : undefined,
     minGames: a['min-games'] ? Number(a['min-games']) : undefined,
     cache: a['no-cache'] ? null : String(a.cache ?? 'db/cache'),
-    onProgress: ({ seen, kept, positions }) =>
-      process.stdout.write(`\r  scanned ${seen} · kept ${kept} · positions ${positions}   `),
+    onProgress: ({ seen, kept, positions, transitions, heapMb }) =>
+      process.stdout.write(
+        `\r  scanned ${seen} · kept ${kept} · positions ${positions} · transitions ${transitions} · heap ${heapMb} MB   `,
+      ),
   })
 
   console.log(
