@@ -76,6 +76,30 @@ Then point the crawler at it with `--book out/book.json`.
 > `buildBook.mjs` frames the stream itself to avoid that. Verified against 2013-01, whose
 > documented total is 121,332 games.
 
+### A third-party database (Lumbra's Gigabase, Caissabase, ChessBase, SCID…)
+
+Any PGN works, including `.7z` archives — those are streamed **through** 7-Zip rather than
+extracted, because [Lumbra's Gigabase](https://lumbrasgigabase.com/en/) ships 1.5 GB archives
+that expand to roughly 10 GB of PGN and there is no reason to put that on disk.
+
+```bash
+node scripts/repertoire/buildBook.mjs --file "LumbrasGigaBase OTB.7z" \
+     --out out/book-otb.json --ratings 2200-2900 --min-games 3
+```
+
+7-Zip is found automatically at its usual Windows locations; override with `SEVENZIP_PATH`.
+
+**What these buy, and what they don't.** Lumbra's OTB set (10.3M games, deduplicated, monthly)
+is a better *spine* than Caissabase — bigger, cleaner, and already PGN. But it is still
+strong-player chess, so it answers "what is the principled main line", not "what will a 1400
+play against me". Lumbra's *Online* set (7.2M) looks closer, but its **Elo 1800+ floor sits
+above our band**, and the traps that matter — Englund, Wayward Queen, Fried Liver — have largely
+died out by 1800. So use an OTB book to cross-check soundness, and keep a rating-banded Lichess
+book as the source `trapValue` runs on.
+
+Lumbra's is CC BY-NC-SA 4.0: fine for personal use, and we redistribute nothing (ADR 0018 ships
+no corpus), but attribution and non-commercial terms apply to anything you do publish from it.
+
 ### The Lichess explorer API — `explorer.mjs`
 
 The default when `--book` is not given. Same `query(fen)` interface, so the crawler neither

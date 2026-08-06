@@ -12,6 +12,8 @@
 // Output has the same shape the explorer returns, so localBook.mjs is a
 // drop-in replacement for explorer.mjs in the crawler.
 
+import { spawn } from 'node:child_process'
+import { createReadStream, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createGunzip, zstdDecompressSync } from 'node:zlib'
@@ -177,6 +179,36 @@ function decompressedStream(source) {
   return Readable.from(sniffAndDecompress(source))
 }
 
+const SEVENZIP_CANDIDATES = [
+  process.env.SEVENZIP_PATH,
+  'C:/Program Files/7-Zip/7z.exe',
+  'C:/Program Files (x86)/7-Zip/7z.exe',
+  '7z',
+].filter(Boolean)
+
+/**
+ * Byte source for a local file. `.7z` is streamed through 7-Zip rather than
+ * extracted first: Lumbra's Gigabase ships 1.5 GB archives that expand to
+ * something like 10 GB of PGN, and there is no reason to put that on disk when
+ * we read it once, sequentially, and usually stop early.
+ */
+function fileSource(path) {
+  if (!/\.7z$/i.test(path)) {
+    return createReadStream(path)
+  }
+  const exe = SEVENZIP_CANDIDATES.find((p) => p === '7z' || existsSync(p))
+  if (!exe) {
+    throw new Error(
+      `${path} is a 7z archive but 7-Zip was not found. Install it, set SEVENZIP_PATH, ` +
+        `or extract the archive and pass the .pgn directly.`,
+    )
+  }
+  // `x -so` writes the extracted member to stdout, so we never materialise it.
+  const proc = spawn(exe, ['x', '-so', path], { stdio: ['ignore', 'pipe', 'ignore'] })
+  proc.on('error', (e) => proc.stdout.destroy(e))
+  return proc.stdout
+}
+
 /**
  * Byte stream for a URL that survives a dropped connection by resuming with a
  * Range request. Sampling a recent month means pulling ~1 GB over several
@@ -296,13 +328,7 @@ export async function buildBook(opts) {
   const book = new Map()
   const speedSet = new Set(speeds.map((s) => s.toLowerCase()))
 
-  let source
-  if (file) {
-    const { createReadStream } = await import('node:fs')
-    source = createReadStream(file)
-  } else {
-    source = Readable.from(resumableFetch(DUMP(month)))
-  }
+  const source = file ? fileSource(file) : Readable.from(resumableFetch(DUMP(month)))
   // Breaking out of the consumer unwinds the generator chain, which cancels the
   // download; this is the belt to that braces.
   const cancel = () => source.destroy()
