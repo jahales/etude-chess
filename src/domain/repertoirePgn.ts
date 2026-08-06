@@ -22,6 +22,12 @@ export interface RepertoireChild {
    * trap. `mass` and `trap` are the two ways an opponent move earns coverage.
    */
   reason: 'ours' | 'ours-engine' | 'mass' | 'trap' | 'mass+trap'
+  /**
+   * Which book chose our move: `canon` = master games (still in theory),
+   * `band` = our own rating band (master theory has run out here). Only set
+   * when a canonical source was configured, so its absence means "not asked".
+   */
+  source?: 'canon' | 'band'
   /** Win% the mover gives up versus best, 0–100. Absent on our own moves. */
   swing?: number
 }
@@ -65,6 +71,11 @@ function annotate(child: RepertoireChild): string {
 function childComment(child: RepertoireChild): string | null {
   if (child.reason === 'trap') return '{trap: overperforms its evaluation}'
   if (child.reason === 'ours-engine') return '{engine refutation — too rare to appear in human play}'
+  // Worth flagging: past this point the move is not backed by master practice,
+  // so it is a reasonable choice rather than established theory.
+  if (child.reason === 'ours' && child.source === 'band') {
+    return '{beyond master theory — chosen from club play}'
+  }
   return null
 }
 

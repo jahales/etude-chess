@@ -81,6 +81,30 @@ describe('toPgn', () => {
     expect(pgn).toContain('{engine refutation — too rare to appear in human play}')
   })
 
+  it('flags where our move leaves master theory behind', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours', source: 'band' }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain(
+      '{beyond master theory — chosen from club play}',
+    )
+  })
+
+  it('stays silent while our move is still backed by master practice', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours', source: 'canon' }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).not.toContain('beyond master theory')
+  })
+
+  it('says nothing about sourcing when no canonical book was configured', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).not.toContain('master theory')
+  })
+
   it('reports a dead end distinctly from running out of book', () => {
     const nodes = new Map([
       [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],

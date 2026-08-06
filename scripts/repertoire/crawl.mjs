@@ -50,6 +50,11 @@ export const DEFAULTS = {
   trapThreshold: 0.05,
   /** Stop expanding once the band has played this position fewer times. */
   minNodeGames: 50,
+  /**
+   * Master games are far scarcer than online ones, so the canonical source
+   * needs a lower bar before we fall back to band data for our own move.
+   */
+  minCanonGames: 20,
   /** Cap on per-child engine evaluations at one opponent node. */
   maxEvalPerNode: 10,
 }
@@ -94,7 +99,7 @@ async function evalAfter(engine, fen, uci, o) {
 
 export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
-  const { engine, explorer, ourColor, forcedLine = [] } = o
+  const { engine, explorer, canon = null, ourColor, forcedLine = [] } = o
 
   const nodes = new Map()
   const report = {
@@ -104,6 +109,8 @@ export async function crawl(config) {
     truncatedNodes: [],
     outOfBook: [],
     engineFallbacks: [],
+    /** Which source decided each expanded node — canon (masters) vs band. */
+    moveSource: { canon: 0, band: 0 },
   }
 
   const root = new Chess()
@@ -158,7 +165,34 @@ export async function crawl(config) {
       continue
     }
 
-    const book = await explorer.query(item.fen)
+    // The two sources answer two different questions, and which one applies is
+    // decided by whose move it is.
+    //
+    //   our nodes       the CANONICAL source (master games) — what is
+    //                   principled here, the ideal we are trying to learn.
+    //   opponent nodes  our own RATING BAND — what we will actually be shown
+    //                   across the board, including the junk.
+    //
+    // Using band data to choose our own moves would have us learning what 1400s
+    // happen to play; using master data to predict theirs would prepare us for
+    // opponents who do not exist. Note the deliberate asymmetry below: our
+    // move's *branching cost* is still measured against BAND replies, because
+    // the replies we have to prepare are the ones we will face, not the ones a
+    // 2600 would choose. A line that is narrow at master level can be wide open
+    // at 1400.
+    let book = null
+    let bookSource = 'band'
+    if (ours && canon) {
+      const canonical = await canon.query(item.fen)
+      if (totalGames(canonical.moves) >= o.minCanonGames) {
+        book = canonical
+        bookSource = 'canon'
+      }
+    }
+    if (!book) book = await explorer.query(item.fen)
+    node.bookSource = bookSource
+    report.moveSource[bookSource]++
+
     node.opening = book.opening
     const total = totalGames(book.moves)
     if (total < o.minNodeGames) {
@@ -251,6 +285,9 @@ export async function crawl(config) {
         uci: c.stats.uci,
         fen: c.fen,
         reason: 'ours',
+        // Only meaningful when a canonical source was configured; then 'band'
+        // means we have left master theory behind.
+        ...(canon ? { source: bookSource } : {}),
         swing: Number(c.swing.toFixed(2)),
         frequency: Number(c.frequency.toFixed(4)),
         replyBranching: best.replyBranching,
@@ -338,7 +375,14 @@ Repertoire crawler (issue #88, ADR 0021)
   --color   white | black          which side the repertoire is for   (required)
   --line    "d4 d5 c4"             curated prefix followed verbatim   (default: none)
   --out     out/qga                output basename (.json and .pgn)   (required)
-  --book    out/book.json          local book from buildBook.mjs, instead of the API
+  --book       out/band.json       OUR BAND: what opponents actually play.
+                                   Decides their moves. Local book from
+                                   buildBook.mjs, instead of the API.
+  --canon-book out/otb.json        MASTERS: what is principled. Decides OUR
+                                   moves. Optional; without it the band book
+                                   decides both.
+  --canon                          use the masters explorer API as the
+                                   canonical source instead of --canon-book
   --source  amateur | masters      explorer endpoint          (default: amateur)
   --ratings 1600,1800              rating buckets, amateur only
   --max-ply 10                     depth cap in plies         (default: ${DEFAULTS.maxPly})
@@ -370,6 +414,14 @@ async function main() {
         source: args.source === 'masters' ? 'masters' : 'amateur',
         ratings: args.ratings ? String(args.ratings).split(',').map(Number) : undefined,
       })
+
+  // The canonical source is optional: without it the band book decides both
+  // halves, which is the old behaviour.
+  const canon = args['canon-book']
+    ? await createLocalBook({ path: String(args['canon-book']) })
+    : args.canon
+      ? createExplorer({ cacheDir: join(dirname(outBase), '.masters-cache'), source: 'masters' })
+      : null
   const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
 
   const started = Date.now()
@@ -379,6 +431,7 @@ async function main() {
     const result = await crawl({
       engine,
       explorer,
+      canon,
       ourColor,
       forcedLine,
       maxPly: args['max-ply'] ? Number(args['max-ply']) : undefined,
@@ -419,6 +472,7 @@ async function main() {
 ── done in ${secs}s ─────────────────────────────
 positions       ${result.nodes.size}   (expanded ${r.expanded})
 terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}
+decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.band}` : `band only (no canonical source)`}
 engine searches ${engine.searchCount()}
 explorer        ${JSON.stringify(explorer.stats())}
 traps found     ${r.traps.length}`)

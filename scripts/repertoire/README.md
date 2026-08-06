@@ -38,6 +38,32 @@ trap — the crawler falls back to the **engine's** refutation and labels it as 
   access to `explorer.lichess.ovh`. Explorer responses are cached under
   `<out-dir>/.explorer-cache`, so re-runs and threshold tuning cost zero requests.
 
+## Two sources, two questions
+
+The generator takes **two** books, and which one applies is decided by whose move it is:
+
+| Node | Source | Question it answers |
+|---|---|---|
+| **Ours** | `--canon-book` — master games | *What is principled here?* The ideal we're trying to learn. |
+| **Opponent's** | `--book` — our own rating band | *What will actually be played at me?* Including the junk. |
+
+Using band data to choose our own moves would have us learning what 1400s happen to play; using
+master data to predict theirs would prepare us for opponents who don't exist.
+
+One deliberate asymmetry: our move's **branching cost is measured against band replies**, not
+master ones. The replies we have to prepare are the ones we'll face — and a line that's narrow
+at master level can be wide open at 1400.
+
+```bash
+node scripts/repertoire/crawl.mjs --color white --line "d4 d5 c4 dxc4" \
+     --book out/band.json --canon-book out/otb.json --out out/qga
+```
+
+`--canon-book` is optional; without it the band book decides both halves. When it *is* supplied,
+the run reports `decided by masters N · band M`, and any of our moves that fell out of master
+practice is marked in the PGN with `{beyond master theory — chosen from club play}` — so a move
+picked from thin data can't pass for established theory.
+
 ## Two sources of human statistics
 
 ### A local book (recommended) — `buildBook.mjs`
