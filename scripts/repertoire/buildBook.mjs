@@ -13,9 +13,9 @@
 // drop-in replacement for explorer.mjs in the crawler.
 
 import { spawn, spawnSync } from 'node:child_process'
-import { createReadStream, existsSync } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createGunzip, zstdDecompressSync } from 'node:zlib'
 import { Readable } from 'node:stream'
 import { createInterface } from 'node:readline'
@@ -190,6 +190,42 @@ function decompressedStream(source) {
   return stream
 }
 
+/**
+ * The dump bytes we actually read, kept on disk so we only ever download them
+ * once.
+ *
+ * We consume a *prefix* of the month — `--max-games` decides how much — so the
+ * cache is bounded by what we asked for, not by the 27 GB the file weighs.
+ * Rebuilding a book with different thresholds, or a second band for
+ * replication, then costs no network at all. If a later run needs more than the
+ * cache holds, it resumes from the network at exactly the cached length and
+ * appends, so the cache only ever grows toward what we have genuinely read.
+ *
+ * A run aborted mid-write leaves a short tail. That is harmless: the next run
+ * resumes from the real file size, and the byte stream stays contiguous.
+ */
+async function* cachedDump(url, cachePath) {
+  let cached = 0
+  if (existsSync(cachePath)) {
+    for await (const chunk of createReadStream(cachePath)) {
+      cached += chunk.length
+      yield chunk
+    }
+    process.stderr.write(`  (${(cached / 1e6).toFixed(0)} MB from local cache)\n`)
+  }
+
+  await mkdir(dirname(cachePath), { recursive: true })
+  const sink = createWriteStream(cachePath, { flags: 'a' })
+  try {
+    for await (const chunk of resumableFetch(url, { startOffset: cached })) {
+      sink.write(chunk)
+      yield chunk
+    }
+  } finally {
+    sink.end()
+  }
+}
+
 const SEVENZIP_CANDIDATES = [
   process.env.SEVENZIP_PATH,
   'C:/Program Files/7-Zip/7z.exe',
@@ -265,14 +301,18 @@ function fileSource(path) {
  * whole build is lost, usually near the end. `database.lichess.org` answers
  * Range requests with 206, which is what makes this possible.
  */
-async function* resumableFetch(url, { retries = 8 } = {}) {
-  let offset = 0
+async function* resumableFetch(url, { retries = 8, startOffset = 0 } = {}) {
+  let offset = startOffset
   let attempt = 0
   let reader = null
   try {
     for (;;) {
       try {
         const res = await fetch(url, offset ? { headers: { Range: `bytes=${offset}-` } } : undefined)
+        // 416 means the range starts past the end: we already hold the whole
+        // file. That happens on every run once a cache has completed, so
+        // treating it as an error makes a finished cache permanently fatal.
+        if (res.status === 416) return
         if (offset === 0 ? !res.ok : res.status !== 206) {
           throw new Error(`HTTP ${res.status} fetching ${url}`)
         }
@@ -346,7 +386,7 @@ async function* streamGames(input) {
 }
 
 /** Strip clock/eval comments, NAGs, move numbers and the result token. */
-function sans(movetext) {
+function tokenise(movetext) {
   return movetext
     .replace(/\{[^}]*\}/g, ' ')
     .replace(/\$\d+/g, ' ')
@@ -355,6 +395,23 @@ function sans(movetext) {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
+}
+
+/**
+ * Moves for the first `maxPly` plies only.
+ *
+ * A Lichess game averages several KB of movetext once clock and eval comments
+ * are counted, and we keep the first twelve plies of it — so regexing the whole
+ * string is most of the scan's CPU spent on data we discard. Tokenise a prefix
+ * long enough to hold `maxPly` plies, and fall back to the full string on the
+ * rare game whose comments are fat enough that the prefix came up short. The
+ * fallback is what keeps this an optimisation rather than silent truncation.
+ */
+function sans(movetext, maxPly) {
+  const budget = maxPly * 80 + 200
+  if (movetext.length <= budget) return tokenise(movetext)
+  const head = tokenise(movetext.slice(0, budget))
+  return head.length >= maxPly ? head : tokenise(movetext)
 }
 
 function outcomeIndex(result) {
@@ -375,6 +432,7 @@ export async function buildBook(opts) {
     maxPly = 16,
     maxGames = 200_000,
     minGames = 5,
+    cache = null,
     onProgress,
   } = opts
 
@@ -386,7 +444,10 @@ export async function buildBook(opts) {
   const { stream: source, close } = file
     ? fileSource(file)
     : (() => {
-        const stream = Readable.from(resumableFetch(DUMP(month)))
+        const bytes = cache
+          ? cachedDump(DUMP(month), join(cache, `${month}.pgn.zst.part`))
+          : resumableFetch(DUMP(month))
+        const stream = Readable.from(bytes)
         return { stream, close: () => stream.destroy() }
       })()
   let seen = 0
@@ -416,7 +477,7 @@ export async function buildBook(opts) {
       if (!we || !be) continue
       if (we < minRating || we > maxRating || be < minRating || be > maxRating) continue
 
-      const moves = sans(movetext)
+      const moves = sans(movetext, maxPly)
       if (moves.length < 4) continue
 
       chess.reset()
@@ -527,6 +588,9 @@ Build a local opening book from the Lichess database dumps (issue #88).
   --max-ply   16                plies recorded per game
   --max-games 200000            stop (and abort the download) after this many
   --min-games 5                 drop moves seen fewer times than this
+  --cache     db/cache          keep downloaded dump bytes here and reuse them
+                                next run (only what --max-games actually reads)
+  --no-cache                    stream without keeping anything on disk
 
 Dumps grow fast: 2013-01 is 17 MB, 2016-01 is 831 MB, a 2026 month is ~27 GB.
 Streaming means --max-games decides the real cost, not the file size.
@@ -551,6 +615,7 @@ async function main() {
     maxPly: a['max-ply'] ? Number(a['max-ply']) : undefined,
     maxGames: a['max-games'] ? Number(a['max-games']) : undefined,
     minGames: a['min-games'] ? Number(a['min-games']) : undefined,
+    cache: a['no-cache'] ? null : String(a.cache ?? 'db/cache'),
     onProgress: ({ seen, kept, positions }) =>
       process.stdout.write(`\r  scanned ${seen} · kept ${kept} · positions ${positions}   `),
   })

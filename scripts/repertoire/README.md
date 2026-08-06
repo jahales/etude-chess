@@ -102,6 +102,49 @@ Then point the crawler at it with `--book out/book.json`.
 > `buildBook.mjs` frames the stream itself to avoid that. Verified against 2013-01, whose
 > documented total is 121,332 games.
 
+### Checking a book is actually right — `verifyBook.mjs`
+
+```bash
+node scripts/repertoire/verifyBook.mjs out/band.json
+```
+
+Worth running after every build, and worth knowing why it exists: of the defects found while
+building this generator, **none** were caught by the unit tests and **every one produced a
+plausible-looking book rather than an error**. A book built from 3% of the games looks exactly
+like a book built from all of them. Logic tests can't see that; assertions against the data can.
+
+It checks canonical SAN (no `Bf5?!` splitting a move's record), well-formed tallies, move
+legality on a sample, that the games used actually reached the start position, and that
+e4/d4/Nf3/c4 dominate the first move — which is true of any real chess database and false of a
+mis-parsed scan. Where a month's total is known it compares against that too; the documented
+121,332 for 2013-01 is what exposed the silent zstd truncation. Exits non-zero on an error, so
+it can gate a pipeline.
+
+The first-move profile it prints is also the clearest illustration of why two sources matter:
+
+```
+band 1500–1900   e4 60.9% · d4 26.1% · c4 3.2% · Nf3 2.7%
+OTB  2200–2900   e4 41.8% · d4 41.7% · Nf3 8.6% · c4 7.2%
+```
+
+### Confirming a trap is real — `replicate.mjs`
+
+```bash
+node scripts/repertoire/replicate.mjs out/qg-jun.json out/qg-may.json
+```
+
+`trapValue` is a statistic over noisy human data. A sample-size floor bounds how badly *one*
+month can mislead us; it cannot say whether a finding is real. Replication can — build a second
+band book from a different month, crawl the same lines, and keep what survives both. This is
+constitution §9's held-out set turned on the generator itself.
+
+It separates three outcomes, and the distinction matters: **replicated** (both months found it,
+with values within `AGREEMENT_FACTOR` — presence alone isn't enough, a trap worth 0.3 in one
+month and 0.004 in the other is not the same finding twice), **contradicted** (the other month
+expanded that position and did *not* flag the move), and **unseen** (the other run never reached
+the position at all — a coverage gap, not a refutation, and reported apart so it can't be
+mistaken for one).
+
 ### A third-party database (Lumbra's Gigabase, Caissabase, ChessBase, SCID…)
 
 Any PGN works, including `.7z` archives — those are streamed **through** 7-Zip rather than
