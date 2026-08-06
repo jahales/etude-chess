@@ -14,7 +14,7 @@
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { zstdDecompressSync } from 'node:zlib'
+import { createGunzip, zstdDecompressSync } from 'node:zlib'
 import { Readable } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
@@ -132,9 +132,49 @@ async function* decompressFrames(source) {
   }
 }
 
-/** Turn the frame generator back into a byte stream readline can consume. */
+/**
+ * Accept whatever the caller has: seekable-zstd (the Lichess dumps), gzip, or
+ * plain PGN. Sniffed from the leading bytes rather than the file name, so a
+ * PGN exported from En Croissant, Chessbase or anywhere else just works.
+ *
+ * This is why we do not decode En Croissant's own `.db3` move BLOBs: those are
+ * an index into shakmaty's legal-move list, whose ordering is undocumented and
+ * pinned to a library version. Exporting PGN from En Croissant lands here
+ * instead, with no reverse engineering and nothing to break on an upgrade.
+ */
+async function* sniffAndDecompress(source) {
+  const iter = source[Symbol.asyncIterator]()
+  const first = await iter.next()
+  if (first.done) return
+  const head = Buffer.from(first.value)
+
+  // Re-attach the byte we consumed for sniffing.
+  async function* rewound() {
+    yield head
+    for (;;) {
+      const next = await iter.next()
+      if (next.done) return
+      yield Buffer.from(next.value)
+    }
+  }
+
+  if (head.length >= 4) {
+    const magic = head.readUInt32LE(0)
+    if (magic === ZSTD_FRAME || (magic >= SKIPPABLE_LO && magic <= SKIPPABLE_HI)) {
+      yield* decompressFrames(rewound())
+      return
+    }
+  }
+  if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
+    yield* Readable.from(rewound()).pipe(createGunzip())
+    return
+  }
+  yield* rewound() // plain text
+}
+
+/** Turn the byte source into a stream readline can consume. */
 function decompressedStream(source) {
-  return Readable.from(decompressFrames(source))
+  return Readable.from(sniffAndDecompress(source))
 }
 
 /**
@@ -280,8 +320,11 @@ export async function buildBook(opts) {
       if (outcome < 0) continue
       if (headers.Variant && headers.Variant !== 'Standard') continue
 
+      // Exclude *known-wrong* speeds rather than requiring a known-right one.
+      // Lichess dumps always name the speed in Event; an OTB or engine PGN
+      // never does, and those games should not all be silently dropped.
       const speed = (headers.Event || '').match(SPEED_RE)?.[1]?.toLowerCase()
-      if (!speed || !speedSet.has(speed)) continue
+      if (speed && !speedSet.has(speed)) continue
 
       const we = Number(headers.WhiteElo)
       const be = Number(headers.BlackElo)
@@ -373,7 +416,11 @@ Build a local opening book from the Lichess database dumps (issue #88).
        --ratings 1600-2000 --speeds blitz,rapid --max-games 400000
 
   --month     2024-01           which monthly dump to stream       (required unless --file)
-  --file      path.pgn.zst      use a local dump instead
+  --file      games.pgn         a local file instead: .pgn, .pgn.gz or .pgn.zst
+                                (format is sniffed, not taken from the name).
+                                This is the route for a PGN exported from En
+                                Croissant, ChessBase or SCID — set --ratings to
+                                match that database's strength.
   --out       out/book.json     where to write                     (required)
   --ratings   1600-2000         both players must fall in this band
   --speeds    blitz,rapid       time controls to include
