@@ -155,7 +155,18 @@ export async function crawl(config) {
   /** Follow the curated prefix verbatim before the crawler starts choosing. */
   const forcedSans = []
   for (const san of forcedLine) {
-    const m = root.move(san)
+    // chess.js *throws* on an illegal SAN rather than returning falsy, so the
+    // bare `if (!m)` this used to rely on never fired and the user got
+    // "Invalid move: d4" with no hint that --line was at fault.
+    let m
+    try {
+      m = root.move(san)
+    } catch (err) {
+      throw new Error(
+        `illegal move in --line: "${san}" after ${forcedSans.join(' ') || 'the start'}`,
+        { cause: err },
+      )
+    }
     if (!m) throw new Error(`illegal move in --line: ${san}`)
     forcedSans.push(m.san)
   }
