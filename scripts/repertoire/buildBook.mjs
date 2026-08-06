@@ -87,7 +87,7 @@ function decompressedStream(source, opts) {
  * mark, discarding any untrusted tail, and re-fetch from there. The cache is
  * therefore always a prefix of verified frames, whatever happened last time.
  */
-function readValidBytes(metaPath) {
+export function readValidBytes(metaPath) {
   try {
     const { validBytes } = JSON.parse(readFileSync(metaPath, 'utf8'))
     return Number.isInteger(validBytes) && validBytes >= 0 ? validBytes : 0
@@ -96,7 +96,7 @@ function readValidBytes(metaPath) {
   }
 }
 
-async function* cachedDump(url, cachePath) {
+export async function* cachedDump(url, cachePath) {
   const metaPath = `${cachePath}.meta`
   await mkdir(dirname(cachePath), { recursive: true })
 
@@ -124,7 +124,12 @@ async function* cachedDump(url, cachePath) {
       yield chunk
     }
   } finally {
-    sink.end()
+    // Wait for the flush. `end()` alone returns before the data reaches disk,
+    // so a run finishing (or being killed) straight afterwards loses whatever
+    // was still buffered — the next run then re-downloads bytes we already had
+    // and paid for. The cache stays *correct* either way, because startup takes
+    // min(validBytes, file size), but it silently stops being a cache.
+    await new Promise((resolve) => sink.end(resolve))
   }
 }
 
@@ -203,7 +208,7 @@ function fileSource(path) {
  * whole build is lost, usually near the end. `database.lichess.org` answers
  * Range requests with 206, which is what makes this possible.
  */
-async function* resumableFetch(url, { retries = 8, startOffset = 0, stallMs = 60_000 } = {}) {
+export async function* resumableFetch(url, { retries = 8, startOffset = 0, stallMs = 60_000 } = {}) {
   let offset = startOffset
   let attempt = 0
   let reader = null
