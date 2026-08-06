@@ -25,6 +25,7 @@ const DUMP = (month) =>
   `https://database.lichess.org/standard/lichess_db_standard_rated_${month}.pgn.zst`
 
 const SPEED_RE = /\b(ultrabullet|bullet|blitz|rapid|classical)\b/i
+const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Variant'])
 
 const ZSTD_FRAME = 0xfd2fb528 // bytes 28 b5 2f fd, read little-endian
 const SKIPPABLE_LO = 0x184d2a50
@@ -137,6 +138,57 @@ function decompressedStream(source) {
 }
 
 /**
+ * Byte stream for a URL that survives a dropped connection by resuming with a
+ * Range request. Sampling a recent month means pulling ~1 GB over several
+ * minutes, and that reliably hits ECONNRESET eventually — without this the
+ * whole build is lost, usually near the end. `database.lichess.org` answers
+ * Range requests with 206, which is what makes this possible.
+ */
+async function* resumableFetch(url, { retries = 8 } = {}) {
+  let offset = 0
+  let attempt = 0
+  let reader = null
+  try {
+    for (;;) {
+      try {
+        const res = await fetch(url, offset ? { headers: { Range: `bytes=${offset}-` } } : undefined)
+        if (offset === 0 ? !res.ok : res.status !== 206) {
+          throw new Error(`HTTP ${res.status} fetching ${url}`)
+        }
+        reader = res.body.getReader()
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) return
+          offset += value.length
+          attempt = 0 // any progress refreshes the retry budget
+          yield Buffer.from(value)
+        }
+      } catch (err) {
+        try {
+          await reader?.cancel()
+        } catch {
+          // already torn down
+        }
+        reader = null
+        if (++attempt > retries) {
+          throw new Error(`download failed after ${offset} bytes`, { cause: err })
+        }
+        process.stderr.write(
+          `\n  … connection lost at ${(offset / 1e6).toFixed(0)} MB — resuming (attempt ${attempt})\n`,
+        )
+        await new Promise((r) => setTimeout(r, 1000 * attempt))
+      }
+    }
+  } finally {
+    try {
+      await reader?.cancel()
+    } catch {
+      // consumer stopped early; nothing to clean up
+    }
+  }
+}
+
+/**
  * Stream games out of a zstd-compressed PGN. Yields `{headers, movetext}`.
  * @param {NodeJS.ReadableStream} input raw (still compressed) byte stream
  */
@@ -146,9 +198,15 @@ async function* streamGames(input) {
   let sawHeaders = false
 
   for await (const line of rl) {
-    if (line.startsWith('[')) {
-      const m = line.match(/^\[(\w+)\s+"(.*)"\]$/)
-      if (m) headers[m[1]] = m[2]
+    if (line.charCodeAt(0) === 0x5b /* [ */) {
+      // Only the five headers we filter on. Regexing all ~14 of them across
+      // millions of games is the single biggest cost in this loop, and twelve
+      // of them get discarded.
+      const sp = line.indexOf(' ')
+      if (sp > 0) {
+        const key = line.slice(1, sp)
+        if (WANTED_HEADERS.has(key)) headers[key] = line.slice(sp + 2, line.length - 2)
+      }
       sawHeaders = true
       continue
     }
@@ -199,16 +257,15 @@ export async function buildBook(opts) {
   const speedSet = new Set(speeds.map((s) => s.toLowerCase()))
 
   let source
-  let cancel = () => {}
   if (file) {
     const { createReadStream } = await import('node:fs')
     source = createReadStream(file)
   } else {
-    const res = await fetch(DUMP(month))
-    if (!res.ok) throw new Error(`dump ${month}: HTTP ${res.status}`)
-    source = Readable.fromWeb(res.body)
-    cancel = () => res.body.cancel?.().catch(() => {})
+    source = Readable.from(resumableFetch(DUMP(month)))
   }
+  // Breaking out of the consumer unwinds the generator chain, which cancels the
+  // download; this is the belt to that braces.
+  const cancel = () => source.destroy()
 
   let seen = 0
   let kept = 0
