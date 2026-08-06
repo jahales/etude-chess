@@ -82,12 +82,23 @@ describe('auditBook', () => {
     expect(issues[0]!.severity).toBe('error')
   })
 
-  it('flags a missing major first move', () => {
+  it('flags a missing major first move, but only as a warning', () => {
+    // A 1.d4-only repertoire export legitimately has no 1.e4. Erroring on that
+    // would reject a correct book and point the user at a parsing bug that does
+    // not exist — verifyBook exits non-zero on errors.
     const noD4: BookPositions = {
       [START_KEY]: { e4: [500, 60, 440], Nf3: [200, 20, 180], c4: [200, 20, 180], d4: [5, 0, 5] },
     }
     const issues = auditBook(noD4)
-    expect(issues.some((i) => i.detail.includes('1.d4'))).toBe(true)
+    const found = issues.find((i) => i.detail.includes('1.d4'))
+    expect(found).toBeDefined()
+    expect(found!.severity).toBe('warn')
+  })
+
+  it('passes a single-opening book without erroring', () => {
+    // Everything on 1.d4: narrow, but a perfectly valid book.
+    const d4Only: BookPositions = { [START_KEY]: { d4: [4000, 500, 3500] } }
+    expect(auditBook(d4Only).some((i) => i.severity === 'error')).toBe(false)
   })
 
   it('rejects malformed tallies', () => {

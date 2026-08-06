@@ -132,12 +132,20 @@ function childComment(child: RepertoireChild): string | null {
     const head = `{${bits.join(' · ')}}`
     // A trap whose refutation does not actually leave us better is worse than
     // no trap at all — you would drill it as a win and reach an equal game.
-    if (child.punished === false) {
-      const after =
-        typeof child.afterReplyWinPercent === 'number'
-          ? ` (only ${child.afterReplyWinPercent.toFixed(0)}% after our reply)`
-          : ''
-      return `${head} {WARNING: punishment unconfirmed${after} — play it out, don't trust the label}`
+    //
+    // Note the test is `!== true`, not `=== false`. `undefined` means the check
+    // never ran (the position transposed into one already visited, or sat on the
+    // depth cap), and treating "not verified" as "verified" is precisely the
+    // silent-success failure this annotation exists to prevent.
+    if (child.punished !== true) {
+      if (child.punished === false) {
+        const after =
+          typeof child.afterReplyWinPercent === 'number'
+            ? ` (only ${child.afterReplyWinPercent.toFixed(0)}% after our reply)`
+            : ''
+        return `${head} {WARNING: punishment unconfirmed${after} — play it out, don't trust the label}`
+      }
+      return `${head} {punishment not verified — play it out yourself}`
     }
     return head
   }

@@ -27,6 +27,17 @@ export const KNOWN_MONTH_TOTALS = {
 }
 
 /**
+ * A book that scanned a whole month *is* ground truth for that month: it read to
+ * EOF without hitting the limit, so `gamesScanned` is the total. Harvesting that
+ * is what keeps the table from staying permanently stuck at the one month it was
+ * seeded with — the check that caught the zstd truncation is inert for every
+ * month with no entry, which today means every month actually in use.
+ */
+export function learnedTotal(meta) {
+  return meta?.stoppedAtLimit === false && meta.gamesScanned ? meta.gamesScanned : undefined
+}
+
+/**
  * Replay a sample of the book's own move keys to confirm they are legal in the
  * position they are filed under. Catches key corruption and any drift between
  * how the book was written and how it is read back.
@@ -100,6 +111,16 @@ async function main() {
   // Ground truth, where we have it.
   const month = String(meta.source ?? '').match(/rated_(\d{4}-\d{2})\./)?.[1]
   const knownTotal = month ? KNOWN_MONTH_TOTALS[month] : undefined
+  if (month && !knownTotal) {
+    const learned = learnedTotal(meta)
+    issues.push({
+      severity: 'warn',
+      check: 'complete-scan',
+      detail: learned
+        ? `no recorded total for ${month}; this scan read the whole month (${learned} games) — add it to KNOWN_MONTH_TOTALS to check future builds against it`
+        : `no recorded total for ${month} — completeness was NOT checked against ground truth (this is the check that catches silent truncation)`,
+    })
+  }
   if (knownTotal && meta.gamesScanned) {
     const complete = meta.gamesScanned >= knownTotal
     console.log(

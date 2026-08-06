@@ -334,7 +334,17 @@ function tokenise(movetext) {
 function sans(movetext, maxPly) {
   const budget = maxPly * 80 + 200
   if (movetext.length <= budget) return tokenise(movetext)
-  const head = tokenise(movetext.slice(0, budget))
+
+  // Cut back to before any unterminated comment. `{[^}]*}` needs a closing
+  // brace, so a prefix ending inside `{ [%clk 0:03:00] }` leaves the fragment
+  // behind and its pieces (`[%clk`, `0:03:0`) become tokens — which then count
+  // toward the `>= maxPly` guard below, so a game with fat annotations can pass
+  // the guard on junk and have its replay break early on an illegal SAN.
+  let slice = movetext.slice(0, budget)
+  const lastOpen = slice.lastIndexOf('{')
+  if (lastOpen > slice.lastIndexOf('}')) slice = slice.slice(0, lastOpen)
+
+  const head = tokenise(slice)
   return head.length >= maxPly ? head : tokenise(movetext)
 }
 

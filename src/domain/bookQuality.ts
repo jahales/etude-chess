@@ -141,13 +141,21 @@ export function auditBook(positions: BookPositions): QualityIssue[] {
           `(expected at least ${MAIN_FIRST_MOVE_FLOOR * 100}%) — the scan is probably mis-parsed`,
       })
     }
+    // Only a *warning*, unlike the combined check above. A book built from a
+    // narrow corpus — a 1.d4-only repertoire export, a Dutch Defence
+    // collection — legitimately has almost no 1.e4, and failing that as an
+    // error would reject a correct book while blaming a parsing bug that isn't
+    // there. The combined e4/d4/Nf3/c4 floor stays an error because it survives
+    // any narrowing: a d4-only book still puts ~100% on d4.
     for (const san of ['e4', 'd4']) {
       const share = shares[san] ?? 0
       if (share < MAJOR_FIRST_MOVE_FLOOR) {
         issues.push({
-          severity: 'error',
+          severity: 'warn',
           check: 'first-move-distribution',
-          detail: `1.${san} is only ${(share * 100).toFixed(1)}% of first moves (expected ≥ ${MAJOR_FIRST_MOVE_FLOOR * 100}%)`,
+          detail:
+            `1.${san} is only ${(share * 100).toFixed(1)}% of first moves ` +
+            `(expected ≥ ${MAJOR_FIRST_MOVE_FLOOR * 100}% for a broad corpus; normal for a single-opening database)`,
         })
       }
     }

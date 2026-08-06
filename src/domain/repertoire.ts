@@ -170,6 +170,21 @@ export const TRAP_PRIOR_GAMES = 100
 export const TRAP_MIN_GAMES = 50
 
 /**
+ * Win% we must reach after replying to a trap for the punishment to count.
+ *
+ * A trap giving up real evaluation should leave us clearly better; if our reply
+ * only equalises, it is not a line we can punish and drilling it as a win
+ * teaches false confidence. Lives here rather than in the crawler because it is
+ * a chess judgment, and every sibling threshold here is pinned by a test.
+ */
+export const PUNISHED_MIN_WIN_PERCENT = 55
+
+/** Whether a trap's punishment actually materialised after our reply. */
+export function isPunished(winPercentAfterReply: number): boolean {
+  return winPercentAfterReply >= PUNISHED_MIN_WIN_PERCENT
+}
+
+/**
  * How much better a move does in practice than its evaluation deserves, 0–1.
  *
  * The observed score is shrunk toward the evaluation in proportion to how
@@ -301,9 +316,25 @@ export interface OurMoveCandidate {
   swing: number
   /** How many replies we would have to prepare if we played this. */
   replyBranching: number
+  /**
+   * Games behind `replyBranching`. Below `MIN_GAMES_TO_TRUST_BRANCHING` the
+   * count measures how little data we have, not how forcing the move is.
+   */
+  replyGames?: number
   /** How often our band plays it, 0–1. */
   frequency: number
 }
+
+/**
+ * Games a child position needs before its reply count means anything.
+ *
+ * Without this the ranking rewards obscurity: an offbeat move reaches a position
+ * almost nobody has played, `coverByMass` finds one or two replies there, and it
+ * scores as beautifully "narrow". Measured — it picked 3.Qc2 against the Slav
+ * and 3.Qb3 against 2...Bf5 over the main lines, purely because the band book is
+ * thin after them. Low branching from sparse data is not low branching.
+ */
+export const MIN_GAMES_TO_TRUST_BRANCHING = 100
 
 export interface RankingWeights {
   branching?: number
@@ -327,8 +358,8 @@ export interface RankingWeights {
  * depend on an engine setting.
  */
 export const DEFAULT_WEIGHTS: Required<RankingWeights> = {
-  branching: 0.6,
-  popularity: 0.4,
+  branching: 0.45,
+  popularity: 0.55,
 }
 
 /**
@@ -354,7 +385,15 @@ export function ourMoveScore(
   branchingReference: number = BRANCHING_REFERENCE,
 ): number {
   const w = { ...DEFAULT_WEIGHTS, ...weights }
-  const branching = Math.max(0, 1 - Math.max(0, c.replyBranching) / branchingReference)
+  // Credit narrowness only where there is enough data to tell narrow from
+  // unplayed. Otherwise score it as widest, so a move cannot win by being
+  // obscure — for a repertoire, "nobody has played this" is a reason for
+  // caution, not a reward.
+  const measurable =
+    c.replyGames === undefined || c.replyGames >= MIN_GAMES_TO_TRUST_BRANCHING
+  const branching = measurable
+    ? Math.max(0, 1 - Math.max(0, c.replyBranching) / branchingReference)
+    : 0
   return w.branching * branching + w.popularity * c.frequency
 }
 

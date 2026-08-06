@@ -271,6 +271,22 @@ describe('rankOurMoves', () => {
     expect(rankOurMoves([wide, narrow])[0]!.move.san).toBe('cxd5')
   })
 
+  it('does not reward a move for reaching a position nobody has played', () => {
+    // The regression this prevents: the generator picked 3.Qc2 against the Slav
+    // and 3.Qb3 against 2...Bf5, because those reach positions the band book
+    // barely covers — one or two replies found, scored as ideally "narrow".
+    // Sparse data is not a forcing line.
+    const mainline = { ...candidate('Nf3', 0, 6, 0.42), replyGames: 4000 }
+    const obscure = { ...candidate('Qc2', 0, 1, 0.01), replyGames: 12 }
+    expect(ourMoveScore(mainline)).toBeGreaterThan(ourMoveScore(obscure))
+  })
+
+  it('still credits a genuinely forcing line that is well sampled', () => {
+    const forcing = { ...candidate('cxd5', 0, 2, 0.3), replyGames: 5000 }
+    const wide = { ...candidate('Nf3', 0, 7, 0.3), replyGames: 5000 }
+    expect(ourMoveScore(forcing)).toBeGreaterThan(ourMoveScore(wide))
+  })
+
   it('ignores evaluation differences inside the soundness gate (constitution §3)', () => {
     // The measured failure this prevents: with an evaluation term, the
     // repertoire chose 3.Nc3 against the Slav at a 120k node budget and 3.cxd5

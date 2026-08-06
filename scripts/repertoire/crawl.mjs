@@ -33,6 +33,9 @@ import {
   trapValue,
   TRAP_MIN_GAMES,
   TRAP_MIN_SWING,
+  SOUNDNESS_MAX_SWING,
+  isPunished,
+  outperformance,
 } from '../../src/domain/repertoire.ts'
 import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
@@ -43,7 +46,14 @@ export const DEFAULTS = {
   minPly: 6,
   maxPly: 10,
   deepNodes: 400_000,
-  shallowNodes: 20_000,
+  /**
+   * The shallow search of constitution §6's filter, as a fraction of the deep
+   * one. A *fixed* shallow budget makes the tactic-gap test mean different
+   * things at different --nodes: at 120k the ratio is 6:1, at 1M it is 50:1, so
+   * the deep search diverges further from a frozen shallow reading and more
+   * positions fail the quiet test purely because the budget moved.
+   */
+  shallowRatio: 1 / 6,
   multipv: 5,
   massTarget: 0.85,
   minGames: 20,
@@ -66,13 +76,7 @@ export const DEFAULTS = {
   maxEvalPerNode: 20,
 }
 
-/**
- * Win% we must reach after replying to a trap for the punishment to count.
- * A trap that gives up real evaluation should leave us clearly better; if our
- * reply only equalises, the line is not a trap we can punish and drilling it as
- * one teaches false confidence.
- */
-export const PUNISHED_MIN_WIN_PERCENT = 55
+
 
 function applyUci(fen, uci) {
   const c = new Chess(fen)
@@ -90,7 +94,10 @@ function applyUci(fen, uci) {
  */
 async function assess(engine, fen, o) {
   const deep = await engine.analyse(fen, { nodes: o.deepNodes, multipv: o.multipv })
-  const shallow = await engine.analyse(fen, { nodes: o.shallowNodes, multipv: 1 })
+  const shallow = await engine.analyse(fen, {
+    nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
+    multipv: 1,
+  })
   const multipvWp = deep.lines.map((l) => winPercent(l.score))
   const deepWp = multipvWp[0] ?? 50
   const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
@@ -133,6 +140,7 @@ export async function crawl(config) {
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
     unpunishedTraps: [],
+    unverifiedTraps: [],
     minDepth: Infinity,
   }
 
@@ -156,10 +164,45 @@ export async function crawl(config) {
 
   const queue = [{ fen: rootFen, ply: basePly, line: [...forcedSans] }]
 
+  /**
+   * Settle a trap's punishment from a win% we already have. Must be reachable
+   * from every path that leaves a node, not just the fully-expanded one: the
+   * check used to sit after the transposition and depth-cap `continue`s, so a
+   * trap landing on either left `punished` undefined — and undefined rendered
+   * exactly like a verified trap.
+   */
+  const settlePunishment = (nodeKey, winPercent, line) => {
+    const pending = awaitingPunishment.get(nodeKey)
+    if (!pending) return
+    awaitingPunishment.delete(nodeKey)
+    if (winPercent === null) {
+      report.unverifiedTraps.push({ line: pending.line, why: line })
+      return
+    }
+    pending.child.afterReplyWinPercent = Number(winPercent.toFixed(1))
+    pending.child.punished = isPunished(winPercent)
+    if (!pending.child.punished) {
+      report.unpunishedTraps.push({
+        line: pending.line,
+        afterReplyWinPercent: Number(winPercent.toFixed(1)),
+      })
+    }
+  }
+
   while (queue.length) {
     const item = queue.shift()
     const key = fenKey(item.fen)
-    if (nodes.has(key)) continue // transposition — already covered
+    if (nodes.has(key)) {
+      // Transposition: the position was already assessed, so its win% answers
+      // the pending question directly — no second engine call needed.
+      const seen = nodes.get(key)
+      settlePunishment(
+        key,
+        typeof seen.bestWinPercent === 'number' ? seen.bestWinPercent : null,
+        'transposed into a position assessed before the trap was queued',
+      )
+      continue
+    }
 
     const chess = new Chess(item.fen)
     const sideToMove = chess.turn()
@@ -180,6 +223,7 @@ export async function crawl(config) {
       node.terminal = true
       node.terminalReason = 'depth-cap'
       report.terminal['depth-cap']++
+      settlePunishment(key, null, 'reached the depth cap before it could be assessed')
       continue
     }
 
@@ -191,18 +235,7 @@ export async function crawl(config) {
     // We are to move here, so bestWp is *our* standing after the opponent's
     // move. If that move was flagged a trap, this is where we find out whether
     // the punishment exists.
-    const pendingTrap = awaitingPunishment.get(key)
-    if (pendingTrap) {
-      awaitingPunishment.delete(key)
-      pendingTrap.child.afterReplyWinPercent = Number(bestWp.toFixed(1))
-      pendingTrap.child.punished = bestWp >= PUNISHED_MIN_WIN_PERCENT
-      if (!pendingTrap.child.punished) {
-        report.unpunishedTraps.push({
-          line: pendingTrap.line,
-          afterReplyWinPercent: Number(bestWp.toFixed(1)),
-        })
-      }
-    }
+    settlePunishment(key, bestWp, null)
 
     if (item.ply >= o.minPly && quiet.quiet) {
       node.terminal = true
@@ -290,7 +323,9 @@ export async function crawl(config) {
       // One move. Branching cost needs a lookahead into each child's replies.
       const ranked = []
       for (const c of scored) {
-        if (c.swing > 5) continue // outside the soundness gate; skip the lookup
+        // Same gate rankOurMoves applies internally; read it from the domain so
+        // the two cannot drift apart when the constant is retuned.
+        if (c.swing > SOUNDNESS_MAX_SWING) continue
         const replies = await explorer.query(c.fen)
         const cover = coverByMass(replies.moves, {
           massTarget: o.massTarget,
@@ -301,6 +336,9 @@ export async function crawl(config) {
           move: c.stats,
           swing: c.swing,
           replyBranching: cover.covered.length,
+          // How much data that count rests on — a narrow-looking position that
+          // nobody has played is not narrow.
+          replyGames: totalGames(replies.moves),
           frequency: c.frequency,
           _c: c,
         })
@@ -373,7 +411,14 @@ export async function crawl(config) {
         // A move that looks like a trap but has too few games to judge is
         // reported rather than dropped: it might be the vicious rare line, and
         // silently discarding it would read as "there is nothing here".
-        if (!byTrap && t.swing >= TRAP_MIN_SWING && t.games < TRAP_MIN_GAMES && t.practical > t.expected) {
+        // Shrunk, not raw: this branch only fires below TRAP_MIN_GAMES, which is
+        // exactly where a raw practical-vs-expected gap is least meaningful.
+        if (
+          !byTrap &&
+          t.swing >= TRAP_MIN_SWING &&
+          t.games < TRAP_MIN_GAMES &&
+          outperformance(t) > 0
+        ) {
           report.tooRareToJudge.push({
             line: [...item.line, c.san].join(' '),
             games: t.games,
@@ -421,6 +466,13 @@ export async function crawl(config) {
       }
     }
   }
+
+  // Anything still pending never reached a node we could measure. Say so
+  // rather than dropping it: silence here would read as "verified".
+  for (const [, pending] of awaitingPunishment) {
+    report.unverifiedTraps.push({ line: pending.line, why: 'its follow-up position was never reached' })
+  }
+  awaitingPunishment.clear()
 
   report.traps.sort((a, b) => b.trapValue - a.trapValue)
   return { nodes, rootFen, forcedSans, report, options: o }
@@ -536,7 +588,11 @@ async function main() {
         generated: new Date().toISOString(),
         options: { ...result.options, engine: undefined, explorer: undefined },
       },
-      report: result.report,
+      report: {
+        ...result.report,
+        // Infinity serialises as null, which reads as "depth 0" downstream.
+        minDepth: Number.isFinite(result.report.minDepth) ? result.report.minDepth : null,
+      },
       rootFen: result.rootFen,
       nodes: Object.fromEntries(result.nodes),
     }
@@ -581,6 +637,11 @@ traps found     ${r.traps.length}`)
             `scores ${(t.practical * 100).toFixed(0)}% vs ${(t.expected * 100).toFixed(0)}% deserved, n=${t.games}]`,
         )
       }
+    }
+    if (r.unverifiedTraps.length) {
+      console.log(`
+? ${r.unverifiedTraps.length} trap(s) whose punishment could not be verified:`)
+      for (const t of r.unverifiedTraps) console.log(`  ${t.line}   [${t.why}]`)
     }
     if (r.unpunishedTraps.length) {
       console.log(`

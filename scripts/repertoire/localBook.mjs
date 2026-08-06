@@ -11,7 +11,10 @@ import { readFile } from 'node:fs/promises'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
 
-const EMPTY = { white: 0, draws: 0, black: 0, opening: null, moves: [] }
+/** A fresh empty result. Must be a factory: a shared `moves` array would be
+ * handed to every caller on every miss, so one caller sorting or pushing to it
+ * would corrupt unrelated positions for the rest of the process. */
+const empty = () => ({ white: 0, draws: 0, black: 0, opening: null, moves: [] })
 
 /**
  * @param {{path: string}} opts
@@ -27,7 +30,7 @@ export async function createLocalBook({ path }) {
       const node = positions[fenKey(fen)]
       if (!node) {
         counters.misses++
-        return { ...EMPTY }
+        return empty()
       }
       counters.hits++
 

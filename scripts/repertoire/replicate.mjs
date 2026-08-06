@@ -39,9 +39,14 @@ export function compareTraps(runA, runB) {
   // would be wrong: B only stores nodes for moves it selected, so a move B
   // evaluated and rejected has no node — and would be misread as "never looked
   // at" when it is in fact a refutation, which is the opposite conclusion.
+  // `games` is set only once a node has passed the out-of-book check and its
+  // moves were actually evaluated. Child count is the wrong proxy: a node can be
+  // expanded and still end with no children when coverage selects nothing and
+  // nothing clears the trap threshold — which would report a genuine refutation
+  // as a coverage gap, the opposite conclusion.
   const expandedB = new Set(
     Object.values(runB.nodes ?? {})
-      .filter((n) => (n.children ?? []).length > 0)
+      .filter((n) => typeof n.games === 'number' || (n.children ?? []).length > 0)
       .map((n) => (n.line ?? []).join(' ')),
   )
   const parentOf = (line) => line.split(' ').slice(0, -1).join(' ')
