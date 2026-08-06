@@ -13,15 +13,24 @@
 // drop-in replacement for explorer.mjs in the crawler.
 
 import { spawn, spawnSync } from 'node:child_process'
-import { createReadStream, createWriteStream, existsSync } from 'node:fs'
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  readFileSync,
+  statSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { createGunzip, zstdDecompressSync } from 'node:zlib'
+
 import { Readable } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
+import { sniffAndDecompress } from './zstdFrames.mjs'
 
 const DUMP = (month) =>
   `https://database.lichess.org/standard/lichess_db_standard_rated_${month}.pgn.zst`
@@ -37,205 +46,6 @@ const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Vari
 const MAX_TRANSITIONS = 1_500_000
 
 /**
- * Hard ceiling on how far we will search for a zstd frame boundary. Real frames
- * in these dumps are a few MB; anything past this means the stream is damaged,
- * and without a limit the search silently consumes the entire file into one
- * buffer — which presents as a hang, not an error.
- */
-const MAX_FRAME_BYTES = 64 << 20
-
-const ZSTD_FRAME = 0xfd2fb528 // bytes 28 b5 2f fd, read little-endian
-const SKIPPABLE_LO = 0x184d2a50
-const SKIPPABLE_HI = 0x184d2a5f
-
-const isFrameStart = (buf, i) => {
-  if (i + 4 > buf.length) return false
-  const m = buf.readUInt32LE(i)
-  return m === ZSTD_FRAME || (m >= SKIPPABLE_LO && m <= SKIPPABLE_HI)
-}
-
-/**
- * Decompress a **multi-frame, seekable** zstd stream, yielding output buffers.
- *
- * The Lichess dumps are seekable zstd: a leading skippable frame, then many
- * independent ~32 MiB frames, then a skippable seek table. Node's
- * `createZstdDecompress` decodes exactly ONE frame and then rejects the next
- * frame's header with ZSTD_error_prefix_unknown — so piping the whole file
- * through it silently yields only the first 32 MiB. That truncation is
- * invisible: you get a perfectly well-formed book built from 3% of the data.
- *
- * So we frame it ourselves: skip skippable frames, find the next frame
- * boundary, and decompress each frame independently. A frame magic can occur by
- * chance inside compressed data (~1 in 4 billion per offset), so a boundary
- * that fails to decompress is treated as a false positive and we look for the
- * next one — the decode itself is the validation.
- */
-async function* decompressFrames(source) {
-  const iter = source[Symbol.asyncIterator]()
-  let buf = Buffer.alloc(0)
-  let pending = []
-  let pendingLen = 0
-  let sourceDone = false
-
-  // Chunks arrive at 64 KB and a frame is several MB, so concatenating on every
-  // chunk copies the whole accumulator ~110 times per frame — quadratic, and
-  // tens of GB of memcpy across a 1.6 GB file. Reading from a warm cache made it
-  // obvious: the build went slower than the one that had to download. So stage
-  // chunks in a list and join them in batches instead.
-  const stage = async () => {
-    if (sourceDone) return false
-    const { value, done } = await iter.next()
-    if (done) {
-      sourceDone = true
-      return false
-    }
-    const chunk = Buffer.from(value)
-    pending.push(chunk)
-    pendingLen += chunk.length
-    return true
-  }
-
-  const materialise = () => {
-    if (pendingLen === 0) return
-    buf = buf.length ? Buffer.concat([buf, ...pending], buf.length + pendingLen) : Buffer.concat(pending, pendingLen)
-    pending = []
-    pendingLen = 0
-  }
-
-  /** Stage at least `min` bytes (or hit the end), then join once. */
-  const pullAtLeast = async (min) => {
-    const before = buf.length + pendingLen
-    while (pendingLen < min && (await stage()));
-    materialise()
-    return buf.length > before
-  }
-
-  const pull = async () => pullAtLeast(1)
-
-  for (;;) {
-    while (buf.length < 8 && (await pull()));
-    if (buf.length < 4) return
-
-    const magic = buf.readUInt32LE(0)
-    if (magic >= SKIPPABLE_LO && magic <= SKIPPABLE_HI) {
-      const size = buf.readUInt32LE(4)
-      while (buf.length < 8 + size && (await pull()));
-      if (buf.length < 8 + size) return // truncated trailer; nothing left to read
-      buf = buf.subarray(8 + size)
-      continue
-    }
-    if (magic !== ZSTD_FRAME) {
-      throw new Error(`unexpected zstd magic 0x${magic.toString(16)} — not a zstd stream?`)
-    }
-
-    // Find this frame's end: the next frame boundary, or EOF.
-    let end = -1
-    let from = 4
-    for (;;) {
-      for (let i = from; i + 4 <= buf.length; i++) {
-        if (isFrameStart(buf, i)) {
-          end = i
-          break
-        }
-      }
-      if (end !== -1) break
-      from = Math.max(4, buf.length - 3)
-      // Pull in multi-MB batches: this is the hot loop, and joining per chunk
-      // is what made it quadratic.
-      if (!(await pullAtLeast(4 << 20))) {
-        end = buf.length
-        break
-      }
-      // A zstd frame here is a few MB. If we have swallowed far more than that
-      // without finding a boundary, the stream is damaged — most likely a cache
-      // file left inconsistent by an interrupted write. Say so and stop, rather
-      // than quietly eating the rest of the file into one buffer, which reads
-      // from the outside as an unexplained hang.
-      if (buf.length > MAX_FRAME_BYTES) {
-        throw new Error(
-          `no zstd frame boundary within ${MAX_FRAME_BYTES >> 20} MB — the stream looks damaged. ` +
-            `If this is a cached dump, delete it under db/cache and let it re-download.`,
-        )
-      }
-    }
-
-    let out
-    for (;;) {
-      try {
-        out = zstdDecompressSync(buf.subarray(0, end))
-        break
-      } catch (err) {
-        // Either a chance magic inside the data, or the frame is still
-        // incomplete. Look further; if there is no further, give up loudly.
-        let next = -1
-        for (let i = end + 1; i + 4 <= buf.length; i++) {
-          if (isFrameStart(buf, i)) {
-            next = i
-            break
-          }
-        }
-        if (next === -1) {
-          if (buf.length > MAX_FRAME_BYTES) {
-            throw new Error(
-              `could not decode a zstd frame within ${MAX_FRAME_BYTES >> 20} MB — the stream ` +
-                `looks damaged. If this is a cached dump, delete it under db/cache.`,
-              { cause: err },
-            )
-          }
-          if (await pullAtLeast(4 << 20)) continue
-          throw new Error('could not decode zstd frame at end of stream', { cause: err })
-        }
-        end = next
-      }
-    }
-
-    yield out
-    buf = buf.subarray(end)
-    if (buf.length === 0 && sourceDone) return
-  }
-}
-
-/**
- * Accept whatever the caller has: seekable-zstd (the Lichess dumps), gzip, or
- * plain PGN. Sniffed from the leading bytes rather than the file name, so a
- * PGN exported from En Croissant, Chessbase or anywhere else just works.
- *
- * This is why we do not decode En Croissant's own `.db3` move BLOBs: those are
- * an index into shakmaty's legal-move list, whose ordering is undocumented and
- * pinned to a library version. Exporting PGN from En Croissant lands here
- * instead, with no reverse engineering and nothing to break on an upgrade.
- */
-async function* sniffAndDecompress(source) {
-  const iter = source[Symbol.asyncIterator]()
-  const first = await iter.next()
-  if (first.done) return
-  const head = Buffer.from(first.value)
-
-  // Re-attach the byte we consumed for sniffing.
-  async function* rewound() {
-    yield head
-    for (;;) {
-      const next = await iter.next()
-      if (next.done) return
-      yield Buffer.from(next.value)
-    }
-  }
-
-  if (head.length >= 4) {
-    const magic = head.readUInt32LE(0)
-    if (magic === ZSTD_FRAME || (magic >= SKIPPABLE_LO && magic <= SKIPPABLE_HI)) {
-      yield* decompressFrames(rewound())
-      return
-    }
-  }
-  if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
-    yield* Readable.from(rewound()).pipe(createGunzip())
-    return
-  }
-  yield* rewound() // plain text
-}
-
-/**
  * Turn the byte source into a stream readline can consume.
  *
  * The no-op error listener is load-bearing. When we stop at `--max-games` the
@@ -245,12 +55,12 @@ async function* sniffAndDecompress(source) {
  * With a listener attached it stays a normal stream error: still delivered to
  * whoever is iterating, no longer fatal to whoever is not.
  */
-function decompressedStream(source) {
+function decompressedStream(source, opts) {
   // highWaterMark is in *objects* here, and our objects are whole 32 MiB
   // decompressed frames — the default of 16 lets the stream sit on half a
   // gigabyte of them while readline works through the first. Two is plenty to
   // keep the consumer fed.
-  const stream = Readable.from(sniffAndDecompress(source), { highWaterMark: 2 })
+  const stream = Readable.from(sniffAndDecompress(source, opts), { highWaterMark: 2 })
   stream.on('error', () => {})
   return stream
 }
@@ -266,23 +76,50 @@ function decompressedStream(source) {
  * cache holds, it resumes from the network at exactly the cached length and
  * appends, so the cache only ever grows toward what we have genuinely read.
  *
- * A run aborted mid-write leaves a short tail. That is harmless: the next run
- * resumes from the real file size, and the byte stream stays contiguous.
+ * **Only bytes that have provably decoded are trusted.** A killed build leaves a
+ * partial write, and zstd does not report a torn frame — it returns whatever it
+ * managed to decode and calls that success. So a naive byte cache silently
+ * poisons every subsequent run: that is exactly what wedged the 2026-05 build,
+ * repeatedly, always at the same offset.
+ *
+ * The sidecar records `validBytes`, advanced only on a frame boundary that
+ * decoded and matched its declared size. On startup we truncate back to that
+ * mark, discarding any untrusted tail, and re-fetch from there. The cache is
+ * therefore always a prefix of verified frames, whatever happened last time.
  */
+function readValidBytes(metaPath) {
+  try {
+    const { validBytes } = JSON.parse(readFileSync(metaPath, 'utf8'))
+    return Number.isInteger(validBytes) && validBytes >= 0 ? validBytes : 0
+  } catch {
+    return 0
+  }
+}
+
 async function* cachedDump(url, cachePath) {
-  let cached = 0
+  const metaPath = `${cachePath}.meta`
+  await mkdir(dirname(cachePath), { recursive: true })
+
+  let trusted = 0
   if (existsSync(cachePath)) {
-    for await (const chunk of createReadStream(cachePath)) {
-      cached += chunk.length
-      yield chunk
+    const onDisk = statSync(cachePath).size
+    trusted = Math.min(readValidBytes(metaPath), onDisk)
+    if (onDisk > trusted) {
+      // Everything past the last verified frame is of unknown provenance.
+      truncateSync(cachePath, trusted)
+      process.stderr.write(
+        `  (discarded ${((onDisk - trusted) / 1e6).toFixed(0)} MB of unverified cache tail)\n`,
+      )
     }
-    process.stderr.write(`  (${(cached / 1e6).toFixed(0)} MB from local cache)\n`)
+    if (trusted > 0) {
+      for await (const chunk of createReadStream(cachePath, { end: trusted - 1 })) yield chunk
+      process.stderr.write(`  (${(trusted / 1e6).toFixed(0)} MB from verified cache)\n`)
+    }
   }
 
-  await mkdir(dirname(cachePath), { recursive: true })
   const sink = createWriteStream(cachePath, { flags: 'a' })
   try {
-    for await (const chunk of resumableFetch(url, { startOffset: cached })) {
+    for await (const chunk of resumableFetch(url, { startOffset: trusted })) {
       sink.write(chunk)
       yield chunk
     }
@@ -440,8 +277,8 @@ async function* resumableFetch(url, { retries = 8, startOffset = 0, stallMs = 60
  * Stream games out of a zstd-compressed PGN. Yields `{headers, movetext}`.
  * @param {NodeJS.ReadableStream} input raw (still compressed) byte stream
  */
-async function* streamGames(input) {
-  const rl = createInterface({ input: decompressedStream(input), crlfDelay: Infinity })
+async function* streamGames(input, opts) {
+  const rl = createInterface({ input: decompressedStream(input, opts), crlfDelay: Infinity })
   // readline re-emits its input's errors on the Interface itself. When we stop
   // early the input is torn down mid-write, and with nothing listening *here*
   // that becomes an unhandled 'error' event and kills the process — after the
@@ -528,6 +365,32 @@ export async function buildBook(opts) {
   const speedSet = new Set(speeds.map((s) => s.toLowerCase()))
 
   let aborted = false
+
+  // Advance the cache's verified mark as frames land. Written on a throttle —
+  // it only ever needs to be roughly current, and losing the last few frames of
+  // credit just means re-fetching them.
+  const metaPath = month && cache ? join(cache, `${month}.pgn.zst.part.meta`) : null
+  let verified = 0
+  let lastMarked = 0
+  const markCache = () => {
+    if (!metaPath || verified === lastMarked) return
+    lastMarked = verified
+    try {
+      writeFileSync(metaPath, JSON.stringify({ validBytes: verified }))
+    } catch {
+      // a cache we cannot mark is a slow cache, not a broken one
+    }
+  }
+  const onConsumed = metaPath
+    ? (bytes) => {
+        verified = bytes
+        // Throttled by bytes, but small enough to fire on a small month too —
+        // at 32 MB the whole 17 MB 2013-01 dump finished without ever marking,
+        // so its cache was never trusted and every run re-downloaded it.
+        if (bytes - lastMarked >= 8 << 20) markCache()
+      }
+    : undefined
+
   const { stream: source, close } = file
     ? fileSource(file)
     : (() => {
@@ -558,7 +421,7 @@ export async function buildBook(opts) {
   const startKey = fenKey(scratch.fen())
 
   try {
-    for await (const { headers, movetext } of streamGames(source)) {
+    for await (const { headers, movetext } of streamGames(source, { onConsumed })) {
       seen++
       if (kept >= maxGames) {
         aborted = true
@@ -635,6 +498,8 @@ export async function buildBook(opts) {
     if (!aborted) throw err
   } finally {
     close()
+    // Whatever happened, credit every frame that did decode.
+    markCache()
   }
 
   // Prune the long tail: a move seen twice carries no usable win rate, and the
