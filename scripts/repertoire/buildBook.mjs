@@ -65,18 +65,44 @@ const isFrameStart = (buf, i) => {
 async function* decompressFrames(source) {
   const iter = source[Symbol.asyncIterator]()
   let buf = Buffer.alloc(0)
+  let pending = []
+  let pendingLen = 0
   let sourceDone = false
 
-  const pull = async () => {
+  // Chunks arrive at 64 KB and a frame is several MB, so concatenating on every
+  // chunk copies the whole accumulator ~110 times per frame — quadratic, and
+  // tens of GB of memcpy across a 1.6 GB file. Reading from a warm cache made it
+  // obvious: the build went slower than the one that had to download. So stage
+  // chunks in a list and join them in batches instead.
+  const stage = async () => {
     if (sourceDone) return false
     const { value, done } = await iter.next()
     if (done) {
       sourceDone = true
       return false
     }
-    buf = buf.length ? Buffer.concat([buf, Buffer.from(value)]) : Buffer.from(value)
+    const chunk = Buffer.from(value)
+    pending.push(chunk)
+    pendingLen += chunk.length
     return true
   }
+
+  const materialise = () => {
+    if (pendingLen === 0) return
+    buf = buf.length ? Buffer.concat([buf, ...pending], buf.length + pendingLen) : Buffer.concat(pending, pendingLen)
+    pending = []
+    pendingLen = 0
+  }
+
+  /** Stage at least `min` bytes (or hit the end), then join once. */
+  const pullAtLeast = async (min) => {
+    const before = buf.length + pendingLen
+    while (pendingLen < min && (await stage()));
+    materialise()
+    return buf.length > before
+  }
+
+  const pull = async () => pullAtLeast(1)
 
   for (;;) {
     while (buf.length < 8 && (await pull()));
@@ -106,7 +132,9 @@ async function* decompressFrames(source) {
       }
       if (end !== -1) break
       from = Math.max(4, buf.length - 3)
-      if (!(await pull())) {
+      // Pull in multi-MB batches: this is the hot loop, and joining per chunk
+      // is what made it quadratic.
+      if (!(await pullAtLeast(4 << 20))) {
         end = buf.length
         break
       }
@@ -128,7 +156,7 @@ async function* decompressFrames(source) {
           }
         }
         if (next === -1) {
-          if (await pull()) continue
+          if (await pullAtLeast(4 << 20)) continue
           throw new Error('could not decode zstd frame at end of stream', { cause: err })
         }
         end = next
@@ -308,14 +336,32 @@ function fileSource(path) {
  * whole build is lost, usually near the end. `database.lichess.org` answers
  * Range requests with 206, which is what makes this possible.
  */
-async function* resumableFetch(url, { retries = 8, startOffset = 0 } = {}) {
+async function* resumableFetch(url, { retries = 8, startOffset = 0, stallMs = 60_000 } = {}) {
   let offset = startOffset
   let attempt = 0
   let reader = null
+  let watchdog = null
   try {
     for (;;) {
       try {
-        const res = await fetch(url, offset ? { headers: { Range: `bytes=${offset}-` } } : undefined)
+        // A dropped connection raises an error and we resume. A connection that
+        // simply *stops delivering* without closing raises nothing at all, and
+        // fetch has no timeout — so the read below waits forever. That is not
+        // hypothetical: it hung a build for five hours with the byte count
+        // frozen. The watchdog turns silence into an error so the existing
+        // resume path can do its job.
+        const controller = new AbortController()
+        let lastByteAt = Date.now()
+        watchdog = setInterval(() => {
+          if (Date.now() - lastByteAt > stallMs) {
+            controller.abort(new Error(`no data for ${Math.round(stallMs / 1000)}s`))
+          }
+        }, 5_000)
+
+        const res = await fetch(url, {
+          signal: controller.signal,
+          ...(offset ? { headers: { Range: `bytes=${offset}-` } } : {}),
+        })
         // 416 means the range starts past the end: we already hold the whole
         // file. That happens on every run once a cache has completed, so
         // treating it as an error makes a finished cache permanently fatal.
@@ -327,11 +373,14 @@ async function* resumableFetch(url, { retries = 8, startOffset = 0 } = {}) {
         for (;;) {
           const { value, done } = await reader.read()
           if (done) return
+          lastByteAt = Date.now()
           offset += value.length
           attempt = 0 // any progress refreshes the retry budget
           yield Buffer.from(value)
         }
       } catch (err) {
+        clearInterval(watchdog)
+        watchdog = null
         try {
           await reader?.cancel()
         } catch {
@@ -348,6 +397,7 @@ async function* resumableFetch(url, { retries = 8, startOffset = 0 } = {}) {
       }
     }
   } finally {
+    clearInterval(watchdog)
     try {
       await reader?.cancel()
     } catch {
