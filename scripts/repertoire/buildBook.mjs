@@ -29,6 +29,13 @@ const DUMP = (month) =>
 const SPEED_RE = /\b(ultrabullet|bullet|blitz|rapid|classical)\b/i
 const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Variant'])
 
+/**
+ * Cap on the memoised transition table. The distribution is heavily Zipfian —
+ * a few opening positions account for most transitions — so a cap this size
+ * captures nearly every hit while bounding memory at a few hundred MB.
+ */
+const MAX_TRANSITIONS = 1_500_000
+
 const ZSTD_FRAME = 0xfd2fb528 // bytes 28 b5 2f fd, read little-endian
 const SKIPPABLE_LO = 0x184d2a50
 const SKIPPABLE_HI = 0x184d2a5f
@@ -452,7 +459,23 @@ export async function buildBook(opts) {
       })()
   let seen = 0
   let kept = 0
-  const chess = new Chess()
+  // Memoised position transitions: `${fenKey}|${rawToken}` → {san, nextKey}.
+  //
+  // Profiling put 86.6% of the scan in chess.js, and 27.5% in legal-move
+  // generation alone: resolving one SAN makes chess.js generate every legal
+  // move and make/undo each to test it, at ~91µs a call, and we did that
+  // 12 times per game. But 300k games only reach on the order of half a million
+  // distinct positions, so the same transitions were being re-derived millions
+  // of times. A hit here costs ~0.13µs; a miss costs ~104µs, and the hit rate
+  // climbs with corpus size — the bigger the build, the more this pays.
+  //
+  // Sound because a position's legal moves are fully determined by the four
+  // fields fenKey keeps (placement, side, castling, en passant). The halfmove
+  // and fullmove counters we discard cannot change which moves are legal, only
+  // the fifty-move rule, which does not arise inside twelve plies.
+  const transitions = new Map()
+  const scratch = new Chess()
+  const startKey = fenKey(scratch.fen())
 
   try {
     for await (const { headers, movetext } of streamGames(source)) {
@@ -480,28 +503,37 @@ export async function buildBook(opts) {
       const moves = sans(movetext, maxPly)
       if (moves.length < 4) continue
 
-      chess.reset()
+      let key = startKey
       for (let i = 0; i < Math.min(maxPly, moves.length); i++) {
-        const key = fenKey(chess.fen())
-        // Record under chess.js's *canonical* SAN, not the raw token. PGN in
-        // the wild carries suffix annotations (`Bf5?!`) and over-disambiguated
-        // forms, and keying on the raw text silently splits one move's
-        // statistics across several entries. That bites hardest exactly where
-        // it matters: `?`/`??` land on bad-but-popular moves, so the split
-        // strands part of every trap's record in a rare entry that pruning
-        // then deletes.
-        let move
-        try {
-          move = chess.move(moves[i])
-        } catch {
-          break // malformed movetext — abandon this game, keep the book
+        const token = moves[i]
+        const memo = `${key}|${token}`
+        let step = transitions.get(memo)
+
+        if (step === undefined) {
+          // Cache miss: do the expensive thing once. Note we record chess.js's
+          // *canonical* SAN, not the raw token — PGN in the wild carries suffix
+          // annotations (`Bf5?!`) and over-disambiguated forms, and keying on
+          // raw text silently splits one move's statistics across entries. That
+          // bites hardest where it matters most: `?`/`??` land on bad-but-
+          // popular moves, so the split strands part of every trap's record in
+          // a rare entry that pruning then deletes.
+          try {
+            scratch.load(`${key} 0 1`)
+            const move = scratch.move(token)
+            if (!move) break
+            step = { san: move.san, next: fenKey(scratch.fen()) }
+          } catch {
+            break // malformed movetext — abandon this game, keep the book
+          }
+          if (transitions.size < MAX_TRANSITIONS) transitions.set(memo, step)
         }
-        if (!move) break
+
         let node = book.get(key)
         if (!node) book.set(key, (node = new Map()))
-        let tally = node.get(move.san)
-        if (!tally) node.set(move.san, (tally = [0, 0, 0]))
+        let tally = node.get(step.san)
+        if (!tally) node.set(step.san, (tally = [0, 0, 0]))
         tally[outcome]++
+        key = step.next
       }
 
       kept++
@@ -539,6 +571,11 @@ export async function buildBook(opts) {
       speeds,
       maxPly,
       gamesScanned: seen,
+      // Recorded so verifyBook can tell a scan that stopped because we asked it
+      // to from one that stopped on its own — without this it cannot, and
+      // reports every capped build as a silent truncation.
+      maxGames,
+      stoppedAtLimit: aborted,
       gamesUsed: kept,
       positions: book.size,
       minGames,

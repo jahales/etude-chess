@@ -106,7 +106,15 @@ async function main() {
       `  scanned ${meta.gamesScanned} of ${knownTotal} known for ${month}` +
         (complete ? ' ✓' : ' — partial (expected if --max-games was reached)'),
     )
-    if (!complete && meta.gamesUsed < (meta.maxGames ?? Infinity)) {
+    // A partial scan is only suspicious if we did *not* ask it to stop. Books
+    // built before `stoppedAtLimit` was recorded fall back to comparing games
+    // used against the limit, and skip the check entirely if neither is known —
+    // a check that fires on every capped build trains you to ignore it.
+    const askedToStop =
+      meta.stoppedAtLimit === true ||
+      (typeof meta.maxGames === 'number' && meta.gamesUsed >= meta.maxGames)
+    const canTell = meta.stoppedAtLimit !== undefined || typeof meta.maxGames === 'number'
+    if (!complete && canTell && !askedToStop) {
       issues.push({
         severity: 'error',
         check: 'complete-scan',
