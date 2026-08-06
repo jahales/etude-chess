@@ -41,6 +41,26 @@ data/
 syzygy/
 scratch/
 
+# Repertoire generator output and its explorer cache (issue #88).
+# Regenerate with scripts/repertoire/crawl.mjs — see that directory's README.
+/out/
+.explorer-cache/
+.masters-cache/
+
+# Downloaded game databases (Lumbra's Gigabase, Caissabase, Lichess dumps…).
+# Multi-hundred-MB third-party data: never committed, always re-downloadable,
+# and CC BY-NC-SA in Lumbra's case. See scripts/repertoire/README.md.
+/db/
+*.7z
+*.zst
+*.si4
+*.si5
+*.sg4
+*.sg5
+*.sn4
+*.sn5
+*.db3
+
 # Maia spike: the weights are fetched via scripts/setup-maia.mjs, not committed
 # (but keep the NOTICE tracked for GPL compliance).
 public/models/*.onnx

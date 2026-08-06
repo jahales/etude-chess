@@ -28,5 +28,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0018](0018-games-corpus-and-annotations.md) | Games database: **users attach their own**; we ship no bulk corpus | Accepted |
 | [0019](0019-why-layer-next.md) | The "why" layer, via a grounded concept ontology | Accepted (sequencing clause superseded by 0020) |
 | [0020](0020-backlog-of-epics.md) | Plan with a prioritized backlog of epics; versions are cuts, not slots | Accepted |
+| [0021](0021-opening-repertoire-generator.md) | Generate an opening repertoire from explorer data + engine, terminating at quiet positions | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.

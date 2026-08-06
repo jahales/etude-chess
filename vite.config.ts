@@ -25,6 +25,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // scripts/ carries real logic now — zstd framing, cache integrity — and its
+    // defects have cost more than the app's. It gets tested like anything else.
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.mjs'],
   },
 })
