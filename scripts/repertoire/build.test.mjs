@@ -11,6 +11,7 @@ import {
   parseManifest,
   resolveEntry,
   summarise,
+  pgnError,
   readBranch,
   writeBranch,
   CRAWL_PLIES,
@@ -403,5 +404,29 @@ describe('the PGN a build actually emits', () => {
 
   it('never puts two comments in a row', async () => {
     for (const r of await build()) expect(r.pgn, r.entry.id).not.toMatch(/\}\s*\{/)
+  })
+})
+
+describe('pgnError — the artefact check', () => {
+  it('passes a file a real parser reads', () => {
+    expect(pgnError('[Event "t"]\n\n1. d4 d5 { note } (1... Nf6 2. c4) 2. c4 *\n')).toBeNull()
+  })
+
+  it('catches two comments in a row', () => {
+    expect(pgnError('[Event "t"]\n\n1. d4 d5 { a } { b } 2. c4 *\n')).toBeTruthy()
+  })
+
+  it('catches a comment after a variation closes', () => {
+    expect(pgnError('[Event "t"]\n\n1. d4 d5 (1... Nf6 2. c4) { note } *\n')).toBeTruthy()
+  })
+
+  it('marks a branch whose PGN will not load, without discarding the crawl', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    expect(r.pgnError).toBeNull()
+    expect(summarise([r]).unparseable).toEqual([])
+    // and a broken one is reported rather than written out in silence
+    expect(summarise([{ ...r, pgnError: 'boom' }]).unparseable).toEqual([
+      { id: 'exchange', error: 'boom' },
+    ])
   })
 })

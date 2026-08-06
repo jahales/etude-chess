@@ -14,6 +14,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { Chess } from 'chess.js'
 import { delegationsFor, plies, theoryLoad, validatePlan } from '../../src/domain/repertoirePlan.ts'
 import { toPgn } from '../../src/domain/repertoirePgn.ts'
 import { crawl, DEFAULTS } from './crawl.mjs'
@@ -156,6 +157,9 @@ export async function buildAll({
         }),
         seconds: (Date.now() - started) / 1000,
       }
+      // The JSON is kept either way: a rendering fault is not a reason to throw
+      // away an expensive crawl, but it is a reason for the run to fail loudly.
+      result.pgnError = pgnError(result.pgn)
       results.push(result)
       await onEntry(result)
     } catch (err) {
@@ -165,6 +169,24 @@ export async function buildAll({
     }
   }
   return results
+}
+
+/**
+ * Load the PGN we just produced, and say so if it does not.
+ *
+ * Not paranoia: the first complete repertoire this script generated parsed
+ * nowhere — two comments in a row, and a comment after a closing parenthesis.
+ * Both legal by the spec, both rejected by chess.js. Every unit test passed and
+ * the file looked immaculate. Checking the artefact against a real parser is
+ * the only thing that catches that class of defect.
+ */
+export function pgnError(pgn) {
+  try {
+    new Chess().loadPgn(pgn)
+    return null
+  } catch (err) {
+    return err.message
+  }
 }
 
 /** One branch's two files: the annotated tree, and the PGN to import. */
@@ -243,6 +265,8 @@ export function summarise(results) {
   return {
     branches: results.length,
     failed: results.filter((r) => r.error).map((r) => ({ id: r.entry.id, error: String(r.error?.message ?? r.error) })),
+    /** Branches whose PGN a real parser refused. Always empty, or the run failed. */
+    unparseable: ok.filter((r) => r.pgnError).map((r) => ({ id: r.entry.id, error: r.pgnError })),
     /**
      * Branches that produced nothing of their own. Normally a sweeper whose
      * whole coverage target was consumed by moves other branches own — so the
@@ -503,7 +527,7 @@ engine searches ${engine.searchCount()}`)
         `${complete.length - summary.failed.length} branch(es)` +
         `${reused.length ? ` (${reused.length} reused from an earlier run)` : ''}`,
     )
-    if (summary.failed.length) process.exitCode = 1
+    if (summary.failed.length || summary.unparseable.length) process.exitCode = 1
   } finally {
     await engine.quit()
   }
