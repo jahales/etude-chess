@@ -29,17 +29,63 @@ trap — the crawler falls back to the **engine's** refutation and labels it as 
 
 ## Prerequisites
 
-- **Node 24+** (the scripts import `.ts` domain modules directly via type stripping).
+- **Node 24+** (the scripts import `.ts` domain modules directly via type stripping, and use
+  native zstd).
 - **A Stockfish binary.** Defaults to the one En Croissant installs:
   `%APPDATA%\org.encroissant.app\engines\stockfish\stockfish-windows-x86-64-avx2.exe`.
   Override with `--engine <path>` or `STOCKFISH_PATH`.
-- **Network access to `explorer.lichess.ovh`.** Every response is cached under
+- **A source of human move statistics** — either a local book (below, recommended) or network
+  access to `explorer.lichess.ovh`. Explorer responses are cached under
   `<out-dir>/.explorer-cache`, so re-runs and threshold tuning cost zero requests.
+
+## Two sources of human statistics
+
+### A local book (recommended) — `buildBook.mjs`
+
+Builds an opening book straight from the [Lichess monthly database
+dumps](https://database.lichess.org/). Preferred over the API because it is **reproducible** (a
+fixed month, not a moving window), has no rate limit, can be filtered to any rating band and
+time control, and works offline.
+
+```bash
+node scripts/repertoire/buildBook.mjs --month 2026-06 --out out/book.json \
+     --ratings 1500-1900 --speeds blitz,rapid --max-ply 12 --max-games 800000
+```
+
+The dumps are streamed and decompressed on the fly, and the download is **aborted** once
+`--max-games` in-band games have been read — so `--max-games` decides the cost, not the file
+size. That matters: 2013-01 is 17 MB but a 2026 month is ~27 GB.
+
+```
+--month     2026-06        which monthly dump to stream     (required unless --file)
+--file      path.pgn.zst   a local dump instead
+--out       out/book.json  where to write                   (required)
+--ratings   1500-1900      both players must fall in this band
+--speeds    blitz,rapid    time controls to include
+--max-ply   12             plies recorded per game
+--max-games 800000         stop (and abort the download) after this many in-band games
+--min-games 5              drop moves seen fewer times than this
+```
+
+Then point the crawler at it with `--book out/book.json`.
+
+> **Note on the dump format.** These are *seekable* zstd: a leading skippable frame, many
+> independent ~32 MiB frames, and a trailing seek table. Node's `createZstdDecompress` decodes
+> only the **first** frame and then rejects the next frame's header — piping a dump straight
+> through it silently yields a well-formed book built from ~3% of the games, with no error.
+> `buildBook.mjs` frames the stream itself to avoid that. Verified against 2013-01, whose
+> documented total is 121,332 games.
+
+### The Lichess explorer API — `explorer.mjs`
+
+The default when `--book` is not given. Same `query(fen)` interface, so the crawler neither
+knows nor cares which it is talking to. Rating-banded via `--ratings 1600,1800` (explorer
+buckets, comma-separated — not the `min-max` range `buildBook.mjs` takes).
 
 ## First run — the Queen's Gambit
 
 ```bash
-node scripts/repertoire/crawl.mjs --color white --line "d4 d5 c4 dxc4" --out out/qga
+node scripts/repertoire/crawl.mjs --color white --line "d4 d5 c4 dxc4" --book out/book.json --out out/qga
 ```
 
 That crawls the QGA subtree: the pawn-grab problem, which is both the most valuable line for a
@@ -98,9 +144,14 @@ through as annotations.
 
 ## Caveats
 
-- **The explorer response shape is assumed, not verified here** — it could not be reached from
-  the sandbox this was written in. The client fails loudly with a clear message if the payload
-  lacks a `moves` array. If Lichess has changed the API, that error is where to look.
+- **The explorer response shape is assumed, not verified here** — `explorer.lichess.ovh` was
+  unreachable from the network this was written on (HTTP 401), which is why the local-book path
+  exists. The client fails loudly with a clear message if the payload lacks a `moves` array. If
+  Lichess has changed the API, that error is where to look. The **local book path is fully
+  verified** end to end.
+- **A book is only as deep as the games you fed it.** With too few games the crawl terminates
+  early with `out of book (0 games)` — that is the book being thin, not the position being
+  unplayable. Raise `--max-games`, or lower the crawler's `minNodeGames`.
 - **Caissabase is not used.** Its `Moves` BLOB is a legal-move index in shakmaty's generation
   order; decoding means replicating that ordering exactly. Deliberately off the critical path
   (ADR 0021), and it is a strong-player database anyway, so it cannot answer "what does a 1400

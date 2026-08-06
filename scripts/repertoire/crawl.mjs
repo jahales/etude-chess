@@ -17,6 +17,7 @@
 
 import { writeFile, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
 import { negate, winPercent } from '../../src/domain/winPercent.ts'
 import {
@@ -33,6 +34,7 @@ import {
 } from '../../src/domain/repertoire.ts'
 import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
+import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
 
 export const DEFAULTS = {
@@ -336,6 +338,7 @@ Repertoire crawler (issue #88, ADR 0021)
   --color   white | black          which side the repertoire is for   (required)
   --line    "d4 d5 c4"             curated prefix followed verbatim   (default: none)
   --out     out/qga                output basename (.json and .pgn)   (required)
+  --book    out/book.json          local book from buildBook.mjs, instead of the API
   --source  amateur | masters      explorer endpoint          (default: amateur)
   --ratings 1600,1800              rating buckets, amateur only
   --max-ply 10                     depth cap in plies         (default: ${DEFAULTS.maxPly})
@@ -358,11 +361,15 @@ async function main() {
   const forcedLine = args.line ? String(args.line).trim().split(/\s+/).filter(Boolean) : []
   const outBase = String(args.out)
 
-  const explorer = createExplorer({
-    cacheDir: join(dirname(outBase), '.explorer-cache'),
-    source: args.source === 'masters' ? 'masters' : 'amateur',
-    ratings: args.ratings ? String(args.ratings).split(',').map(Number) : undefined,
-  })
+  // A local book built by buildBook.mjs is a drop-in replacement for the API:
+  // reproducible, rate-limit-free and offline. See that script's header.
+  const explorer = args.book
+    ? await createLocalBook({ path: String(args.book) })
+    : createExplorer({
+        cacheDir: join(dirname(outBase), '.explorer-cache'),
+        source: args.source === 'masters' ? 'masters' : 'amateur',
+        ratings: args.ratings ? String(args.ratings).split(',').map(Number) : undefined,
+      })
   const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
 
   const started = Date.now()
@@ -438,7 +445,9 @@ traps found     ${r.traps.length}`)
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+// Windows gives `file:///C:/…` from import.meta.url but argv[1] is a plain path,
+// so this must go through pathToFileURL rather than string-patching slashes.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => {
     console.error(e)
     process.exit(1)
