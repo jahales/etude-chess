@@ -1,0 +1,559 @@
+[Event "Repertoire — White: 1.d4 — irregular replies"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Everything that is not 1...d5, 1...Nf6, 1...f5 or 1...e5. Mostly move-order tries that transpose; the point is not to be surprised.}
+1. d4 e6 { [%eval 0.41] }
+(1... d5 { [%eval 0.37] · covered in the "qg-sidelines" line})
+(1... Nf6 { [%eval 0.34] · covered in the "indian-sidelines" line})
+(1... e5 { [%eval 1.33] · trap · 7% play this · they score 50% where 38% is deserved · n=5332 · covered in the "englund" line})
+(1... g6 { [%eval 0.62] } 2. e4 Bg7 { [%eval 0.63] } 3. Nc3 d6 { [%eval 0.77] · quiet: 5 playable moves — judgment from here} (3... e6 { [%eval 1.30] · trap · 20% play this · they score 51% where 38% is deserved · n=92 · quiet: 5 playable moves — judgment from here}) (3... c6 { [%eval 0.67] · quiet: 5 playable moves — judgment from here}) (3... b6 { [%eval 1.15] · quiet: 5 playable moves — judgment from here}) (3... c5 { [%eval 0.87] · quiet: 5 playable moves — judgment from here}))
+(1... c6 { [%eval 0.48] } 2. c4 d5 { [%eval 0.41] } (2... d6 { [%eval 0.80] } 3. Nc3 Nf6 { [%eval 0.85] · quiet: 5 playable moves — judgment from here} (3... Qc7 { [%eval 0.98] · quiet: 5 playable moves — judgment from here})) 3. Nc3 Nf6 { [%eval 0.40] · quiet: 5 playable moves — judgment from here} (3... e6 { [%eval 0.43] · quiet: 5 playable moves — judgment from here}) (3... Bf5 { [%eval 1.02] · trap · 16% play this · they score 47% where 41% is deserved · n=317 · quiet: 3 playable moves — judgment from here}))
+2. c4 d5 { [%eval 0.36] }
+(2... c5 { [%eval 0.79] } 3. d5 exd5 { [%eval 1.05] } (3... d6 { [%eval 0.89] · quiet: 5 playable moves — judgment from here}) (3... Nf6 { [%eval 0.84] · quiet: 5 playable moves — judgment from here}) 4. cxd5 {quiet: 5 playable moves — judgment from here})
+(2... Nf6 { [%eval 0.35] } 3. Nf3 d5 { [%eval 0.35] · quiet: 5 playable moves — judgment from here} (3... Bb4+ { [%eval 0.44] · quiet: 4 playable moves — judgment from here}) (3... c5 { [%eval 0.78] · quiet: 4 playable moves — judgment from here}) (3... b6 { [%eval 0.29] · quiet: 5 playable moves — judgment from here}))
+(2... b6 { [%eval 0.74] } 3. e4 Bb7 { [%eval 0.83] · quiet: 5 playable moves — judgment from here})
+(2... d6 { [%eval 0.66] } 3. Nc3 {beyond master theory — chosen from club play} c6 { [%eval 1.10] · quiet: 5 playable moves — judgment from here} (3... h6 { [%eval 1.01] · quiet: 5 playable moves — judgment from here}) (3... Nf6 { [%eval 0.90] · quiet: 5 playable moves — judgment from here}))
+(2... c6 { [%eval 0.57] } 3. Nc3 {beyond master theory — chosen from club play} d5 { [%eval 0.43] · quiet: 5 playable moves — judgment from here})
+3. Nc3 Nf6 { [%eval 0.30] · quiet: 5 playable moves — judgment from here}
+(3... c6 { [%eval 0.43] · quiet: 5 playable moves — judgment from here})
+(3... Bb4 { [%eval 0.36] · quiet: 5 playable moves — judgment from here})
+(3... dxc4 { [%eval 0.82] · quiet: 4 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: Queen's Gambit — rare 2nd moves"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The tail after 2.c4: early bishop sorties and pawn moves. Two of the repertoire's confirmed traps live here, both punished the same way — take on d5 and hit b7.}
+1. d4 d5 2. c4 Bf5 { [%eval 0.91] }
+(2... e6 { [%eval 0.36] · covered in the "qgd-exchange" line})
+(2... dxc4 { [%eval 0.43] · covered in the "qga" line})
+(2... c6 { [%eval 0.41] · covered in the "slav-white" line})
+(2... Nf6 { [%eval 0.68] · covered in the "marshall-defence" line}) 3. Nc3
+{beyond master theory — chosen from club play} e6
+{ [%eval 0.55] · quiet: 5 playable moves — judgment from here}
+(3... Nf6 { [%eval 0.80] · quiet: 4 playable moves — judgment from here})
+(3... dxc4?! { [%eval 1.57] } 4. e4 {beyond master theory — chosen from club play} Bg6 { [%eval 1.39] · quiet: 5 playable moves — judgment from here})
+*
+
+[Event "Repertoire — White: QGD Exchange — the Carlsbad"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 e6 cxd5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{One structure, one plan: the minority attack with b4-b5. The best understanding-per-unit-theory in the repertoire, which is why the Exchange rather than the main line.}
+1. d4 d5 2. c4 e6 3. cxd5 exd5 { [%eval 0.33] }
+(3... Qxd5 { [%eval 0.75] } 4. Nc3 {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here})
+4. Nc3 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — White: QGA — do not chase the pawn"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 dxc4 e3"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The priority line. White does not rush to regain c4; develop and let the attempt to HOLD the pawn cost Black the position. The break to know is a4 against ...b5.}
+1. d4 d5 2. c4 dxc4 3. e3 Nf6 { [%eval 0.31] }
+(3... e6 { [%eval 0.33] } 4. Bxc4 {quiet: 5 playable moves — judgment from here})
+(3... b5 { [%eval 1.10] } 4. a4 {quiet: 5 playable moves — judgment from here})
+(3... e5 { [%eval 0.41] } 4. Bxc4 {quiet: 5 playable moves — judgment from here})
+(3... Bf5 { [%eval 0.73] } 4. Bxc4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(3... Nc6 { [%eval 0.51] } 4. Bxc4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4. Bxc4 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — White: Slav — the White side"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 c6 Nf3"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The same structure we play as Black. Learning it from both sides is the point of pairing the Queen's Gambit with the Slav.}
+1. d4 d5 2. c4 c6 3. Nf3 Nf6 { [%eval 0.37] }
+(3... Bf5 { [%eval 0.92] } 4. Nc3 e6 { [%eval 0.63] · quiet: 3 playable moves — judgment from here} (4... Nf6 { [%eval 0.77] · quiet: 5 playable moves — judgment from here}))
+(3... Bg4 { [%eval 1.11] · trap · 16% play this · they score 46% where 40% is deserved · n=114} 4. Nc3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(3... e6 { [%eval 0.37] } 4. e3 {quiet: 5 playable moves — judgment from here})
+4. Nc3 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — White: Albin Counter-Gambit"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 e5 dxe5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Common at this band and objectively bad, which is exactly the combination worth an evening. Note the trap here is OURS to avoid: 4.e3?? Bb4+ is the Lasker Trap, and the generator will not show it because it only ever picks sound moves for us.}
+1. d4 d5 2. c4 e5 3. dxe5 d4 { [%eval 0.77] } 4. Nf3
+{beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here}
+*
+
+[Event "Repertoire — White: Marshall Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 Nf6 cxd5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Refuted by taking the centre. A clean illustration that a developing move can be a mistake if it ignores the middle of the board.}
+1. d4 d5 2. c4 Nf6 3. cxd5 Nxd5 { [%eval 1.13] }
+(3... Qxd5 { [%eval 0.99] } 4. Nc3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4. e4 {beyond master theory — chosen from club play} Nf6
+{ [%eval 0.59] · quiet: 5 playable moves — judgment from here}
+(4... Nb6 { [%eval 0.74] · quiet: 5 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: Chigorin Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 Nc6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Sideline coverage. Black gives up the centre for piece play; we are happy to take it.}
+1. d4 d5 2. c4 Nc6 3. Nc3 {beyond master theory — chosen from club play} dxc4
+{ [%eval 0.81] }
+(3... Nf6 { [%eval 0.66] · quiet: 5 playable moves — judgment from here})
+(3... e6 { [%eval 0.63] · quiet: 5 playable moves — judgment from here}) 4. Nf3
+{beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}
+*
+
+[Event "Repertoire — White: 1...Nf6 2.c4 — the rest"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 Nf6 c4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Benoni, ...c6 and ...b6 move orders. Where theory explodes, so depth here is set by measured frequency, not ambition.}
+1. d4 Nf6 2. c4 d5 { [%eval 0.70] }
+(2... e6 { [%eval 0.33] · covered in the "indian-e6" line})
+(2... g6 { [%eval 0.59] · covered in the "indian-g6" line})
+(2... e5 { [%eval 0.75] · covered in the "budapest" line})
+(2... c5 { [%eval 0.76] } 3. d5 b5 { [%eval 0.69] · quiet: 5 playable moves — judgment from here} (3... e6 { [%eval 0.78] · quiet: 5 playable moves — judgment from here}) (3... d6 { [%eval 0.90] · quiet: 5 playable moves — judgment from here}))
+3. cxd5 Nxd5 { [%eval 1.13] · quiet: 5 playable moves — judgment from here}
+(3... Qxd5 { [%eval 0.99] } 4. Nc3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+*
+
+[Event "Repertoire — White: 1...Nf6 2.c4 e6 — Nimzo/QGD complex"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 Nf6 c4 e6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Plan level only. Many of these transpose straight back into the Queen's Gambit lines above.}
+1. d4 Nf6 2. c4 e6 3. Nf3 d5
+{ [%eval 0.35] · quiet: 5 playable moves — judgment from here}
+(3... Bb4+ { [%eval 0.43] · quiet: 4 playable moves — judgment from here})
+(3... c5 { [%eval 0.78] · quiet: 4 playable moves — judgment from here})
+(3... b6 { [%eval 0.29] · quiet: 5 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: 1...Nf6 2.c4 g6 — King's Indian / Grünfeld"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 Nf6 c4 g6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{Plan level only. Two completely different games depending on whether Black plays ...d6 or ...d5; knowing which one you are in is most of the battle.}
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7
+{ [%eval 0.58] · quiet: 5 playable moves — judgment from here}
+(3... d5 { [%eval 0.42] · quiet: 5 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: Budapest Gambit"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 Nf6 c4 e5 dxe5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "11"]
+
+{Common here, and carries a smothered-mate trap for the greedy White player. Worth knowing from the side that is supposed to be better.}
+1. d4 Nf6 2. c4 e5 3. dxe5 Ng4 { [%eval 0.71] } 4. Nf3 Bc5 { [%eval 0.58] }
+(4... Nc6 { [%eval 0.68] · quiet: 5 playable moves — judgment from here}) 5. e3
+Nc6 { [%eval 0.62] · quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — White: Dutch Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 f5 g3"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "11"]
+
+{Sideline coverage. Fianchetto and take the long diagonal; the h1-a8 diagonal is what 1...f5 gave away.}
+1. d4 f5 2. g3 Nf6 { [%eval 0.59] } 3. Bg2 {out of book (0 games)} *
+
+[Event "Repertoire — White: Englund Gambit"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 e5 dxe5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Objectively junk that scores absurdly well below 1600 — the definition of a line worth preparing. Take the pawn and keep it.}
+1. d4 e5 2. dxe5 Nc6 { [%eval 1.26] }
+(2... d6 { [%eval 1.45] } 3. exd6 {beyond master theory — chosen from club play} Bxd6 { [%eval 1.09] · quiet: 5 playable moves — judgment from here})
+(2... Bc5 { [%eval 1.71] } 3. Nf3 {beyond master theory — chosen from club play} d6 { [%eval 1.72] } (3... Nc6 { [%eval 1.52] · quiet: 5 playable moves — judgment from here}) 4. exd6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+3. Nf3 Qe7 { [%eval 1.46] · quiet: 4 playable moves — judgment from here}
+(3... Bc5 { [%eval 1.52] · quiet: 5 playable moves — judgment from here})
+(3... d6 { [%eval 1.45] · quiet: 3 playable moves — judgment from here}) *
+
+[Event "Repertoire — Black: Caro-Kann — White's 2nd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "e4 c6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{Everything except 2.d4: the two-knights, 2.c4, 2.Nf3 and the pass moves. Mostly transpositions back into the main structures.}
+1. e4 c6 2. Nf3 { [%eval 0.30] }
+(2. d4 { [%eval 0.39] · covered in the "caro-2d4" line})
+(2. Bc4 { [%eval -0.37] } 2... d5 {beyond master theory — chosen from club play} 3. exd5 { [%eval -0.44] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. Nc3 { [%eval 0.24] } 2... d5 3. exd5 { [%eval -0.09] } (3. Nf3 { [%eval 0.36] } 3... Bg4 {quiet: 5 playable moves — judgment from here}) (3. d4 { [%eval 0.24] } 3... dxe4 4. Nxe4 { [%eval 0.25] · quiet: 5 playable moves — judgment from here} (4. f3 { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play · depth cap}) (4. Bc4 { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51 · quiet: 3 playable moves — judgment from here})) 3... cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+2... d5 3. exd5 { [%eval 0.25] }
+(3. e5 { [%eval 0.43] } 3... Bg4 {quiet: 4 playable moves — judgment from here})
+(3. Nc3 { [%eval 0.36] } 3... Bg4 {quiet: 5 playable moves — judgment from here})
+3... cxd5 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Caro-Kann — 2.d4 d5, White's 3rd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "e4 c6 d4 d5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The junction of the whole defence. White must now commit: push, take, or defend e4. The three main answers each get their own branch; this covers the rest (3.Nd2, 3.f3, 3.Be3).}
+1. e4 c6 2. d4 d5 3. f3 { [%eval 0.36] }
+(3. e5 { [%eval 0.35] · covered in the "caro-advance" line})
+(3. exd5 { [%eval 0.27] · covered in the "caro-exchange" line})
+(3. Nc3 { [%eval 0.21] · covered in the "caro-classical" line})
+(3. Nd2 { [%eval 0.27] } 3... dxe4 4. Nxe4 { [%eval 0.25] · quiet: 5 playable moves — judgment from here})
+3... dxe4 {beyond master theory — chosen from club play} 4. fxe4
+{ [%eval 0.29] · quiet: 4 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Caro-Kann Classical — 3.Nc3 dxe4"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "e4 c6 d4 d5 Nc3 dxe4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The Classical, heading for ...Bf5 — the problem bishop gets outside the pawn chain before ...e6 shuts it in. Learning THIS rather than 4...Nd7 also sidesteps 5.Qe2 Ngf6?? 6.Nd6#, which is the one Caro-Kann trap everyone falls for once.}
+1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 { [%eval 0.25] }
+(4. f3 { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play} 5. Nxf3 { [%eval -0.55] · quiet: 4 playable moves — judgment from here})
+(4. Bc4 { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51} 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4... Bf5 5. Ng3 { [%eval 0.44] }
+(5. Ng5 { [%eval -0.23] · trap · 19% play this · they score 49% where 48% is deserved · n=116 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label · quiet: 4 playable moves — judgment from here})
+(5. Bd3?! { [%eval -0.35] · quiet: 3 playable moves — judgment from here})
+5... Bg6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Caro-Kann Advance — 3.e5 Bf5"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "e4 c6 d4 d5 e5 Bf5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{A French structure with the good bishop already outside — the entire point of playing 1...c6 rather than 1...e6.}
+1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 { [%eval 0.38] }
+(4. Bd3 { [%eval 0.20] } 4... Bxd3 {beyond master theory — chosen from club play} 5. Qxd3 { [%eval 0.19] · quiet: 5 playable moves — judgment from here})
+(4. h4 { [%eval 0.31] } 4... h5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. f4 { [%eval -0.30] · trap · 9% play this · they score 52% where 47% is deserved · n=180 · WARNING: punishment unconfirmed (only 53% after our reply) — play it out, don't trust the label} 4... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. c3 { [%eval 0.24] } 4... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. g4 { [%eval 0.05] } 4... Bg6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4... e6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Caro-Kann Exchange and Panov — 3.exd5 cxd5"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "e4 c6 d4 d5 exd5 cxd5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{White chooses between the quiet Exchange (4.Bd3) and the Panov (4.c4), which hands us an IQP position — the same structure the Queen's Gambit gives us from the other side.}
+1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Nf3 { [%eval 0.32] }
+(4. Nc3 { [%eval -0.02] } 4... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. Bd3 { [%eval 0.31] } 4... Nc6 {quiet: 4 playable moves — judgment from here})
+(4. c4 { [%eval 0.31] } 4... Nf6 {quiet: 5 playable moves — judgment from here})
+4... Nc6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: 1.d4 d5 — White's 2nd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{The London, Jobava and Colle setups, which appear constantly at this band and are played almost regardless of what we do. Plans, not theory.}
+1. d4 d5 2. Bf4 { [%eval 0.21] }
+(2. c4 { [%eval 0.35] · covered in the "slav" line})
+(2. Nf3 { [%eval 0.22] } 2... Nf6 3. e3 { [%eval 0.11] } (3. Bf4 { [%eval 0.20] } 3... c5 {quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.32] } 3... c6 {quiet: 5 playable moves — judgment from here}) (3. Bg5 { [%eval -0.21] } 3... e6 {quiet: 5 playable moves — judgment from here}) (3. g3 { [%eval 0.15] } 3... e6 {quiet: 5 playable moves — judgment from here}) 3... c5 {quiet: 5 playable moves — judgment from here})
+(2. e3 { [%eval 0.18] } 2... Nf6 {beyond master theory — chosen from club play} 3. Nf3 { [%eval 0.16] } (3. Bd3 { [%eval -0.32] } 3... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.10] } 3... dxc4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. f4 { [%eval -0.54] · trap · 8% play this · they score 50% where 45% is deserved · n=114 · WARNING: punishment unconfirmed (only 55% after our reply) — play it out, don't trust the label} 3... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. Nc3 { [%eval -0.26] } 3... Bf5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... c5 {quiet: 5 playable moves — judgment from here})
+(2. Nc3 { [%eval -0.01] } 2... Nf6 3. Bf4 { [%eval -0.02] } (3. Bg5 { [%eval -0.16] } 3... Bf5 {quiet: 5 playable moves — judgment from here}) (3. Nf3 { [%eval -0.22] } 3... e6 {quiet: 5 playable moves — judgment from here}) (3. e4 { [%eval -0.70] · trap · 10% play this · they score 51% where 44% is deserved · n=158} 3... dxe4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... e6 {quiet: 5 playable moves — judgment from here})
+(2. e4 { [%eval -0.68] · trap · 4% play this · they score 55% where 44% is deserved · n=1288} 2... dxe4 3. Nc3 { [%eval -0.71] } (3. f3 { [%eval -0.80] } 3... exf3 {beyond master theory — chosen from club play} 4. Nxf3 { [%eval -0.71] · quiet: 5 playable moves — judgment from here} (4. Qxf3 { [%eval -1.41] · quiet: 5 playable moves — judgment from here})) 3... Nf6 {quiet: 5 playable moves — judgment from here})
+2... Nf6 {beyond master theory — chosen from club play} 3. e3 { [%eval 0.14] }
+(3. Nf3 { [%eval 0.20] } 3... c5 {quiet: 5 playable moves — judgment from here})
+3... g6
+{beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}
+*
+
+[Event "Repertoire — Black: Slav — White's 3rd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 c6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{The c6-d5 chain, the same one the Caro-Kann builds. One structural idea covers the entire Black repertoire.}
+1. d4 d5 2. c4 c6 3. Nc3 { [%eval 0.41] }
+(3. Nf3 { [%eval 0.32] · covered in the "slav-main" line})
+(3. cxd5 { [%eval 0.31] · covered in the "slav-exchange" line})
+(3. e3 { [%eval 0.33] } 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(3. c5 { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+3... Nf6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Slav main line — 3.Nf3 Nf6"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 c6 Nf3 Nf6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{Where ...dxc4 followed by ...Bf5 becomes available: the resource that makes the Slav more than a passive defence.}
+1. d4 d5 2. c4 c6 3. Nf3 Nf6 4. Nc3 { [%eval 0.39] }
+(4. g3 { [%eval 0.30] } 4... Bf5 {quiet: 5 playable moves — judgment from here})
+(4. e3 { [%eval 0.38] } 4... e6 {quiet: 5 playable moves — judgment from here})
+(4. Bg5 { [%eval -0.44] } 4... Bf5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4... e6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: Exchange Slav — 3.cxd5 cxd5"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "d4 d5 c4 c6 cxd5 cxd5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Appears constantly and is far less drawish than its reputation below master level. Symmetry is not equality; the half-open c-file is the whole game.}
+1. d4 d5 2. c4 c6 3. cxd5 cxd5 4. Nc3 { [%eval 0.32] }
+(4. Nf3 { [%eval 0.23] } 4... Nf6 {quiet: 5 playable moves — judgment from here})
+(4. Bf4 { [%eval 0.29] } 4... Nc6 {quiet: 4 playable moves — judgment from here})
+4... Nf6 {quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: 1.c4 — into Slav structures"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "c4 c6"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Steer toward the same c6-d5 chain rather than learning a separate anti-English system.}
+1. c4 c6 2. Nc3 { [%eval 0.34] }
+(2. d4 { [%eval 0.35] } 2... d5 3. Nc3 { [%eval 0.41] } (3. Nf3 { [%eval 0.32] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. cxd5 { [%eval 0.31] } 3... cxd5 {quiet: 5 playable moves — judgment from here}) (3. e3 { [%eval 0.33] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. c5 { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(2. g3 { [%eval 0.21] } 2... d5 3. cxd5 { [%eval -0.28] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. e3 { [%eval 0.20] } 2... d5 {beyond master theory — chosen from club play} 3. cxd5 { [%eval 0.09] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+2... d5 3. cxd5 { [%eval 0.27] }
+(3. d4 { [%eval 0.41] } 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(3. e3 { [%eval 0.17] } 3... Nf6 {quiet: 5 playable moves — judgment from here})
+3... cxd5 {quiet: 3 playable moves — judgment from here} *
+
+[Event "Repertoire — Black: 1.Nf3 — into Slav structures"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.06"]
+[White "Opponent"]
+[Black "Repertoire"]
+[Result "*"]
+[Annotator "Stockfish + Lichess explorer"]
+[Opening "Nf3 d5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Same idea: take the centre and transpose into what we already know.} 1. Nf3 d5
+2. d4 { [%eval 0.25] }
+(2. g3 { [%eval 0.25] } 2... Nf6 3. Bg2 { [%eval 0.28] } e6 {quiet: 5 playable moves — judgment from here})
+(2. c4 { [%eval -0.03] } 2... c6 3. e3 { [%eval 0.43] } (3. cxd5 { [%eval 0.26] } 3... cxd5 {quiet: 5 playable moves — judgment from here}) (3. d4 { [%eval 0.39] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(2. e4?! { [%eval -1.23] · trap · 12% play this · they score 53% where 39% is deserved · n=352} 2... dxe4 {beyond master theory — chosen from club play} 3. Ng5 { [%eval -1.06] } (3. Ne5 { [%eval -1.21] } 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {beyond master theory — chosen from club play} 4. d3 { [%eval -1.59] · trap · 47% play this · they score 52% where 36% is deserved · n=217 · quiet: 3 playable moves — judgment from here} (4. Nc3 { [%eval -1.16] · trap · 35% play this · they score 47% where 40% is deserved · n=160 · quiet: 4 playable moves — judgment from here}) (4. Bc4 { [%eval -0.34] } 4... e6 {beyond master theory — chosen from club play · depth cap}))
+(2. e3 { [%eval 0.26] } 2... Nc6 {beyond master theory — chosen from club play} 3. d4 { [%eval 0.47] } Bg4 {quiet: 5 playable moves — judgment from here})
+2... Nf6 3. e3 { [%eval 0.11] }
+(3. Bf4 { [%eval 0.21] } 3... c5 {quiet: 5 playable moves — judgment from here})
+(3. c4 { [%eval 0.32] } 3... c6 {quiet: 5 playable moves — judgment from here})
+(3. Bg5 { [%eval -0.09] } 3... e6 {quiet: 5 playable moves — judgment from here})
+(3. g3 { [%eval 0.15] } 3... e6 {quiet: 5 playable moves — judgment from here})
+3... c5 {quiet: 5 playable moves — judgment from here} *

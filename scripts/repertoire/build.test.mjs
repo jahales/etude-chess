@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Chess } from 'chess.js'
@@ -428,5 +428,27 @@ describe('pgnError — the artefact check', () => {
     expect(summarise([{ ...r, pgnError: 'boom' }]).unparseable).toEqual([
       { id: 'exchange', error: 'boom' },
     ])
+  })
+})
+
+describe('readBranch — a reused branch is checked, not assumed', () => {
+  it('parses the PGN it reads back', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rep-reuse-'))
+    const [written] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, written)
+    expect((await readBranch(dir, ENTRIES[1])).pgnError).toBeNull()
+  })
+
+  it('reports a branch an older renderer left unreadable', async () => {
+    // The case that matters: the renderer changed between runs, so what is on
+    // disk was produced by code that no longer exists. Trusting it would report
+    // a clean repertoire built mostly from files nobody looked at.
+    const dir = mkdtempSync(join(tmpdir(), 'rep-reuse-'))
+    const [written] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, written)
+    writeFileSync(join(dir, 'exchange.pgn'), '[Event "t"]\n\n1. d4 d5 { a } { b } *\n')
+    const read = await readBranch(dir, ENTRIES[1])
+    expect(read.pgnError).toBeTruthy()
+    expect(summarise([read]).unparseable).toHaveLength(1)
   })
 })

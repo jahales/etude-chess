@@ -20,8 +20,11 @@ position is the item**. The moves leading to it are scaffolding to get you out o
 with a position you can think in. This is what keeps openings inside constitution §1 (train
 judgment, not memory of lines); see [decisions/0021](decisions/0021-opening-repertoire-generator.md).
 
-Depth is therefore **variable**: a floor of ~6 ply, a cap of ~10 ply (the "5 moves deep" ask),
-and lines stop as soon as they go quiet. Sharp lines run longer because they must.
+Depth is therefore **variable**, and measured from each branch's own starting point rather than
+from move one: a branch crawls two plies before it may stop and six before it must. Lines end as
+soon as they go quiet, so sharp lines run longer because they have to. A flat depth would be
+wrong in both directions — it truncates a branch that starts deep before it can find a quiet
+position, and it pads a "don't be surprised by 1...c5" sweeper with moves that carry no decision.
 
 ## White — 1.d4, Queen's Gambit spine
 
@@ -142,6 +145,13 @@ said we would have. `build.mjs` counts, per branch and in total:
 - **quiet targets** — terminal positions that pose a judgment. The items actually worth
   training, and the reason this is a repertoire rather than a deck.
 
-The current numbers live in `out/repertoire/summary.json` after a build. Read `ourDecisions`
-first: if it ever climbs past what one person can hold, the answer is to cut branches from this
-file, not to crawl shallower.
+**v1, built 2026-08-06: 25 branches, 361 positions, `ourDecisions` = 132, answering 213 replies,
+with 136 quiet positions to train.** Full numbers in
+[`repertoire/summary.json`](../repertoire/summary.json); the built repertoire is
+[`repertoire/`](../repertoire/README.md).
+
+Read `ourDecisions` first: if it ever climbs past what one person can hold, the answer is to cut
+branches from this file, not to crawl shallower. A shallower crawl buys the same repertoire with
+the trainable positions chopped off.
+
+The London stays cut. 132 decisions is manageable, which is what that section wanted to know.

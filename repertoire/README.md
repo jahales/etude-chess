@@ -16,6 +16,51 @@ at quiet positions instead of teaching lines: ADR
 [0021](../docs/decisions/0021-opening-repertoire-generator.md). Why branches own subtrees: ADR
 [0022](../docs/decisions/0022-repertoire-branch-ownership.md).
 
+## v1 — 2026-08-06
+
+**25 branches · 361 positions · 132 decisions of yours, answering 213 of theirs · 136 quiet
+positions to train.**
+
+`ourDecisions` — 132 — is the honest price: positions where you must know which move you play.
+Everything else is coverage bought with it. This is the number
+[repertoire-v1.md](../docs/repertoire-v1.md) promised rather than guessed when it cut the
+London; if it ever climbs past what one person can hold, cut branches from the manifest rather
+than crawling shallower, because a shallower crawl buys the same repertoire with the trainable
+positions chopped off.
+
+| | |
+|---|---|
+| Deviations to prepare | **18** ranked traps, **3** of which we cannot actually punish (marked in the PGN) |
+| Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
+| Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
+| Engine | Stockfish, 120,000 nodes, **Threads=1** — anything else is not reproducible |
+| Settings | `--trap 0.01 --min-node-games 20` (see below) |
+
+### What it does not cover, stated rather than discovered across the board
+
+- **1.e4 as White.** Deliberate: one first move at a time. The planned expansion.
+- **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch. Rare enough at
+  this band that the answer is "develop normally and transpose", which a 300k-game crawl has
+  little to say about.
+- **77 lines that look like traps but have under 50 games.** Listed in `summary.json` under
+  `tooRareToJudge` rather than dropped — a rare line may be the vicious one, we just cannot yet
+  tell it from a coin flip. A bigger book is the answer, not a lower floor.
+- **One line ran out of book** before going quiet, and one node hit the evaluation cap. Both are
+  in `summary.json`. That is the book being thin, not the position being unplayable.
+
+### Two settings that are not the defaults, and why
+
+`--trap 0.01`, not `0.05`. Measured on this band, real club traps land between **0.005 and
+0.05** — the Albin Counter-Gambit scores 0.0154 and the Chigorin 0.0096, and the default flags
+neither. The constant in [`repertoire.ts`](../src/domain/repertoire.ts) is unchanged: one
+build's distribution is not enough evidence to move a default.
+
+`--min-node-games 20`, not `50`. **The band book's size is the binding constraint on this
+repertoire**, and it shows in the sidelines: `1.d4 f5 2.g3` has 24 games in a 300k-game book, so
+at the default floor the Dutch branch was empty. Twenty is consistent with `coverByMass`, which
+already refuses to *cover* a move with under 20 games. The real fix is a larger book, and the
+sideline branches will deepen when there is one.
+
 ## How to read it
 
 Each line runs until the position goes **quiet** — no hidden tactic, several playable moves,

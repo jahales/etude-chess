@@ -229,6 +229,7 @@ export async function writeBranch(outDir, r) {
  */
 export async function readBranch(outDir, entry) {
   const saved = JSON.parse(await readFile(join(outDir, `${entry.id}.json`), 'utf8'))
+  const pgn = await readFile(join(outDir, `${entry.id}.pgn`), 'utf8')
   return {
     entry: resolveEntry(entry),
     crawled: {
@@ -239,7 +240,12 @@ export async function readBranch(outDir, entry) {
     },
     delegations: new Map(Object.entries(saved.delegations ?? {})),
     load: saved.load,
-    pgn: await readFile(join(outDir, `${entry.id}.pgn`), 'utf8'),
+    pgn,
+    // Checked on the way back in, not assumed. A reused branch was written by a
+    // different version of the renderer as often as not, and reporting "no
+    // unparseable branches" without having looked at most of them is the same
+    // silent success this check exists to catch.
+    pgnError: pgnError(pgn),
     seconds: 0,
     reused: true,
   }
