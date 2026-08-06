@@ -10,7 +10,7 @@
 // through it yields a perfectly well-formed book built from the first 32 MiB
 // with no error at all. Hence framing it ourselves.
 
-import { zstdDecompressSync } from 'node:zlib'
+import { createZstdDecompress } from 'node:zlib'
 
 export const ZSTD_FRAME = 0xfd2fb528 // bytes 28 b5 2f fd, read little-endian
 export const SKIPPABLE_LO = 0x184d2a50
@@ -145,70 +145,61 @@ export async function* decompressFrames(source, opts = {}) {
       throw new Error(`unexpected zstd magic 0x${magic.toString(16)} — not a zstd stream?`)
     }
 
-    // Find this frame's end: the next frame boundary, or EOF.
-    let end = -1
-    let from = 4
-    for (;;) {
-      for (let i = from; i + 4 <= buf.length; i++) {
-        if (isFrameStart(buf, i)) {
-          end = i
-          break
-        }
-      }
-      if (end !== -1) break
-      from = Math.max(4, buf.length - 3)
-      if (!(await pullAtLeast(PULL_BATCH))) {
-        end = buf.length
-        break
+    // Let the decoder find the frame boundary; do NOT scan for the next magic.
+    //
+    // Scanning was the original design and it is unsound: a 4-byte magic occurs
+    // by chance inside compressed data, and "does the candidate decode?" is not
+    // a usable test because zstd happily returns partial output for truncated
+    // input. So a false boundary decodes to a short frame, we resume mid-data,
+    // and the *next* read reports an impossible magic — which is exactly how
+    // this failed, at an identical offset on every attempt.
+    //
+    // A streaming decompressor consumes exactly one frame and then reports
+    // `bytesWritten`: the frame's true compressed length, to the byte.
+    const z = createZstdDecompress()
+    const parts = []
+    let ended = false
+    let failure = null
+    z.on('data', (c) => parts.push(c))
+    z.on('end', () => {
+      ended = true
+    })
+    z.on('error', (e) => {
+      failure = e
+      ended = true
+    })
+
+    let written = 0
+    while (!ended) {
+      if (written < buf.length) {
+        const slice = buf.subarray(written)
+        written = buf.length
+        z.write(slice)
+      } else if (!(await pullAtLeast(PULL_BATCH))) {
+        z.end() // no more input — the decoder must now resolve or fail
       }
       if (buf.length > maxFrameBytes) throw damaged('no zstd frame boundary')
+      await new Promise((resolve) => setImmediate(resolve))
     }
 
-    // A frame magic can occur by chance inside compressed data (~1 in 4 billion
-    // per offset), so a boundary that fails to decode is treated as a false
-    // positive and we look past it. The decode itself is the validation.
-    let out
-    for (;;) {
-      try {
-        const candidate = buf.subarray(0, end)
-        const decoded = zstdDecompressSync(candidate)
-        // Decode "success" is not enough — see declaredContentSize. If the
-        // frame says how big it should be and we got less, the stream is torn,
-        // and continuing would quietly build a book from partial data.
-        const declared = declaredContentSize(candidate)
-        if (declared !== null && decoded.length !== declared) {
-          if (sourceDone) {
-            throw damaged(
-              `frame decoded to ${decoded.length} bytes but declares ${declared}; truncated`,
-            )
-          }
-          // More bytes may still arrive for this frame; treat the boundary as a
-          // false positive and keep looking.
-          throw new Error('incomplete frame')
-        }
-        out = decoded
-        break
-      } catch (err) {
-        if (err.message?.startsWith('frame decoded to')) throw err
-        let next = -1
-        for (let i = end + 1; i + 4 <= buf.length; i++) {
-          if (isFrameStart(buf, i)) {
-            next = i
-            break
-          }
-        }
-        if (next === -1) {
-          if (buf.length > maxFrameBytes) throw damaged('could not decode a zstd frame', err)
-          if (await pullAtLeast(PULL_BATCH)) continue
-          throw new Error('could not decode zstd frame at end of stream', { cause: err })
-        }
-        end = next
-      }
+    if (failure) {
+      // Keep the remedy in the message: by the time anyone reads this they want
+      // to know which file to delete, not which zlib errno fired.
+      throw damaged(`zstd frame failed to decode ${consumed} bytes in`, failure)
+    }
+
+    const frameLength = z.bytesWritten
+    const out = Buffer.concat(parts)
+
+    // Belt and braces: if the header declares a size, hold the decode to it.
+    const declared = declaredContentSize(buf)
+    if (declared !== null && out.length !== declared) {
+      throw damaged(`frame decoded to ${out.length} bytes but declares ${declared}; truncated`)
     }
 
     yield out
-    buf = buf.subarray(end)
-    consumed += end
+    buf = buf.subarray(frameLength)
+    consumed += frameLength
     onConsumed?.(consumed)
     if (buf.length === 0 && sourceDone) return
   }

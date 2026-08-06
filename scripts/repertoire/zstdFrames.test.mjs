@@ -115,6 +115,28 @@ describe('decompressFrames', () => {
     await expect(collect(chunked(half))).rejects.toThrow(/truncated|damaged/)
   })
 
+  it('is not fooled by a frame magic occurring inside compressed data', async () => {
+    // THE bug. Boundaries used to be found by scanning for the 4-byte magic,
+    // validated by "does it decode?" — which proves nothing, since zstd returns
+    // partial output for truncated input. A chance magic therefore cut a frame
+    // short, the stream resumed mid-data, and the next read reported an
+    // impossible magic. It failed at an identical offset every single time.
+    //
+    // Random data is stored near-raw, so planting the magic in the payload puts
+    // it in the compressed bytes too.
+    const magic = Buffer.from([0x28, 0xb5, 0x2f, 0xfd])
+    const payload = randomBytes(120_000)
+    for (const at of [10_000, 50_000, 90_000]) magic.copy(payload, at)
+    const stream = Buffer.concat([zstdCompressSync(payload), frame('!tail')])
+
+    const out = []
+    for await (const chunk of decompressFrames(chunked(stream))) out.push(chunk)
+    const joined = Buffer.concat(out)
+    expect(joined.length).toBe(payload.length + 5)
+    expect(joined.subarray(0, payload.length).equals(payload)).toBe(true)
+    expect(joined.subarray(payload.length).toString()).toBe('!tail')
+  })
+
   it('reads the declared size, or reports none when absent', async () => {
     expect(declaredContentSize(zstdCompressSync(Buffer.from('abc')))).toBe(3)
     expect(declaredContentSize(Buffer.alloc(2))).toBeNull()
