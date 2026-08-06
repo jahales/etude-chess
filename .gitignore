@@ -41,6 +41,11 @@ data/
 syzygy/
 scratch/
 
+# Repertoire generator output and its explorer cache (issue #88).
+# Regenerate with scripts/repertoire/crawl.mjs — see that directory's README.
+/out/
+.explorer-cache/
+
 # Maia spike: the weights are fetched via scripts/setup-maia.mjs, not committed
 # (but keep the NOTICE tracked for GPL compliance).
 public/models/*.onnx

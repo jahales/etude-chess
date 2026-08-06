@@ -1,0 +1,139 @@
+import { describe, it, expect } from 'vitest'
+import { fenKey, toPgn, type RepertoireNode } from './repertoirePgn'
+
+// Real FENs, so the fenKey plumbing is exercised rather than stubbed.
+const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+const AFTER_D4 = 'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1'
+const AFTER_D5 = 'rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2'
+const AFTER_NF6 = 'rnbqkb1r/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2'
+
+const node = (children: RepertoireNode['children'], rest: Partial<RepertoireNode> = {}) =>
+  ({ children, ...rest }) as RepertoireNode
+
+const base = { forcedSans: [], ourColor: 'w' as const, date: '2026-08-05' }
+
+describe('fenKey', () => {
+  it('ignores clocks so transpositions collapse to one node', () => {
+    expect(fenKey('8/8/8/8/8/8/8/K6k w - - 4 30')).toBe(fenKey('8/8/8/8/8/8/8/K6k w - - 0 1'))
+  })
+})
+
+describe('toPgn', () => {
+  it('numbers a simple main line', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' }])],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('1. d4 d5')
+  })
+
+  it('parenthesises alternatives and restates the number after them', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          { san: 'd5', fen: AFTER_D5, reason: 'mass' },
+          { san: 'Nf6', fen: AFTER_NF6, reason: 'mass' },
+        ]),
+      ],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('1. d4 d5 (1... Nf6)')
+  })
+
+  it('annotates an opponent move by how much it gives up', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [
+        fenKey(AFTER_D4),
+        node([
+          { san: 'd5', fen: AFTER_D5, reason: 'mass', swing: 2 },
+          { san: 'Nf6', fen: AFTER_NF6, reason: 'trap', swing: 30 },
+        ]),
+      ],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('d5') // sound: no suffix
+    expect(pgn).not.toContain('d5?')
+    expect(pgn).toContain('Nf6??')
+    expect(pgn).toContain('{trap: overperforms its evaluation}')
+  })
+
+  it('never annotates our own moves', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours', swing: 40 }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).not.toContain('d4?')
+  })
+
+  it('marks a refutation the explorer was too sparse to supply', () => {
+    // After a trap, the punishing move is often unplayed in human games, so the
+    // crawler falls back to the engine. The PGN should say so rather than imply
+    // it came from human play.
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours-engine', swing: 0 }])],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('1. d4')
+    expect(pgn).not.toContain('d4?')
+    expect(pgn).toContain('{engine refutation — too rare to appear in human play}')
+  })
+
+  it('reports a dead end distinctly from running out of book', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'no-sound-move' })],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain('{no sound continuation found}')
+  })
+
+  it('comments a quiet terminal so the trainer shows where judgment starts', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('{quiet: 4 playable moves — judgment from here}')
+  })
+
+  it('distinguishes the other two terminal reasons', () => {
+    const cap = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'depth-cap' })],
+    ])
+    expect(toPgn({ ...base, nodes: cap, rootFen: START })).toContain('{depth cap}')
+
+    const book = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'out-of-book', games: 7 })],
+    ])
+    expect(toPgn({ ...base, nodes: book, rootFen: START })).toContain('{out of book (7 games)}')
+  })
+
+  it('replays the curated prefix before the crawled tree', () => {
+    const nodes = new Map([[fenKey(AFTER_D5), node([])]])
+    const pgn = toPgn({
+      ...base,
+      nodes,
+      rootFen: AFTER_D5,
+      forcedSans: ['d4', 'd5'],
+    })
+    expect(pgn).toContain('1. d4 d5')
+    expect(pgn).toContain('[Opening "d4 d5"]')
+  })
+
+  it('writes headers naming the side the repertoire is for', () => {
+    const nodes = new Map([[fenKey(START), node([])]])
+    const asBlack = toPgn({ ...base, ourColor: 'b', nodes, rootFen: START })
+    expect(asBlack).toContain('[Event "Repertoire — Black"]')
+    expect(asBlack).toContain('[Black "Repertoire"]')
+    expect(asBlack).toContain('[Date "2026.08.05"]')
+    expect(asBlack.trimEnd().endsWith('*')).toBe(true)
+  })
+
+  it('survives a tree whose root is unknown', () => {
+    expect(() => toPgn({ ...base, nodes: new Map(), rootFen: START })).not.toThrow()
+  })
+})
