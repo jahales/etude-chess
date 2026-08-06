@@ -121,8 +121,20 @@ export function coverByMass(
 // Traps — frequency-weighted regret, pointed at the opponent
 // ---------------------------------------------------------------------------
 
-/** Below this win% loss a move is an inaccuracy, not a trap worth a drill. */
-export const TRAP_MIN_SWING = 10
+/**
+ * A move must give up more than this to be a trap candidate. Anchored to
+ * TIER_A_MAX_SWING (repertoire.test.ts pins them together): Tier A means "as
+ * good as best", so anything inside it is a legitimate alternative, not a
+ * mistake anyone needs preparing against.
+ *
+ * Deliberately *not* set higher. Real club traps are often only worth half a
+ * pawn — the Albin Counter-Gambit gives up around 5 win% and still scores over
+ * 50% at 1500–1900, which is precisely the material worth an hour of study. A
+ * higher gate silently discards the entire gambit family, and `outperformance`
+ * is what separates signal from noise here anyway: a merely-inferior move that
+ * scores as badly as it deserves still yields a trapValue of zero.
+ */
+export const TRAP_MIN_SWING = 5
 
 export interface TrapInput {
   /** How often the move is played here, 0–1. */

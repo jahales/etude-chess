@@ -422,16 +422,25 @@ export async function buildBook(opts) {
       chess.reset()
       for (let i = 0; i < Math.min(maxPly, moves.length); i++) {
         const key = fenKey(chess.fen())
-        let node = book.get(key)
-        if (!node) book.set(key, (node = new Map()))
-        let tally = node.get(moves[i])
-        if (!tally) node.set(moves[i], (tally = [0, 0, 0]))
-        tally[outcome]++
+        // Record under chess.js's *canonical* SAN, not the raw token. PGN in
+        // the wild carries suffix annotations (`Bf5?!`) and over-disambiguated
+        // forms, and keying on the raw text silently splits one move's
+        // statistics across several entries. That bites hardest exactly where
+        // it matters: `?`/`??` land on bad-but-popular moves, so the split
+        // strands part of every trap's record in a rare entry that pruning
+        // then deletes.
+        let move
         try {
-          if (!chess.move(moves[i])) break
+          move = chess.move(moves[i])
         } catch {
           break // malformed movetext — abandon this game, keep the book
         }
+        if (!move) break
+        let node = book.get(key)
+        if (!node) book.set(key, (node = new Map()))
+        let tally = node.get(move.san)
+        if (!tally) node.set(move.san, (tally = [0, 0, 0]))
+        tally[outcome]++
       }
 
       kept++

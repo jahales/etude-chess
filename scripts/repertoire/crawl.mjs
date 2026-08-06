@@ -55,8 +55,13 @@ export const DEFAULTS = {
    * needs a lower bar before we fall back to band data for our own move.
    */
   minCanonGames: 20,
-  /** Cap on per-child engine evaluations at one opponent node. */
-  maxEvalPerNode: 10,
+  /**
+   * Cap on per-child engine evaluations at one opponent node. Candidates are
+   * taken in frequency order, so this cap chops the *tail* — which is where
+   * traps live by definition. Set high enough that a normal opening node is
+   * covered whole; the run reports any node it truncates.
+   */
+  maxEvalPerNode: 20,
 }
 
 function applyUci(fen, uci) {
@@ -390,6 +395,11 @@ Repertoire crawler (issue #88, ADR 0021)
   --nodes   400000                 engine budget per position
   --mass    0.85                   opponent coverage target
   --trap    0.05                   trapValue threshold
+  --max-eval       20              opponent moves evaluated per node. Candidates
+                                   come in frequency order, so this cap chops the
+                                   tail — where traps live. Raise it to hunt.
+  --min-node-games 50              stop expanding below this many games
+  --max-replies    6               most opponent moves covered at one node
   --engine  <path>                 Stockfish binary
                                    (default: ${DEFAULT_ENGINE_PATH})
 `
@@ -439,6 +449,9 @@ async function main() {
       deepNodes: args.nodes ? Number(args.nodes) : undefined,
       massTarget: args.mass ? Number(args.mass) : undefined,
       trapThreshold: args.trap ? Number(args.trap) : undefined,
+      maxEvalPerNode: args['max-eval'] ? Number(args['max-eval']) : undefined,
+      minNodeGames: args['min-node-games'] ? Number(args['min-node-games']) : undefined,
+      maxOpponentMoves: args['max-replies'] ? Number(args['max-replies']) : undefined,
     })
 
     await mkdir(dirname(outBase), { recursive: true })

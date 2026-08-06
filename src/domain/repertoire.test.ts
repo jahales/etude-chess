@@ -116,6 +116,18 @@ describe('trapValue', () => {
     expect(trapValue({ ...base, swing: TRAP_MIN_SWING })).toBeGreaterThan(0)
   })
 
+  it('gates on Tier A, so the two cannot drift apart', () => {
+    expect(TRAP_MIN_SWING).toBe(TIER_A_MAX_SWING)
+  })
+
+  it('catches a club gambit that is only mildly unsound but overperforms', () => {
+    // The Albin at 1500–1900: ~3.9% of replies to 2.c4, gives up roughly 5 win%,
+    // and still scores 50.9% where ~42% is deserved. A higher gate would throw
+    // away the whole gambit family, which is the material most worth studying.
+    const albin = { frequency: 0.039, swing: 5.5, practical: 0.509, expected: 0.42 }
+    expect(trapValue(albin)).toBeGreaterThan(0)
+  })
+
   it('ranks the more common of two equally unsound traps higher', () => {
     const rare = trapValue({ ...base, frequency: 0.01 })
     const common = trapValue({ ...base, frequency: 0.08 })
