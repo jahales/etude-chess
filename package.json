@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "description": "A personal chess coach — v0.1.0: coached guess-the-move on master games.",
   "license": "MIT",
   "scripts": {
@@ -41,6 +44,7 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.64.0",
     "vite": "^6.0.7",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "zstd-napi": "^0.0.13"
   }
 }

@@ -344,3 +344,93 @@ describe('crawl — stopping', () => {
     ).rejects.toThrow(/illegal move/)
   })
 })
+
+// A repertoire is many crawls, and the property it must have is that you know
+// which move you play. Where two branches of the manifest overlap, one owns the
+// subtree and the other stops — see src/domain/repertoirePlan.ts.
+describe('crawl — delegating a subtree to another branch', () => {
+  const BOOK = {
+    'd4 d5 c4': [
+      { san: 'e6', w: 300, d: 100, b: 300 },
+      { san: 'e5', w: 20, d: 0, b: 80 },
+    ],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 e5': [{ san: 'dxe5', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 e6 Nc3': [{ san: 'Nf6', w: 400, d: 100, b: 300 }],
+  }
+
+  const delegated = (opts) =>
+    run({
+      engine: stubEngine({ scores: { [at('d4 d5 c4 e5')]: 300 } }),
+      explorer: stubBook(BOOK),
+      delegations: new Map([['d4 d5 c4 e6', 'qgd-exchange']]),
+      ...opts,
+    })
+
+  it('stops at the boundary instead of choosing a move the owner will choose', async () => {
+    const result = await delegated()
+    const node = [...result.nodes.values()].find((n) => (n.line ?? []).join(' ') === 'd4 d5 c4 e6')
+    expect(node).toMatchObject({ terminal: true, terminalReason: 'delegated', delegatedTo: 'qgd-exchange' })
+    expect(node.children).toEqual([])
+    // and nothing beyond it was crawled
+    expect([...result.nodes.values()].some((n) => (n.line ?? []).join(' ').startsWith('d4 d5 c4 e6 '))).toBe(false)
+  })
+
+  it('records the boundary on the move, so the PGN can point at the owner', async () => {
+    const result = await delegated()
+    expect(childFor(result, 'd4 d5 c4', 'e6').delegatedTo).toBe('qgd-exchange')
+  })
+
+  it('keeps crawling everything the boundary does not cover', async () => {
+    const result = await delegated()
+    expect(childFor(result, 'd4 d5 c4', 'e5')).toBeTruthy()
+    expect([...result.nodes.values()].some((n) => (n.line ?? []).join(' ') === 'd4 d5 c4 e5')).toBe(true)
+    expect(result.report.delegated).toEqual([{ line: 'd4 d5 c4 e6', to: 'qgd-exchange' }])
+  })
+
+  it('does not report a delegated trap as unverified — the owner verifies it', async () => {
+    // Otherwise every sweeper prints "punishment not verified" over a line that
+    // has in fact been checked, which trains you to ignore the warning that
+    // matters.
+    const result = await delegated({ delegations: new Map([['d4 d5 c4 e5', 'albin']]) })
+    const trap = childFor(result, 'd4 d5 c4', 'e5')
+    expect(trap.reason).toContain('trap')
+    expect(trap.delegatedTo).toBe('albin')
+    expect(result.report.unverifiedTraps).toEqual([])
+    expect(result.report.unpunishedTraps).toEqual([])
+  })
+
+  it('still lists a delegated trap in the report, so the sweeper says what it found', async () => {
+    const result = await delegated({ delegations: new Map([['d4 d5 c4 e5', 'albin']]) })
+    expect(result.report.traps.map((t) => t.line)).toContain('d4 d5 c4 e5')
+  })
+
+  it('never delegates its own root', async () => {
+    const result = await delegated({ delegations: new Map([['d4 d5 c4', 'somewhere-else']]) })
+    expect(result.report.delegated).toEqual([])
+    expect(result.nodes.size).toBeGreaterThan(1)
+  })
+
+  it('can delegate one of our own moves, not just theirs', async () => {
+    const result = await run({
+      ourColor: 'b',
+      forcedLine: ['d4', 'd5', 'c4'],
+      engine: stubEngine(),
+      explorer: stubBook(BOOK),
+      delegations: new Map([['d4 d5 c4 e6', 'slav']]),
+    })
+    expect(result.report.delegated).toEqual([{ line: 'd4 d5 c4 e6', to: 'slav' }])
+  })
+
+  it('behaves exactly as before when nothing is delegated', async () => {
+    const plain = await run({ engine: stubEngine(), explorer: stubBook(BOOK) })
+    expect(plain.report.delegated).toEqual([])
+    expect(plain.report.terminal.delegated).toBe(0)
+    expect(childFor(plain, 'd4 d5 c4', 'e6').delegatedTo).toBeUndefined()
+  })
+
+  it('accepts a plain object as well as a Map', async () => {
+    const result = await delegated({ delegations: { 'd4 d5 c4 e6': 'qgd-exchange' } })
+    expect(result.report.delegated).toEqual([{ line: 'd4 d5 c4 e6', to: 'qgd-exchange' }])
+  })
+})
