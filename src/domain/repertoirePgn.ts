@@ -405,8 +405,21 @@ export function toPgn(input: PgnInput): string {
     `[Event "Repertoire — ${colour}${input.name ? `: ${safeTag(input.name)}` : ''}"]`,
     `[Site "etude-chess repertoire generator"]`,
     `[Date "${date.replace(/-/g, '.')}"]`,
-    `[White "${colour === 'White' ? 'Repertoire' : 'Opponent'}"]`,
-    `[Black "${colour === 'Black' ? 'Repertoire' : 'Opponent'}"]`,
+    // Deliberately unknown, and this is what makes the file navigable. En
+    // Croissant's game list calls getGameName, which prefers the player tags and
+    // only falls back to [Event]:
+    //
+    //   if ((headers.white && headers.white !== "?") || (headers.black && …))
+    //       return `${headers.white} - ${headers.black}`
+    //   if (headers.event) return headers.event
+    //
+    // Naming the players "Repertoire"/"Opponent" therefore beat [Event], and
+    // every branch in a file appeared as the same string — so there was no way
+    // to see which variation you were selecting, and practice defaulted to
+    // whichever branch happened to be first. "?" is the PGN standard placeholder
+    // for an unknown player, and it lets the branch name through.
+    `[White "?"]`,
+    `[Black "?"]`,
     `[Result "*"]`,
     // Not decoration: En Croissant's practice mode builds its deck with
     // `headers.orientation || "white"`, so without this a Black repertoire

@@ -242,9 +242,32 @@ describe('toPgn', () => {
     const nodes = new Map([[fenKey(START), node([])]])
     const asBlack = toPgn({ ...base, ourColor: 'b', nodes, rootFen: START })
     expect(asBlack).toContain('[Event "Repertoire — Black"]')
-    expect(asBlack).toContain('[Black "Repertoire"]')
     expect(asBlack).toContain('[Date "2026.08.05"]')
     expect(asBlack.trimEnd().endsWith('*')).toBe(true)
+  })
+
+  it('leaves the player tags unknown so a trainer falls through to [Event]', () => {
+    // Measured against En Croissant, which is what actually consumes these
+    // files. Its getGameName is:
+    //
+    //   if ((headers.white && headers.white !== "?") || (headers.black && ...))
+    //       return `${headers.white} - ${headers.black}`
+    //   if (headers.event) return headers.event
+    //
+    // Naming the players therefore *wins over* [Event], and every branch in a
+    // file listed identically as "Repertoire - Opponent" — so there was no way
+    // to tell which variation you were about to drill. "?" is the PGN standard
+    // placeholder for an unknown player and lets the branch name through.
+    const nodes = new Map([[fenKey(START), node([])]])
+    for (const ourColor of ['w', 'b'] as const) {
+      const pgn = toPgn({ ...base, ourColor, nodes, rootFen: START, name: 'Caro-Kann Advance' })
+      expect(pgn).toContain('[White "?"]')
+      expect(pgn).toContain('[Black "?"]')
+      expect(pgn).not.toContain('[White "Repertoire"]')
+      expect(pgn).not.toContain('[Black "Opponent"]')
+      // The branch name is the thing a game list must show.
+      expect(pgn).toMatch(/\[Event "Repertoire — (White|Black): Caro-Kann Advance"\]/)
+    }
   })
 
   it('survives a tree whose root is unknown', () => {
@@ -614,8 +637,12 @@ describe('toPgn — glyphs actually appear on a realistic tree', () => {
 
   it('marks every move outside Tier A and nothing inside it', () => {
     const pgn = toPgn({ ...base, nodes: tree(), rootFen: START })
+    // Movetext only. Scanning the whole string counted the `?` in the player
+    // tags, which are the PGN placeholder for an unknown player — the headers
+    // have never been where move glyphs live.
+    const movetext = pgn.slice(pgn.lastIndexOf(']\n') + 2)
     // 0.1, 2 and 4 are Tier A; the other five are not.
-    expect((pgn.match(/[?!]+/g) ?? []).length).toBe(5)
+    expect((movetext.match(/[?!]+/g) ?? []).length).toBe(5)
   })
 
   it('uses the whole scale rather than collapsing to one glyph', () => {
