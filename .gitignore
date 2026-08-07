@@ -34,6 +34,11 @@ venv/
 # Chess data & engines — large binaries/datasets, don't commit
 # (Lichess DB dumps, Stockfish/Maia binaries, Syzygy tablebases, generated item pools)
 data/
+# ...except the ECO name table, which is 388 KB of CC0 facts and is *required*
+# to build — without it every variation label silently disappears. The blanket
+# rule above swallowed it, `git add -A` said nothing, and CI was the only thing
+# that noticed. See scripts/repertoire/data/README.md.
+!scripts/repertoire/data/
 *.pgn
 *.pgn.zst
 *.bin

@@ -26,6 +26,7 @@ import {
   DEFAULT_MANIFEST,
   ROLE_DEPTH_OFFSET,
   GLOBAL_MIN_PLY,
+  crawlOrder,
   badRoles,
   MIN_OWN_PLIES,
 } from './build.mjs'
@@ -1080,5 +1081,91 @@ describe('--check validates roles', () => {
 
   it('accepts every role in the shipped manifest', async () => {
     expect(badRoles(parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8')))).toEqual([])
+  })
+})
+
+describe('transpositions across branches', () => {
+  // The bug the user hit: `1.d4 e6 2.c4 d5` and `1.d4 d5 2.c4 e6` are one
+  // board by two orders. SAN-keyed ownership cannot see that, so the sweeper
+  // answered 3.Nc3 and the QGD Exchange branch 3.cxd5 — and En Croissant's
+  // trainer keeps whichever card it walked first.
+  const TRANS_BOOK = stubBook({
+    d4: [
+      { san: 'd5', w: 400, d: 100, b: 300 },
+      { san: 'e6', w: 200, d: 50, b: 150 },
+    ],
+    'd4 d5': [{ san: 'c4', w: 400, d: 100, b: 300 }],
+    'd4 e6': [{ san: 'c4', w: 400, d: 100, b: 300 }],
+    'd4 e6 c4': [{ san: 'd5', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4': [{ san: 'e6', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [
+      { san: 'cxd5', w: 400, d: 100, b: 300 },
+      { san: 'Nc3', w: 380, d: 100, b: 300 },
+    ],
+    'd4 d5 c4 e6 cxd5': [{ san: 'exd5', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 e6 Nc3': [{ san: 'Nf6', w: 400, d: 100, b: 300 }],
+  })
+
+  const ENTRIES2 = [
+    { id: 'sweeper', name: 'Sidelines', color: 'w', line: 'd4', role: 'sweeper', maxPly: 8 },
+    { id: 'exchange', name: 'Exchange', color: 'w', line: 'd4 d5 c4 e6 cxd5', maxPly: 8 },
+  ]
+
+  const build2 = (opts = {}) =>
+    buildAll({
+      entries: ENTRIES2,
+      engine: stubEngine(),
+      explorer: TRANS_BOOK,
+      date: '2026-08-06',
+      defaults: { minPly: 99 },
+      ...opts,
+    })
+
+  /** Every position this branch decided, and the move it decided on. */
+  const answers = (r) => {
+    const out = new Map()
+    for (const n of r.crawled.nodes.values()) {
+      if (n.ours && n.children?.length) out.set(n.fen.split(' ').slice(0, 4).join(' '), n.children[0].san)
+    }
+    return out
+  }
+
+  it('leaves no position with two different answers', async () => {
+    const results = await build2()
+    const seen = new Map()
+    const clashes = []
+    for (const r of results) {
+      for (const [fen, san] of answers(r)) {
+        if (seen.has(fen) && seen.get(fen).san !== san) {
+          clashes.push({ fen, a: seen.get(fen), b: { branch: r.entry.id, san } })
+        }
+        if (!seen.has(fen)) seen.set(fen, { branch: r.entry.id, san })
+      }
+    }
+    expect(clashes).toEqual([])
+  })
+
+  it('crawls the owning branch before the branch that would transpose in', async () => {
+    // Role order decides: curated first, then sweepers, then signposts. Without
+    // it the sweeper answers the position and the curated line is the one that
+    // gets dropped.
+    expect(crawlOrder(ENTRIES2).map((e) => e.id)).toEqual(['exchange', 'sweeper'])
+  })
+
+  it('reports the hand-over rather than making it silently', async () => {
+    const results = await build2()
+    const sweeper = results.find((r) => r.entry.id === 'sweeper')
+    expect(sweeper.crawled.report.transposed.length).toBeGreaterThan(0)
+    expect(sweeper.crawled.report.transposed[0].to).toBe('exchange')
+  })
+
+  it('still writes the branches in manifest order', async () => {
+    const results = await build2()
+    expect(results.map((r) => r.entry.id)).toEqual(['sweeper', 'exchange'])
+  })
+
+  it('leaves a manifest with no transpositions untouched', async () => {
+    const before = await build(ENTRIES)
+    expect(before.every((r) => r.crawled.report.transposed.length === 0)).toBe(true)
   })
 })

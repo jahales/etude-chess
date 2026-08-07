@@ -233,7 +233,9 @@ describe('toPgn', () => {
       forcedSans: ['d4', 'd5'],
     })
     expect(pgn).toContain('1. d4 d5')
-    expect(pgn).toContain('[Opening "d4 d5"]')
+    // The prefix moved to [Variation]; [Opening] is a name, which is what every
+    // reader of that tag expects and what a player can act on.
+    expect(pgn).toContain('[Variation "d4 d5"]')
   })
 
   it('writes headers naming the side the repertoire is for', () => {
@@ -628,5 +630,152 @@ describe('toPgn — glyphs actually appear on a realistic tree', () => {
     const marked = swings.filter((s) => s > 5).length
     const wouldHaveBeen = swings.filter((s) => s > 10).length
     expect(marked).toBeGreaterThan(wouldHaveBeen)
+  })
+})
+
+describe('toPgn — the variation a move commits to', () => {
+  // "I really need to see that target variation somewhere otherwise I'm left
+  // guessing among candidate moves." Both 3.cxd5 and 3.Nc3 are sound; what
+  // separates them is which variation you are learning.
+  const tree = (entersVariation?: string) =>
+    new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const, entersVariation }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })],
+    ])
+
+  it('names the variation on our move', () => {
+    const pgn = toPgn({ ...base, nodes: tree('Queen’s Gambit Declined: Exchange Variation'), rootFen: START })
+    expect(pgn).toContain('→ Queen’s Gambit Declined: Exchange Variation')
+  })
+
+  it('says nothing when the move commits to nothing new', () => {
+    expect(toPgn({ ...base, nodes: tree(), rootFen: START })).not.toContain('→')
+  })
+
+  it('keeps it in the same comment as everything else the move has to say', () => {
+    const nodes = new Map([
+      [
+        fenKey(START),
+        node([
+          {
+            san: 'd4',
+            fen: AFTER_D4,
+            reason: 'ours' as const,
+            source: 'band' as const,
+            entersVariation: 'Some Variation',
+          },
+        ]),
+      ],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).not.toMatch(/\}\s*\{/)
+    expect(pgn).toContain('beyond master theory')
+    expect(pgn).toContain('→ Some Variation')
+  })
+
+  it('still loads in a parser', () => {
+    const chess = new Chess()
+    chess.loadPgn(toPgn({ ...base, nodes: tree('QGD: Exchange'), rootFen: START }))
+    expect(chess.history()).toEqual(['d4'])
+  })
+
+  it('strips braces from a name, as from every other injected string', () => {
+    const pgn = toPgn({ ...base, nodes: tree('We{ir}d'), rootFen: START })
+    expect(pgn).toContain('→ Weird')
+  })
+})
+
+describe('toPgn — the opening headers say what they are supposed to', () => {
+  const simple = () =>
+    new Map([[fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])]])
+
+  it('puts a name in [Opening] and a code in [ECO]', () => {
+    const pgn = toPgn({
+      ...base,
+      nodes: simple(),
+      rootFen: START,
+      opening: "Queen's Gambit Declined: Exchange Variation",
+      eco: 'D35',
+    })
+    expect(pgn).toContain('[ECO "D35"]')
+    expect(pgn).toContain('[Opening "Queen\'s Gambit Declined: Exchange Variation"]')
+  })
+
+  it('omits both when the branch heads nowhere named', () => {
+    const pgn = toPgn({ ...base, nodes: simple(), rootFen: START })
+    expect(pgn).not.toContain('[ECO ')
+    expect(pgn).not.toContain('[Opening ')
+  })
+
+  it('keeps the curated prefix, under the tag that means a move sequence', () => {
+    const pgn = toPgn({ ...base, forcedSans: ['d4', 'd5'], nodes: simple(), rootFen: START })
+    expect(pgn).toContain('[Variation "d4 d5"]')
+  })
+})
+
+describe('toPgn — labels on the curated prefix', () => {
+  // The prefix moves are the branch's own decisions — `3.cxd5` in the QGD
+  // Exchange is *why* the branch exists — and the trainer makes cards from them
+  // like any other. Rendering them bare left the most important forks unlabelled.
+  const simple = () =>
+    new Map([[fenKey(AFTER_D5), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })]])
+
+  it('annotates a prefix move', () => {
+    const pgn = toPgn({
+      ...base,
+      forcedSans: ['d4', 'd5'],
+      prefixNotes: [null, null],
+      nodes: simple(),
+      rootFen: AFTER_D5,
+    })
+    expect(pgn).toContain('1. d4 d5')
+  })
+
+  it('puts the variation on the prefix move that commits to it', () => {
+    const pgn = toPgn({
+      ...base,
+      forcedSans: ['d4', 'd5'],
+      prefixNotes: [null, 'Queen’s Gambit Declined: Exchange Variation'],
+      nodes: simple(),
+      rootFen: AFTER_D5,
+    })
+    // Folded into the move's single comment, as every other note is. Asserted
+    // on content, not adjacency — `wrap` breaks the line at 80 characters.
+    expect(pgn).toContain('→ Queen’s Gambit Declined: Exchange Variation')
+    expect(pgn.replace(/\s+/g, ' ')).toContain('1. d4 d5 {→ Queen’s Gambit Declined')
+    expect(pgn).not.toMatch(/\}\s*\{/)
+  })
+
+  it('leaves an unlabelled prefix move bare', () => {
+    const pgn = toPgn({
+      ...base,
+      forcedSans: ['d4', 'd5'],
+      prefixNotes: ['Queen’s Pawn Game', null],
+      nodes: simple(),
+      rootFen: AFTER_D5,
+    })
+    expect(pgn).toContain('→ Queen’s Pawn Game')
+    expect(pgn.match(/→/g)).toHaveLength(1)
+  })
+
+  it('works with no notes at all, as before', () => {
+    const pgn = toPgn({ ...base, forcedSans: ['d4', 'd5'], nodes: simple(), rootFen: AFTER_D5 })
+    expect(pgn).toContain('1. d4 d5')
+    expect(pgn).not.toContain('→')
+  })
+
+  it('still loads in a parser with prefix comments', () => {
+    const chess = new Chess()
+    chess.loadPgn(
+      toPgn({
+        ...base,
+        forcedSans: ['d4', 'd5'],
+        prefixNotes: [null, 'QGD: Exchange'],
+        nodes: simple(),
+        rootFen: AFTER_D5,
+      }),
+    )
+    expect(chess.history()).toEqual(['d4', 'd5'])
   })
 })

@@ -49,6 +49,17 @@ export interface RepertoireChild {
   /** Win% the mover gives up versus best, 0–100. Absent on our own moves. */
   swing?: number
   /**
+   * The named variation this move commits the line to, when it changes one.
+   *
+   * The reason a repertoire prefers one sound move over another. Without it a
+   * trainer that demands 3.cxd5 over 3.Nc3 is indistinguishable from guessing —
+   * both are fine, and "the engine liked it slightly more" is not something a
+   * player can act on. "This is the Exchange Variation" is.
+   */
+  entersVariation?: string
+  /** ECO code for `entersVariation`. */
+  eco?: string
+  /**
    * Name of the manifest branch that owns everything after this move. Set when
    * a multi-branch build hands the subtree to another crawl, so a trap can point
    * at where its refutation lives instead of claiming to have verified it here.
@@ -96,6 +107,23 @@ export interface PgnInput {
   name?: string
   /** Why this branch exists, emitted as the comment before the first move. */
   why?: string
+  /**
+   * The named variation this branch heads for, and its ECO code.
+   *
+   * `[Opening]` used to hold the curated prefix in SAN — a move list in a tag
+   * that every reader expects to contain a name.
+   */
+  opening?: string
+  eco?: string
+  /**
+   * A variation name per curated-prefix move, or null where it commits to
+   * nothing new. Parallel to `forcedSans`.
+   *
+   * The prefix moves are the branch's own decisions — `3.cxd5` is *why* the QGD
+   * Exchange branch exists — and the trainer makes cards from them like any
+   * other move. Rendering them bare left the most important forks unlabelled.
+   */
+  prefixNotes?: (string | null)[]
 }
 
 /** PGN comments are `{...}`, so a brace inside one would close it early. */
@@ -197,6 +225,8 @@ function childComment(child: RepertoireChild): string | null {
     }
     if (typeof child.games === 'number') bits.push(`n=${child.games}`)
   }
+
+  if (child.entersVariation) bits.push(`→ ${safeComment(child.entersVariation)}`)
 
   if (child.delegatedTo) {
     // Where another branch owns everything after this move, that is the rest of
@@ -364,7 +394,11 @@ export function toPgn(input: PgnInput): string {
   // The curated prefix runs contiguously from ply 0, so no black move in it
   // needs to restate its number.
   const tokens = input.why ? [`{${safeComment(input.why)}}`] : []
-  tokens.push(...forcedSans.map((san, i) => token(san, i, false)))
+  for (const [i, san] of forcedSans.entries()) {
+    tokens.push(token(san, i, false))
+    const note = input.prefixNotes?.[i]
+    if (note) tokens.push(`{→ ${safeComment(note)}}`)
+  }
   tokens.push(...emitFrom(nodes, rootFen, forcedSans.length, false))
 
   const headers = [
@@ -381,7 +415,9 @@ export function toPgn(input: PgnInput): string {
     // that; this tag is what the trainer actually reads.
     `[Orientation "${colour.toLowerCase()}"]`,
     `[Annotator "Stockfish + Lichess explorer"]`,
-    ...(forcedSans.length ? [`[Opening "${safeTag(forcedSans.join(' '))}"]`] : []),
+    ...(input.eco ? [`[ECO "${safeTag(input.eco)}"]`] : []),
+    ...(input.opening ? [`[Opening "${safeTag(input.opening)}"]`] : []),
+    ...(forcedSans.length ? [`[Variation "${safeTag(forcedSans.join(' '))}"]`] : []),
     // Provenance is not bookkeeping. Multithreaded Stockfish at a fixed node
     // count is not reproducible, and every number here was silently
     // unrepeatable until that was found — so an evaluation without the

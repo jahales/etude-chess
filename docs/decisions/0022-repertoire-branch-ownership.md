@@ -1,6 +1,6 @@
 # 0022 — One repertoire from many crawls: each branch owns its subtree
 
-**Status:** Accepted · 2026-08-06 · **amended 2026-08-06** (depth, below)
+**Status:** Accepted · 2026-08-06 · **amended 2026-08-06** (depth) and **2026-08-07** (transpositions)
 **Extends:** ADR [0021](0021-opening-repertoire-generator.md) (the generator itself)
 **Relates to:** [repertoire-v1.md](../repertoire-v1.md) (the spec) · issue #92
 
@@ -36,10 +36,26 @@ owns, so an incremental rebuild could reintroduce the contradiction the full bui
    branches could differ — with ownership to the *shortest* branch reaching through it, so
    `1.d4` hands 1...d5 to the Queen's Gambit sweeper and not to the QGD Exchange beneath it.
 
-3. **Ownership is keyed on the SAN line, not the position.** It is a statement about *this
-   manifest*, which is written in move order; a position reached by a different order is a
-   different line of study even when the boards match. Within a crawl, transpositions still
-   collapse on the FEN key exactly as before.
+3. **Ownership is keyed on the SAN line** — and, since 2026-08-07, **also on the position**.
+   The line key is a statement about *this manifest*, which is written in move order. The
+   position key is what stops a transposition slipping past it.
+
+   > **Amended 2026-08-07.** This originally said ownership was keyed on the SAN line *and not*
+   > the position, on the reasoning that a position reached by a different order is a different
+   > line of study. Drilling the result showed that to be wrong in the one way that matters.
+   >
+   > `1.d4 e6 2.c4 d5` and `1.d4 d5 2.c4 e6` are the same board. The sidelines sweeper answered
+   > 3.Nc3; the QGD Exchange branch forces 3.cxd5. En Croissant builds one card per *position*
+   > and keeps whichever it walked first, so the trainer demanded one move while the PGN showed
+   > the other as a legitimate line — **one position with two answers**, which is the single
+   > thing the rest of this ADR exists to prevent. It was reached through a move order, so the
+   > line key could not see it.
+   >
+   > Branches therefore crawl **owners first** — the `role` order already ranks them: curated,
+   > sweeper, signpost — and each registers every position it decides, including those in its
+   > curated prefix, where a branch like the QGD Exchange keeps its whole point. A later branch
+   > that transposes in stops and names the owner. 27 lines defer that way; decisions fell from
+   > 336 to 269, because the duplicated study went with it.
 
 4. **The plan is validated before any engine time is spent**, and a coverage gap is an error,
    not a warning. A gap is safe only when every ply the owner forces past the boundary is *our*
@@ -85,10 +101,12 @@ owns, so an incremental rebuild could reintroduce the contradiction the full bui
   > — a role never makes a branch shallower than four plies past its own prefix, so on a deep
   > curated prefix all three roles land on the same number. What changed is that the per-branch
   > rule is now a minimum on top of a role-dependent floor rather than the only rule.
-- Move-order coverage is bounded by what the manifest lists. A line reached only by an unusual
-  order is crawled by whichever branch reaches it, and may be crawled twice by two branches.
-  Accepted: duplicate study of a transposition is cheap, and the alternative — position-keyed
-  ownership across separate crawls — makes ownership depend on crawl order.
+- Move-order coverage is bounded by what the manifest lists: a line reached only by an order no
+  branch begins with is not crawled at all.
+
+  > **Amended 2026-08-07.** This used to continue "…and may be crawled twice by two branches.
+  > Accepted: duplicate study of a transposition is cheap." Duplicate study is cheap; duplicate
+  > **answers** are not, and that is what it turned out to mean in practice. See decision 3.
 - The **theory-load numbers** fall out for free: decisions of ours, replies of theirs, quiet
   targets, per branch and in total. repertoire-v1.md cut the London on the promise of "a number
   we will have, not a guess"; this is where that number comes from.
@@ -102,6 +120,8 @@ owns, so an incremental rebuild could reintroduce the contradiction the full bui
   2nd-move bishop sorties that no curated line would have named.
 - **Let the last write win in the merged PGN.** Hides the contradiction instead of resolving it,
   and makes the repertoire depend on manifest order.
-- **Position-keyed ownership across crawls.** Would collapse transpositions between branches,
-  but ownership would then depend on which branch ran first — a repertoire that changes when
-  you reorder the manifest.
+- ~~**Position-keyed ownership across crawls.**~~ Rejected here on 2026-08-06 because ownership
+  would depend on which branch ran first, making the repertoire change when you reorder the
+  manifest. **Adopted 2026-08-07** once that objection was answered rather than accepted: crawl
+  order is not arbitrary, it is the `role` order, so "whichever ran first" is always the branch
+  you are actually learning. The objection was sound; the conclusion drawn from it was not.

@@ -43,8 +43,42 @@ at quiet positions instead of teaching lines: ADR
 
 ## v1 — 2026-08-06
 
-**25 branches · 796 positions · 336 decisions of yours, answering 465 of theirs · 190 quiet
+**25 branches · 662 positions · 269 decisions of yours, answering 386 of theirs · 132 quiet
 positions to train.** Curated lines run to move 5–6 for both sides.
+
+### Which variation am I learning?
+
+The question a repertoire has to answer, because several moves are usually
+sound and the trainer accepts exactly one. `[ECO]` and `[Opening]` name what
+each branch heads for, and **our move carries the variation it commits to** at
+the point it commits:
+
+```
+1. d4 {→ Queen's Pawn Game} d5 2. c4 {→ Queen's Gambit} e6 3. cxd5
+{→ Queen's Gambit Declined: Exchange Variation, Positional Variation} exd5
+```
+
+Only on a change, so "Queen's Gambit Declined" does not repeat down twelve
+plies and bury the label that matters. Names come from
+[lichess-org/chess-openings](../scripts/repertoire/data/README.md) — CC0.
+
+Found by looking **forward** through the branch's own tree rather than naming
+the position: the table indexes named *lines*, and `1.d4 d5 2.c4 e6 3.cxd5` is
+unnamed at this move order even though the Exchange Variation is named at three
+others. Naming the position would have said nothing at exactly the fork that
+needed it.
+
+### One position, one answer
+
+Ownership used to be keyed on the move order, so a transposition slipped
+through: `1.d4 e6 2.c4 d5` and `1.d4 d5 2.c4 e6` are one board reached two
+ways, and the sidelines sweeper answered 3.Nc3 where the QGD Exchange branch
+forces 3.cxd5. En Croissant keeps whichever card it walked first, so the
+trainer demanded one move while showing the other as a legitimate line.
+
+Branches now crawl owners-first — the role order — and register the positions
+they decide, so a later branch that transposes in stops and points at the
+owner. **27 lines** now defer that way, and no position has two answers.
 
 ### Depth follows what a branch is for
 
@@ -58,18 +92,17 @@ the repertoire came to about a hundred between them.
 | `sweeper` | ply 8 | `d4-sidelines`, `d4-black`, `caro` — so you are not surprised |
 | `signpost` | ply 6 | `english`, `reti` — the decision *is* the first move |
 
-That took 467 decisions down to **336 while losing three trainable positions** — 193 quiet
-targets became 190. The memorisation fell 28%; the material worth drilling did not move. A
+That took 467 decisions to 336, and collapsing the transpositions above took it to **269**. A
 signpost pays for itself the moment you answer 1.c4 with 1...c6, because everything after it is
 a Slav structure the curated branches already teach.
 
-`ourDecisions` is still the number to read first. If 336 is more than you can hold, the next cut
+`ourDecisions` is still the number to read first. If 269 is more than you can hold, the next cut
 is the same shape: demote a branch's role, do not shorten a curated line.
 
 | | |
 |---|---|
-| Deviations to prepare | **25** ranked traps, **8** of which we cannot actually punish (marked in the PGN) |
-| Move glyphs | 54 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
+| Deviations to prepare | **19** ranked traps, **6** of which we cannot actually punish (marked in the PGN) |
+| Move glyphs | 45 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
 | Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
 | Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
 | Engine | Stockfish, 120,000 nodes, **Threads=1** — anything else is not reproducible |
@@ -79,9 +112,9 @@ is the same shape: demote a branch's role, do not shorten a curated line.
 
 - **1.e4 as White.** Deliberate: one first move at a time. The planned expansion.
 - **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch.
-- **30 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
-  the sweepers removed most of them, which is what you would expect if the depth was reaching
-  past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
+- **27 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
+  the sweepers and collapsing the transpositions removed most of them, which is what you would
+  expect if the depth was reaching past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
   that ends that way as **unfinished**, not as a quiet position worth training.
 - **Lines that look like traps but have too few games to judge.** Listed in `summary.json` under
   `tooRareToJudge` rather than dropped — a rare line may be the vicious one, we just cannot yet

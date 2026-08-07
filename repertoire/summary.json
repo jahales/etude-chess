@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-07T04:08:01.926Z",
+  "generated": "2026-08-07T05:31:23.537Z",
   "manifest": "C:\\dev\\etude-chess\\scripts\\repertoire\\manifest.v1.json",
   "nodes": 120000,
   "trapThreshold": 0.01,
@@ -18,8 +18,8 @@
     "gamesUsed": 300000,
     "positions": 42189,
     "minGames": 4,
-    "hits": 695,
-    "misses": 93
+    "hits": 0,
+    "misses": 0
   },
   "canon": {
     "source": "db/LumbrasGigaBase_OTB_Complete.7z",
@@ -37,21 +37,21 @@
     "gamesUsed": 800000,
     "positions": 51936,
     "minGames": 3,
-    "hits": 112,
-    "misses": 31
+    "hits": 0,
+    "misses": 0
   },
   "branches": 25,
   "failed": [],
   "unparseable": [],
   "unwritten": [],
   "emptyBranches": [],
-  "positions": 796,
+  "positions": 662,
   "load": {
-    "ourDecisions": 336,
-    "preparedReplies": 465,
-    "quietTargets": 190,
-    "delegated": 17,
-    "outOfBook": 30,
+    "ourDecisions": 269,
+    "preparedReplies": 386,
+    "quietTargets": 132,
+    "delegated": 44,
+    "outOfBook": 27,
     "deepestPly": 11
   },
   "traps": [
@@ -133,17 +133,6 @@
       "entry": "d4-sidelines"
     },
     {
-      "line": "d4 c6 c4 d5 Nc3 Bf5",
-      "san": "Bf5",
-      "trapValue": 0.0582,
-      "frequency": 0.1596,
-      "swing": 7.4,
-      "practical": 0.472,
-      "expected": 0.407,
-      "games": 317,
-      "entry": "d4-sidelines"
-    },
-    {
       "line": "d4 d5 Nc3 Nf6 e4 dxe4 f3 exf3 Qxf3",
       "san": "Qxf3",
       "trapValue": 0.0533,
@@ -199,17 +188,6 @@
       "entry": "slav"
     },
     {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 Bc4",
-      "san": "Bc4",
-      "trapValue": 0.028,
-      "frequency": 0.0377,
-      "swing": 8.9,
-      "practical": 0.686,
-      "expected": 0.44,
-      "games": 51,
-      "entry": "caro"
-    },
-    {
       "line": "e4 c6 d4 d5 Nc3 dxe4 Bc4",
       "san": "Bc4",
       "trapValue": 0.028,
@@ -230,17 +208,6 @@
       "expected": 0.436,
       "games": 158,
       "entry": "d4-black"
-    },
-    {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 f3",
-      "san": "f3",
-      "trapValue": 0.0193,
-      "frequency": 0.0836,
-      "swing": 8.2,
-      "practical": 0.5,
-      "expected": 0.447,
-      "games": 113,
-      "entry": "caro"
     },
     {
       "line": "e4 c6 d4 d5 Nc3 dxe4 f3",
@@ -276,17 +243,6 @@
       "entry": "d4-black"
     },
     {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 Nxe4 Bf5 Ng5",
-      "san": "Ng5",
-      "trapValue": 0.0122,
-      "frequency": 0.1943,
-      "swing": 9.3,
-      "practical": 0.491,
-      "expected": 0.479,
-      "games": 116,
-      "entry": "caro"
-    },
-    {
       "line": "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng5",
       "san": "Ng5",
       "trapValue": 0.0122,
@@ -296,17 +252,6 @@
       "expected": 0.479,
       "games": 116,
       "entry": "caro-2d4"
-    },
-    {
-      "line": "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng5",
-      "san": "Ng5",
-      "trapValue": 0.0122,
-      "frequency": 0.1943,
-      "swing": 9.3,
-      "practical": 0.491,
-      "expected": 0.479,
-      "games": 116,
-      "entry": "caro-classical"
     },
     {
       "line": "d4 d5 c4 c6 c5",
@@ -318,34 +263,150 @@
       "expected": 0.443,
       "games": 71,
       "entry": "slav"
+    }
+  ],
+  "transposed": [
+    {
+      "line": "d4 e6 c4 d5",
+      "to": "qgd-exchange",
+      "entry": "d4-sidelines"
     },
     {
-      "line": "c4 c6 d4 d5 c5",
-      "san": "c5",
-      "trapValue": 0.0112,
-      "frequency": 0.0204,
-      "swing": 9.4,
-      "practical": 0.585,
-      "expected": 0.443,
-      "games": 71,
+      "line": "d4 e6 c4 Nf6",
+      "to": "indian-e6",
+      "entry": "d4-sidelines"
+    },
+    {
+      "line": "d4 c6 c4 d5",
+      "to": "slav-white",
+      "entry": "d4-sidelines"
+    },
+    {
+      "line": "d4 e6 c4 c5 d5 Nf6",
+      "to": "indian-sidelines",
+      "entry": "d4-sidelines"
+    },
+    {
+      "line": "d4 e6 c4 c5 d5 d6 Nc3 Nf6",
+      "to": "indian-sidelines",
+      "entry": "d4-sidelines"
+    },
+    {
+      "line": "d4 Nf6 c4 d5",
+      "to": "marshall-defence",
+      "entry": "indian-sidelines"
+    },
+    {
+      "line": "d4 Nf6 c4 e6 Nf3 d5 Nc3 c6",
+      "to": "slav-white",
+      "entry": "indian-e6"
+    },
+    {
+      "line": "d4 Nf6 c4 e6 Nf3 d5 Nc3 Nc6",
+      "to": "chigorin",
+      "entry": "indian-e6"
+    },
+    {
+      "line": "e4 c6 Nc3 d5 d4",
+      "to": "caro-classical",
+      "entry": "caro"
+    },
+    {
+      "line": "e4 c6 Nf3 d5 exd5 cxd5 d4",
+      "to": "caro-exchange",
+      "entry": "caro"
+    },
+    {
+      "line": "e4 c6 Nc3 d5 exd5 cxd5 d4",
+      "to": "caro-exchange",
+      "entry": "caro"
+    },
+    {
+      "line": "e4 c6 d4 d5 Nc3 dxe4 Nxe4",
+      "to": "caro-2d4",
+      "entry": "caro-classical"
+    },
+    {
+      "line": "d4 d5 Nf3 Nf6 c4 c6",
+      "to": "slav-white",
+      "entry": "d4-black"
+    },
+    {
+      "line": "d4 d5 e3 Nf6 c4 dxc4",
+      "to": "qga",
+      "entry": "d4-black"
+    },
+    {
+      "line": "d4 d5 c4 c6 Nc3 Nf6 Nf3 e6",
+      "to": "slav-white",
+      "entry": "slav"
+    },
+    {
+      "line": "d4 d5 c4 c6 e3 Nf6 Nf3 e6",
+      "to": "slav-white",
+      "entry": "slav"
+    },
+    {
+      "line": "d4 d5 c4 c6 Nf3 Nf6 Nc3",
+      "to": "slav",
+      "entry": "slav-main"
+    },
+    {
+      "line": "d4 d5 c4 c6 Nf3 Nf6 e3",
+      "to": "slav",
+      "entry": "slav-main"
+    },
+    {
+      "line": "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Nf3",
+      "to": "slav",
+      "entry": "slav-exchange"
+    },
+    {
+      "line": "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bf4",
+      "to": "slav",
+      "entry": "slav-exchange"
+    },
+    {
+      "line": "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 Bg5",
+      "to": "slav",
+      "entry": "slav-exchange"
+    },
+    {
+      "line": "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 g3",
+      "to": "slav",
+      "entry": "slav-exchange"
+    },
+    {
+      "line": "d4 d5 c4 c6 cxd5 cxd5 Nc3 Nf6 e3",
+      "to": "slav",
+      "entry": "slav-exchange"
+    },
+    {
+      "line": "c4 c6 d4 d5",
+      "to": "slav-white",
       "entry": "english"
+    },
+    {
+      "line": "c4 c6 Nc3 d5 d4",
+      "to": "slav",
+      "entry": "english"
+    },
+    {
+      "line": "Nf3 d5 d4",
+      "to": "d4-black",
+      "entry": "reti"
+    },
+    {
+      "line": "Nf3 d5 c4 c6 d4",
+      "to": "slav-main",
+      "entry": "reti"
     }
   ],
   "unpunished": [
     {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 Nxe4 Bf5 Ng5",
-      "afterReplyWinPercent": 51.7,
-      "entry": "caro"
-    },
-    {
       "line": "e4 c6 d4 d5 Nd2 dxe4 Nxe4 Bf5 Ng5",
       "afterReplyWinPercent": 51.7,
       "entry": "caro-2d4"
-    },
-    {
-      "line": "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng5",
-      "afterReplyWinPercent": 51.7,
-      "entry": "caro-classical"
     },
     {
       "line": "e4 c6 d4 d5 e5 Bf5 f4",
@@ -425,34 +486,6 @@
       "entry": "d4-sidelines"
     },
     {
-      "line": "d4 e6 c4 d5 Nc3 f5",
-      "games": 44,
-      "swing": 5.8,
-      "practical": 0.568,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 d5 Nc3 g6",
-      "games": 6,
-      "swing": 5.5,
-      "practical": 0.5,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 d5 Nc3 f6",
-      "games": 4,
-      "swing": 8,
-      "practical": 0.625,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 Nf6 Nf3 g6",
-      "games": 9,
-      "swing": 5.5,
-      "practical": 0.444,
-      "entry": "d4-sidelines"
-    },
-    {
       "line": "d4 e6 c4 c6 Nc3 a6",
       "games": 6,
       "swing": 6.3,
@@ -460,59 +493,10 @@
       "entry": "d4-sidelines"
     },
     {
-      "line": "d4 c6 c4 d5 Nc3 f6",
-      "games": 6,
-      "swing": 10.4,
-      "practical": 0.833,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 c6 c4 d5 Nc3 f5",
-      "games": 5,
-      "swing": 8.8,
-      "practical": 0.8,
-      "entry": "d4-sidelines"
-    },
-    {
       "line": "d4 c6 c4 d6 Nc3 f6",
       "games": 4,
       "swing": 5.7,
       "practical": 0.75,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 d5 Nc3 dxc4 e4 c6",
-      "games": 17,
-      "swing": 5.2,
-      "practical": 0.5,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 c5 d5 Nf6 Nc3 Be7",
-      "games": 7,
-      "swing": 15.1,
-      "practical": 0.286,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 c5 d5 Nf6 Nc3 a6",
-      "games": 6,
-      "swing": 6.4,
-      "practical": 0.833,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 c5 d5 Nf6 Nc3 e5",
-      "games": 5,
-      "swing": 8.9,
-      "practical": 0.4,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 e6 c4 Nf6 Nf3 d5 Nc3 g6",
-      "games": 9,
-      "swing": 5.4,
-      "practical": 0.722,
       "entry": "d4-sidelines"
     },
     {
@@ -548,13 +532,6 @@
       "games": 9,
       "swing": 7.3,
       "practical": 0.556,
-      "entry": "d4-sidelines"
-    },
-    {
-      "line": "d4 c6 c4 d5 Nc3 Bf5 Nf3 h6",
-      "games": 5,
-      "swing": 13.1,
-      "practical": 0.6,
       "entry": "d4-sidelines"
     },
     {
@@ -880,20 +857,6 @@
       "entry": "indian-sidelines"
     },
     {
-      "line": "d4 Nf6 c4 d5 cxd5 Nxd5 e4 Nb4",
-      "games": 4,
-      "swing": 17.5,
-      "practical": 0.5,
-      "entry": "indian-sidelines"
-    },
-    {
-      "line": "d4 Nf6 c4 d5 cxd5 Qxd5 Nc3 Qh5",
-      "games": 5,
-      "swing": 5.5,
-      "practical": 0.6,
-      "entry": "indian-sidelines"
-    },
-    {
       "line": "d4 Nf6 c4 c5 d5 e6 Nc3 a6",
       "games": 6,
       "swing": 6.1,
@@ -912,34 +875,6 @@
       "games": 4,
       "swing": 5.9,
       "practical": 0.75,
-      "entry": "indian-sidelines"
-    },
-    {
-      "line": "d4 Nf6 c4 d5 cxd5 Nxd5 e4 Nf6 Nc3 Bg4",
-      "games": 30,
-      "swing": 11.3,
-      "practical": 0.467,
-      "entry": "indian-sidelines"
-    },
-    {
-      "line": "d4 Nf6 c4 d5 cxd5 Nxd5 e4 Nf6 Nc3 Nc6",
-      "games": 15,
-      "swing": 11.3,
-      "practical": 0.433,
-      "entry": "indian-sidelines"
-    },
-    {
-      "line": "d4 Nf6 c4 d5 cxd5 Nxd5 e4 Nf6 Nc3 g6",
-      "games": 8,
-      "swing": 6.7,
-      "practical": 0.5,
-      "entry": "indian-sidelines"
-    },
-    {
-      "line": "d4 Nf6 c4 d5 cxd5 Nxd5 e4 Nf6 Nc3 c5",
-      "games": 5,
-      "swing": 5.1,
-      "practical": 0.6,
       "entry": "indian-sidelines"
     },
     {
@@ -1104,20 +1039,6 @@
       "entry": "caro"
     },
     {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 Nxe4 Bf5 Nc5",
-      "games": 12,
-      "swing": 6.2,
-      "practical": 0.583,
-      "entry": "caro"
-    },
-    {
-      "line": "e4 c6 Nc3 d5 d4 dxe4 f3 exf3 Qxf3",
-      "games": 8,
-      "swing": 8.5,
-      "practical": 0.625,
-      "entry": "caro"
-    },
-    {
       "line": "e4 c6 d4 d5 c4",
       "games": 19,
       "swing": 12,
@@ -1137,13 +1058,6 @@
       "swing": 6.2,
       "practical": 0.583,
       "entry": "caro-2d4"
-    },
-    {
-      "line": "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Nc5",
-      "games": 12,
-      "swing": 6.2,
-      "practical": 0.583,
-      "entry": "caro-classical"
     },
     {
       "line": "e4 c6 d4 d5 Nc3 dxe4 f3 exf3 Qxf3",
@@ -1293,27 +1207,6 @@
       "entry": "d4-black"
     },
     {
-      "line": "d4 d5 Nf3 Nf6 c4 c6 Bg5",
-      "games": 38,
-      "swing": 7,
-      "practical": 0.645,
-      "entry": "d4-black"
-    },
-    {
-      "line": "d4 d5 Nf3 Nf6 c4 c6 Bf4",
-      "games": 17,
-      "swing": 5.6,
-      "practical": 0.676,
-      "entry": "d4-black"
-    },
-    {
-      "line": "d4 d5 Nf3 Nf6 c4 c6 a4",
-      "games": 4,
-      "swing": 5.3,
-      "practical": 0.75,
-      "entry": "d4-black"
-    },
-    {
       "line": "d4 d5 Nf3 Nf6 g3 e6 Bg5",
       "games": 5,
       "swing": 6.2,
@@ -1398,30 +1291,9 @@
       "entry": "slav"
     },
     {
-      "line": "d4 d5 c4 c6 Nc3 Nf6 Nf3 e6 Bf4",
-      "games": 45,
-      "swing": 9,
-      "practical": 0.544,
-      "entry": "slav"
-    },
-    {
-      "line": "d4 d5 c4 c6 Nc3 Nf6 Nf3 e6 a3",
-      "games": 9,
-      "swing": 9.3,
-      "practical": 0.556,
-      "entry": "slav"
-    },
-    {
       "line": "d4 d5 c4 c6 Nc3 Nf6 e3 e6 cxd5",
       "games": 15,
       "swing": 5.4,
-      "practical": 0.5,
-      "entry": "slav"
-    },
-    {
-      "line": "d4 d5 c4 c6 e3 Nf6 Nf3 e6 c5",
-      "games": 10,
-      "swing": 6.9,
       "practical": 0.5,
       "entry": "slav"
     },
@@ -1444,27 +1316,6 @@
       "games": 4,
       "swing": 5.3,
       "practical": 0.75,
-      "entry": "slav-main"
-    },
-    {
-      "line": "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 Bf4",
-      "games": 45,
-      "swing": 9,
-      "practical": 0.544,
-      "entry": "slav-main"
-    },
-    {
-      "line": "d4 d5 c4 c6 Nf3 Nf6 Nc3 e6 a3",
-      "games": 9,
-      "swing": 9.3,
-      "practical": 0.556,
-      "entry": "slav-main"
-    },
-    {
-      "line": "d4 d5 c4 c6 Nf3 Nf6 e3 e6 c5",
-      "games": 10,
-      "swing": 6.9,
-      "practical": 0.5,
       "entry": "slav-main"
     },
     {
@@ -1514,13 +1365,6 @@
       "games": 4,
       "swing": 12.2,
       "practical": 0.875,
-      "entry": "english"
-    },
-    {
-      "line": "c4 c6 d4 d5 a4",
-      "games": 11,
-      "swing": 5.1,
-      "practical": 0.5,
       "entry": "english"
     },
     {
@@ -1588,5 +1432,5 @@
       "entry": "caro"
     }
   ],
-  "seconds": 317.172
+  "seconds": 0
 }
