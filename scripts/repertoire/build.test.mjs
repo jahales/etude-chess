@@ -993,7 +993,7 @@ describe('the shipped manifest’s roles', () => {
     const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
     const shallow = entries.filter((e) => e.role && e.role !== 'curated')
     expect(shallow.map((e) => e.id).sort()).toEqual(
-      ['caro', 'd4-black', 'd4-sidelines', 'english', 'reti'].sort(),
+      ['black-irregular', 'caro', 'd4-black', 'd4-sidelines', 'english', 'reti'].sort(),
     )
   })
 

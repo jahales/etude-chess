@@ -21,7 +21,10 @@
       "line": "d4",
       "why": "Everything that is not 1...d5, 1...Nf6, 1...f5 or 1...e5. Mostly move-order tries that transpose; the point is not to be surprised.",
       "$roleNote": "Covers the replies no curated branch owns. The value is meeting 1...c5 or 1...g6 at all, not five moves of follow-up — at full depth this one branch cost 70 of the repertoire's 467 decisions.",
-      "role": "sweeper"
+      "$coverageNote": "v1 shipped on the defaults and quietly covered only six replies, of which four (1...d5, 1...Nf6, 1...f5, 1...e5) it hands straight to curated branches. 1...c5 ranks seventh, so the moves this branch *exists* for fell off the end: 11% of the owner's real games as White reached a position with no answer. The mass after 1.d4 is dominated by the replies we delegate, which is exactly the case `massTarget`'s doc comment warns about.",
+      "role": "sweeper",
+      "massTarget": 0.95,
+      "maxOpponentMoves": 12
     },
     {
       "id": "qg-sidelines",
@@ -203,6 +206,17 @@
       "why": "Same idea: take the centre and transpose into what we already know.",
       "$roleNote": "The decision is 1...d5. Same reasoning as the English — 48 decisions at full depth for a transposition we already know.",
       "role": "signpost"
+    },
+    {
+      "id": "black-irregular",
+      "name": "Irregular first moves",
+      "color": "b",
+      "line": "",
+      "why": "1.Nc3, 1.b3, 1.f4 and 1.g3. Rare individually, but v1 answered none of them, and 2% of games is one board in a five-round tournament. Take the centre and steer toward the same c6-d5 chain the rest of the repertoire teaches.",
+      "$roleNote": "Rooted at the initial position — the only branch that is — so it catches whatever the four real Black branches do not own. It delegates 1.e4, 1.d4, 1.c4 and 1.Nf3 on the very first ply, which is what makes the breadth affordable.",
+      "role": "sweeper",
+      "massTarget": 0.97,
+      "maxOpponentMoves": 10
     }
   ]
 }

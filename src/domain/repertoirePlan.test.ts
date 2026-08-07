@@ -146,9 +146,13 @@ describe('the shipped manifest', () => {
     for (const e of entries) expect(e.why, e.id).toBeTruthy()
   })
 
-  it('answers 1.d4, 1.e4, 1.c4 and 1.Nf3', () => {
+  it('answers 1.d4, 1.e4, 1.c4 and 1.Nf3 by name, and the rest from the root', () => {
+    // This used to assert the set was *exactly* those four, which quietly said
+    // "a Black branch is always rooted at one named first move". That was the
+    // bug: it made having no answer to 1.b3 look like a satisfied invariant.
     const blackRoots = entries.filter((e) => e.color === 'b').map((e) => plies(e.line)[0])
-    expect(new Set(blackRoots)).toEqual(new Set(['e4', 'd4', 'c4', 'Nf3']))
+    expect(new Set(blackRoots.filter(Boolean))).toEqual(new Set(['e4', 'd4', 'c4', 'Nf3']))
+    expect(blackRoots.filter((m) => m === undefined)).toHaveLength(1)
   })
 })
 
@@ -202,5 +206,35 @@ describe('theoryLoad — the aggregate keeps every field', () => {
 
   it('sums nothing to a zero load', () => {
     expect(sumLoads([])).toEqual(theoryLoad([]))
+  })
+})
+
+describe('the tail of the opening — the moves nothing else owns', () => {
+  // Both holes below were found by replaying the owner's own chess.com games
+  // against the shipped PGN (2026-08-07): 11% of their games as White and 2% as
+  // Black reached a position the repertoire had no answer for at all. Neither
+  // showed up as a gap in `validatePlan`, because a branch that silently covers
+  // fewer replies than it claims is not a *contradiction* — it is just quiet.
+  const entries = manifest.entries as PlanEntry[]
+
+  it('roots a Black branch at the initial position, so 1.Nc3 and 1.b3 are answered', () => {
+    const root = entries.filter((e) => e.color === 'b' && plies(e.line).length === 0)
+    expect(root).toHaveLength(1)
+    // A sweeper: meeting the move is the point, not five plies of follow-up.
+    expect(root[0]?.role).toBe('sweeper')
+  })
+
+  it('hands that root branch every first move a real branch owns, and keeps the rest', () => {
+    const root = entries.find((e) => e.color === 'b' && plies(e.line).length === 0)!
+    expect([...delegationsFor(root, entries).keys()].sort()).toEqual(['Nf3', 'c4', 'd4', 'e4'])
+  })
+
+  it('lets the 1.d4 sweeper cover more replies than a curated branch would', () => {
+    // DEFAULT_MAX_MOVES is 6 and DEFAULT_MASS_TARGET 0.85. After 1.d4 the mass
+    // is eaten by 1...d5 and 1...Nf6 — which this branch hands *away* — so the
+    // budget ran out before 1...c5 and 1...d6, the replies it exists to catch.
+    const sweeper = entries.find((e) => e.id === 'd4-sidelines')!
+    expect(sweeper.maxOpponentMoves ?? 6).toBeGreaterThan(6)
+    expect(sweeper.massTarget ?? 0.85).toBeGreaterThan(0.85)
   })
 })
