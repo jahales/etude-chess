@@ -18,6 +18,7 @@ import {
   pgnError,
   readBranch,
   resolveOnly,
+  splitByColour,
   stringFlag,
   writeBranch,
   CRAWL_PLIES,
@@ -284,8 +285,10 @@ describe('mergePgn', () => {
     expect(merged.match(/\[Event /g)).toHaveLength(2)
   })
 
-  it('survives an empty build', () => {
-    expect(mergePgn([])).toBe('\n')
+  it('produces nothing at all for an empty build, not a blank line', () => {
+    // A file holding one newline imports as a game with no moves, which then
+    // sits in the library looking like a branch that failed.
+    expect(mergePgn([])).toBe('')
   })
 })
 
@@ -668,5 +671,64 @@ describe('illegalLines — a curated prefix that is not legal chess', () => {
   it('accepts every line in the shipped manifest', async () => {
     const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
     expect(illegalLines(entries)).toEqual([])
+  })
+})
+
+describe('splitByColour — one file per side', () => {
+  // En Croissant trains a repertoire from one side's point of view, so a file
+  // mixing White and Black branches is not importable as either. The split is
+  // part of the build rather than a manual step, or it drifts on the next run.
+  const load = (pgn) => {
+    const chess = new Chess()
+    chess.loadPgn(pgn)
+    return chess.history()
+  }
+  const games = (pgn) => pgn.split(/\n\s*\n(?=\[Event )/).filter((g) => g.trim())
+
+  const MIXED = [
+    ...ENTRIES,
+    { id: 'caro', name: 'Caro-Kann', color: 'b', line: 'e4 c6', why: 'the defence', maxPly: 8 },
+  ]
+
+  it('puts every branch in the file for its own colour', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    expect(games(white)).toHaveLength(2)
+    expect(games(black)).toHaveLength(1)
+  })
+
+  it('never mixes the two, which is the whole point', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    expect(white).not.toContain('Repertoire — Black')
+    expect(black).not.toContain('Repertoire — White')
+  })
+
+  it('emits files a parser still reads', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    for (const pgn of [white, black]) {
+      for (const g of games(pgn)) expect(() => load(g)).not.toThrow()
+    }
+  })
+
+  it('loses nothing — every branch lands in exactly one file', async () => {
+    const results = await build(MIXED)
+    const { white, black } = splitByColour(results)
+    expect(games(white).length + games(black).length).toBe(results.length)
+  })
+
+  it('keeps manifest order within each file', async () => {
+    const { white } = splitByColour(await build(MIXED))
+    expect(games(white)[0]).toContain('rare replies')
+    expect(games(white)[1]).toContain('QGD Exchange')
+  })
+
+  it('gives an empty string for a colour with no branches, not a stray newline', async () => {
+    // A one-line file imports as a game with no moves and clutters the library.
+    const { black } = splitByColour(await build(ENTRIES))
+    expect(black).toBe('')
+  })
+
+  it('skips branches that failed to crawl', async () => {
+    const results = await build([{ id: 'broken', name: 'B', color: 'w', line: 'd4 d4' }, ...ENTRIES])
+    expect(games(splitByColour(results).white)).toHaveLength(2)
   })
 })

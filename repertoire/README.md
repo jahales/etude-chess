@@ -7,8 +7,15 @@ rebuild instead.
 
 | File | What it is |
 |---|---|
-| `etude-repertoire-v1.pgn` | The repertoire. One game per branch, named in its `[Event]` header. Import into En Croissant → **Files**, then point the repertoire trainer at it. |
+| `etude-repertoire-v1-white.pgn` | The White repertoire — 14 branches, one game each, named in its `[Event]` header. |
+| `etude-repertoire-v1-black.pgn` | The Black repertoire — 11 branches. |
 | `summary.json` | What it cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
+
+**Two files, one per side, deliberately.** En Croissant trains a repertoire from
+one colour's point of view, so a file holding both is importable as neither — it
+would try to drill you as White in the Caro-Kann. Import each into
+**Files**, then point the repertoire trainer at the one matching the side you
+are practising.
 
 Why these openings and not others: [docs/repertoire-v1.md](../docs/repertoire-v1.md). How the
 thing works: [scripts/repertoire/README.md](../scripts/repertoire/README.md). Why it terminates
@@ -101,8 +108,10 @@ node scripts/repertoire/build.mjs --book out/band.json --canon-book out/otb.json
      --nodes 120000 --trap 0.01 --min-node-games 20 --out out/repertoire
 ```
 
-Then copy `out/repertoire/repertoire.pgn` and `summary.json` here. Validate the manifest without
-spending engine time with `node scripts/repertoire/build.mjs --check`.
+Then copy `out/repertoire/repertoire-white.pgn`, `repertoire-black.pgn` and `summary.json` here.
+The build also writes a combined `repertoire.pgn` — useful for reading the whole thing at once,
+not for importing. Validate the manifest without spending engine time with
+`node scripts/repertoire/build.mjs --check`.
 
 The books are not committed (ADR [0018](../docs/decisions/0018-games-corpus-and-annotations.md)
 — we ship no corpus). Rebuild them with `buildBook.mjs`; see the generator README.

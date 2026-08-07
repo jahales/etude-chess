@@ -385,10 +385,16 @@ hours rather than one.
 
 ## Importing into En Croissant
 
-Open En Croissant → **Files** → import `out/repertoire/repertoire.pgn` (or a single branch's
-`<out>.pgn`), then point the repertoire trainer at it. One game per branch, each named in its
-`[Event]` header. The `?!`/`?`/`??` suffixes on opponent moves and the
-`{quiet: N playable moves}` comments come through as annotations.
+Open En Croissant → **Files** and import **`repertoire-white.pgn` and `repertoire-black.pgn`
+separately**, then point the repertoire trainer at whichever side you are practising.
+
+Two files, not one: En Croissant trains from a single colour's point of view, so a PGN holding
+both is importable as neither — it would drill you as White in the Caro-Kann. The build writes a
+combined `repertoire.pgn` as well, for reading the whole repertoire at once rather than for
+importing.
+
+One game per branch, each named in its `[Event]` header. The `?!`/`?`/`??` suffixes on opponent
+moves and the `{quiet: N playable moves}` comments come through as annotations.
 
 ## Caveats
 

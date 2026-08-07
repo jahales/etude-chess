@@ -87,7 +87,25 @@ export function parseManifest(text) {
  * what the PGN standard wants and what En Croissant's importer reads.
  */
 export function mergePgn(games) {
+  if (games.length === 0) return ''
   return `${games.map((g) => g.trim()).join('\n\n')}\n`
+}
+
+/**
+ * The repertoire as one file per side.
+ *
+ * En Croissant trains from one side's point of view, so a file holding both
+ * colours is not importable as either — it would try to drill you as White in
+ * the Caro-Kann. The split lives in the build rather than in a pair of manual
+ * commands, because a manual step drifts the moment the manifest changes.
+ *
+ * Order within each file follows the input, which `main` has already put in
+ * manifest order.
+ */
+export function splitByColour(results) {
+  const ok = results.filter((r) => !r.error)
+  const pgnFor = (colour) => mergePgn(ok.filter((r) => r.entry.color === colour).map((r) => r.pgn))
+  return { white: pgnFor('w'), black: pgnFor('b') }
 }
 
 /**
@@ -579,8 +597,14 @@ async function main() {
     const complete = [...reused, ...results].sort(
       (a, b) => (order.get(a.entry.id) ?? 0) - (order.get(b.entry.id) ?? 0),
     )
-    const merged = mergePgn(complete.filter((r) => !r.error).map((r) => r.pgn))
-    await writeFile(join(outDir, 'repertoire.pgn'), merged, 'utf8')
+    // One file per side is what actually gets imported: En Croissant trains
+    // from one colour's point of view, so a mixed file is usable as neither.
+    // The combined file is written too, for reading the whole thing at once.
+    const usable = complete.filter((r) => !r.error)
+    const { white, black } = splitByColour(usable)
+    await writeFile(join(outDir, 'repertoire-white.pgn'), white, 'utf8')
+    await writeFile(join(outDir, 'repertoire-black.pgn'), black, 'utf8')
+    await writeFile(join(outDir, 'repertoire.pgn'), mergePgn(usable.map((r) => r.pgn)), 'utf8')
 
     const summary = summarise(complete)
     await writeFile(
@@ -643,10 +667,15 @@ engine searches ${engine.searchCount()}`)
       for (const f of summary.failed) console.error(`  ${f.id}: ${f.error}`)
     }
 
+    const branchCount = (pgn) => (pgn ? pgn.split(/\n\s*\n(?=\[Event )/).filter((g) => g.trim()).length : 0)
+    const whiteN = branchCount(white)
+    const blackN = branchCount(black)
     console.log(
-      `\nwrote ${resolve(outDir)} — repertoire.pgn holds ` +
-        `${complete.length - summary.failed.length} branch(es)` +
-        `${reused.length ? ` (${reused.length} reused from an earlier run)` : ''}`,
+      `\nwrote ${resolve(outDir)}` +
+        `${reused.length ? ` (${reused.length} branch(es) reused from an earlier run)` : ''}\n` +
+        `  repertoire-white.pgn   ${whiteN} branches — import this as your White repertoire\n` +
+        `  repertoire-black.pgn   ${blackN} branches — and this as your Black one\n` +
+        `  repertoire.pgn         all ${whiteN + blackN}, for reading rather than importing`,
     )
     if (summary.failed.length || summary.unparseable.length || summary.unwritten.length) process.exitCode = 1
   } finally {
