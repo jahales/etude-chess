@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Chess } from 'chess.js'
-import { fenKey, toPgn, type RepertoireNode } from './repertoirePgn'
+import { TIER_A_MAX_SWING, TIER_B_MAX_SWING } from './grade'
+import { BLUNDER_SWING, fenKey, toPgn, type RepertoireNode } from './repertoirePgn'
 
 // Real FENs, so the fenKey plumbing is exercised rather than stubbed.
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
@@ -504,5 +505,128 @@ describe('toPgn — the header the trainer actually reads', () => {
     const chess = new Chess()
     chess.loadPgn(toPgn({ ...base, ourColor: 'b', nodes: simple(), rootFen: START }))
     expect(chess.history()).toEqual(['d4'])
+  })
+})
+
+describe('toPgn — move glyphs, anchored to the project’s own tiers', () => {
+  // The thresholds were 10/15/25, which left the whole of Tier B between 5 and
+  // 10 unmarked — grade.ts calls that "a real concession" and the file said
+  // nothing about it. Across the built repertoire that produced 3 glyphs in 450
+  // moves, which reads as "nothing here is a mistake".
+  const withSwing = (swing: number) =>
+    new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' as const, swing }])],
+    ])
+  const glyph = (swing: number) => {
+    const m = toPgn({ ...base, nodes: withSwing(swing), rootFen: START }).match(/1\. d4 d5(\S*)/)
+    return m?.[1] ?? ''
+  }
+
+  it('leaves a Tier A move unmarked — it is as good as best', () => {
+    expect(glyph(0)).toBe('')
+    expect(glyph(TIER_A_MAX_SWING)).toBe('')
+  })
+
+  it('marks a real concession, which starts where Tier A ends', () => {
+    expect(glyph(TIER_A_MAX_SWING + 0.1)).toBe('?!')
+    expect(glyph(9)).toBe('?!')
+    expect(glyph(TIER_B_MAX_SWING)).toBe('?!')
+  })
+
+  it('marks a mistake where Tier C begins', () => {
+    expect(glyph(TIER_B_MAX_SWING + 0.1)).toBe('?')
+    expect(glyph(24)).toBe('?')
+  })
+
+  it('keeps ?? for giving up the game outright', () => {
+    expect(glyph(BLUNDER_SWING + 0.1)).toBe('??')
+    expect(glyph(60)).toBe('??')
+  })
+
+  it('never marks our own move — a repertoire does not contain our mistakes', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const, swing: 40 }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain('1. d4')
+    expect(toPgn({ ...base, nodes, rootFen: START })).not.toContain('d4?')
+  })
+
+  it('says nothing when the swing was never measured', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' as const }])],
+    ])
+    expect(toPgn({ ...base, nodes, rootFen: START })).toContain('1. d4 d5')
+  })
+})
+
+describe('glyph thresholds stay pinned to grade.ts', () => {
+  // repertoirePgn.ts cannot import them at runtime — it must stay
+  // runtime-import-free so the .mjs scripts can load it under type stripping —
+  // so the copies are pinned here instead, exactly as repertoire.ts does.
+  const glyph = (swing: number) => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [fenKey(AFTER_D4), node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' as const, swing }])],
+    ])
+    return toPgn({ ...base, nodes, rootFen: START }).match(/1\. d4 d5(\S*)/)?.[1] ?? ''
+  }
+
+  it('starts marking exactly where Tier A stops', () => {
+    expect(glyph(TIER_A_MAX_SWING)).toBe('')
+    expect(glyph(TIER_A_MAX_SWING + 0.01)).toBe('?!')
+  })
+
+  it('escalates exactly where Tier B stops', () => {
+    expect(glyph(TIER_B_MAX_SWING)).toBe('?!')
+    expect(glyph(TIER_B_MAX_SWING + 0.01)).toBe('?')
+  })
+})
+
+describe('toPgn — glyphs actually appear on a realistic tree', () => {
+  // The boundary tests above pin 5.01 and 15.01. Neither would notice if
+  // `annotate` stopped being reached for the common path — and the whole change
+  // was made because the built repertoire carried 3 glyphs in 450 moves.
+  const swings = [0.1, 2, 4, 6, 9, 14, 18, 30]
+  const tree = () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+    ])
+    // One opponent node with a spread of swings, as a real node has.
+    const chess = new Chess(AFTER_D4)
+    const replies = chess.moves({ verbose: true }).slice(0, swings.length)
+    nodes.set(
+      fenKey(AFTER_D4),
+      node(
+        replies.map((m, i) => ({
+          san: m.san,
+          fen: m.after,
+          reason: 'mass' as const,
+          swing: swings[i]!,
+        })),
+      ),
+    )
+    return nodes
+  }
+
+  it('marks every move outside Tier A and nothing inside it', () => {
+    const pgn = toPgn({ ...base, nodes: tree(), rootFen: START })
+    // 0.1, 2 and 4 are Tier A; the other five are not.
+    expect((pgn.match(/[?!]+/g) ?? []).length).toBe(5)
+  })
+
+  it('uses the whole scale rather than collapsing to one glyph', () => {
+    const pgn = toPgn({ ...base, nodes: tree(), rootFen: START })
+    expect(pgn).toContain('?!')
+    expect(pgn).toMatch(/\?(?!!)/) // a bare ? somewhere
+    expect(pgn).toContain('??')
+  })
+
+  it('marks far more than the old thresholds would have', () => {
+    // Old: >10 for ?!. Of these swings only 14, 18 and 30 qualified.
+    const marked = swings.filter((s) => s > 5).length
+    const wouldHaveBeen = swings.filter((s) => s > 10).length
+    expect(marked).toBeGreaterThan(wouldHaveBeen)
   })
 })

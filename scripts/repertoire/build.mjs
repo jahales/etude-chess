@@ -34,22 +34,38 @@ export const DEFAULT_MANIFEST = join(here, 'manifest.v1.json')
  * nine-ply tree — which at half a second per engine search is most of an hour
  * spent on the least valuable branch in the repertoire.
  */
-export const CRAWL_PLIES = 6
+export const CRAWL_PLIES = 8
 
 /**
- * Plies a branch must crawl before it is allowed to stop — one move each.
+ * Plies a branch must crawl before it is allowed to stop — two moves each.
  *
- * Without this, a branch whose curated prefix is already past the global
- * `minPly` can terminate **on its own root**: the Caro-Kann Advance opens
- * `1.e4 c6 2.d4 d5 3.e5 Bf5`, which is a perfectly quiet position, so the whole
- * branch was one node and no content. The prefix is scaffolding to get to the
- * position worth studying; it cannot also be the study.
+ * Two things at once. Without any floor, a branch whose curated prefix is
+ * already past the global `minPly` terminates **on its own root**: the
+ * Caro-Kann Advance opens `1.e4 c6 2.d4 d5 3.e5 Bf5`, a perfectly quiet
+ * position, so the whole branch was one node and no content.
+ *
+ * And with a floor of one move each, every branch stopped at exactly that
+ * floor — a line stops the moment it is *allowed* to, and almost every opening
+ * position is quiet by move 4. The first built repertoire bottomed out at move
+ * 5 across all 25 branches. `maxPly` was never the constraint; this was.
  */
-export const MIN_OWN_PLIES = 2
+export const MIN_OWN_PLIES = 4
+
+/**
+ * Earliest ply any branch may stop at, however shallow its prefix.
+ *
+ * Re-exported from the crawler rather than declared here. A second copy meant
+ * `crawl.mjs --line X` and `build.mjs --only X` crawled the same branch to
+ * different depths — and the single-line crawler is exactly what you reach for
+ * to test a manifest change before spending an hour on the full build.
+ *
+ * Overridable per entry, and for a whole run with `--min-ply`.
+ */
+export const GLOBAL_MIN_PLY = DEFAULTS.minPly
 
 export function resolveEntry(entry, defaults = {}) {
   const forced = plies(entry.line)
-  const minPly = entry.minPly ?? Math.max(defaults.minPly ?? DEFAULTS.minPly, forced.length + MIN_OWN_PLIES)
+  const minPly = entry.minPly ?? Math.max(defaults.minPly ?? GLOBAL_MIN_PLY, forced.length + MIN_OWN_PLIES)
   return {
     ...entry,
     forced,
@@ -388,6 +404,7 @@ export const FLAGS = [
   'max-eval',
   'min-node-games',
   'max-replies',
+  'min-ply',
   'crawl-plies',
   'resume',
   'check',
@@ -519,7 +536,9 @@ Build the whole repertoire from a manifest (issue #88, ADR 0021)
   --max-eval 20          opponent moves evaluated per node
   --min-node-games 50    stop expanding below this many games in the band book
   --max-replies    6     most opponent moves covered at one node
-  --crawl-plies 6        plies each branch crawls past its curated prefix
+  --min-ply  10          earliest ply any line may stop at — the knob that
+                         decides depth, since a line stops as soon as it may
+  --crawl-plies 8        plies each branch crawls past its curated prefix
   --resume               skip branches whose output already exists
   --check                validate the manifest and exit — no engine, no crawling
   --engine   <path>      Stockfish binary
@@ -562,6 +581,7 @@ async function main() {
     ...maybe('minNodeGames', numberFlag(args, 'min-node-games')),
     ...maybe('maxOpponentMoves', numberFlag(args, 'max-replies')),
     ...maybe('crawlPlies', numberFlag(args, 'crawl-plies')),
+    ...maybe('minPly', numberFlag(args, 'min-ply')),
   }
 
   const enginePath = stringFlag(args, 'engine')

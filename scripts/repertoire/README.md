@@ -266,8 +266,11 @@ would make this a memorisation deck with extra steps (constitution §1).
 
 `why` becomes the comment before the first move, so a drill says what it is drilling.
 
-**Depth is per-branch.** Every branch crawls the same *distance* past its prefix, not to the
-same *ply*: `maxPly = prefix + 6`, and `minPly = prefix + 2`. Both matter. A flat depth cap
+**Depth is set by a floor and a per-branch minimum.** `minPly = max(10, prefix + 4)` and
+`maxPly = max(minPly + 2, prefix + 8)`. The floor is the one that decides how deep the output
+actually runs — a line stops the moment it is *allowed* to, since almost every opening position
+is quiet by move 4, so `maxPly` is rarely reached. Raise or lower it for a whole run with
+`--min-ply`. Both parts matter. A flat depth cap
 leaves a branch starting at ply 6 two moves to find a quiet position while handing a
 "don't be surprised by 1...c5" sweeper a nine-ply tree. And a flat *floor* is worse: the
 Caro-Kann Advance opens `1.e4 c6 2.d4 d5 3.e5 Bf5`, which is already quiet at ply 6 — so the

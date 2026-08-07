@@ -41,6 +41,7 @@
       "color": "w",
       "line": "d4 d5 c4 dxc4 e3",
       "why": "The priority line. White does not rush to regain c4; develop and let the attempt to HOLD the pawn cost Black the position. The break to know is a4 against ...b5.",
+      "$depthNote": "Set against the depth floor: the punishing line 3.e3 b5 4.a4 c6 5.axb5 cxb5 6.Qf3 lands on ply 11, so the cap must clear it. If minPly ever rises past 11 this branch can no longer reach its own priority line.",
       "maxPly": 13
     },
     {

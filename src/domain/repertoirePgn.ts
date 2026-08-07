@@ -121,13 +121,43 @@ export function fenKey(fen: string): string {
   return fen.split(' ').slice(0, 4).join(' ')
 }
 
-/** Mark how bad an opponent's move is, so the trainer shows it at a glance. */
+/**
+ * The scale a move glyph is read off, exported whole.
+ *
+ * The first two mirror grade.ts's tiers and are **not imported** from it: this
+ * module must stay runtime-import-free so the .mjs scripts can load it under
+ * Node's type stripping, the same constraint repertoire.ts documents.
+ * repertoirePgn.test.ts pins both to the real ones so they cannot drift.
+ *
+ * `BLUNDER_SWING` has no counterpart there — grade.ts's tiers stop at "a
+ * mistake or blunder" without separating the two, and a move giving up more
+ * than a quarter of the result has not conceded an edge, it has handed the
+ * game over.
+ *
+ * All three are exported together because they are one scale: a caller
+ * rendering these grades elsewhere needs the whole of it, not the one constant
+ * a test happened to reach for.
+ */
+export const CONCESSION_SWING = 5 // === TIER_A_MAX_SWING
+export const MISTAKE_SWING = 15 // === TIER_B_MAX_SWING
+export const BLUNDER_SWING = 25
+
+/**
+ * Mark how bad an opponent's move is, so the trainer shows it at a glance.
+ *
+ * Anchored to the project's own tiers rather than to round numbers. The
+ * thresholds used to be 10/15/25, which left the whole of Tier B between 5 and
+ * 10 unmarked even though grade.ts calls that "a real concession" — across the
+ * built repertoire it produced **3 glyphs in 450 moves**, which reads as
+ * "nothing here is a mistake" when a third of the moves covered are errors we
+ * are specifically preparing against.
+ */
 function annotate(child: RepertoireChild): string {
   if (child.reason === 'ours' || child.reason === 'ours-engine') return ''
   if (typeof child.swing !== 'number') return ''
-  if (child.swing > 25) return '??'
-  if (child.swing > 15) return '?'
-  if (child.swing > 10) return '?!'
+  if (child.swing > BLUNDER_SWING) return '??'
+  if (child.swing > MISTAKE_SWING) return '?'
+  if (child.swing > CONCESSION_SWING) return '?!'
   return ''
 }
 

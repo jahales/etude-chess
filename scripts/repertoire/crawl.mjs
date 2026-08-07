@@ -43,7 +43,13 @@ import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
 
 export const DEFAULTS = {
-  minPly: 6,
+  /**
+   * Earliest ply a line may stop at. A line stops the moment it is *allowed*
+   * to — almost every opening position is quiet by move 4 — so this, not
+   * `maxPly`, is what decides how deep the output actually runs. At 6 the first
+   * built repertoire bottomed out at move 5 across all 25 branches.
+   */
+  minPly: 10,
   maxPly: 10,
   deepNodes: 400_000,
   /**

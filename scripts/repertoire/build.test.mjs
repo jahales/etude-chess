@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Chess } from 'chess.js'
+import { DEFAULTS } from './crawl.mjs'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
 import {
   buildAll,
@@ -23,6 +24,7 @@ import {
   writeBranch,
   CRAWL_PLIES,
   DEFAULT_MANIFEST,
+  GLOBAL_MIN_PLY,
   MIN_OWN_PLIES,
 } from './build.mjs'
 
@@ -164,8 +166,17 @@ describe('resolveEntry — how deep each branch crawls', () => {
   it('gives every branch the same crawl, not the same depth', () => {
     // A flat cap is wrong both ways: too shallow for a branch starting at ply 6
     // to find a quiet position, and far too deep for a sweeper off move one.
-    expect(resolveEntry({ line: 'd4 d5 c4' }).maxPly).toBe(3 + CRAWL_PLIES)
-    expect(resolveEntry({ line: 'e4 c6 d4 d5 exd5 cxd5' }).maxPly).toBe(6 + CRAWL_PLIES)
+    // Asserted as a relationship, not arithmetic — the constants are tuning.
+    const shallow = resolveEntry({ line: 'd4 d5 c4' })
+    const deep = resolveEntry({ line: 'e4 c6 d4 d5 exd5 cxd5' })
+    // A deep branch is capped by its own prefix plus the crawl length...
+    expect(deep.maxPly).toBe(6 + CRAWL_PLIES)
+    expect(deep.maxPly).toBeGreaterThan(shallow.maxPly)
+    // ...and every branch gets at least that much crawl of its own. A shallow
+    // one gets more, because the global floor lifts it past prefix + crawl.
+    for (const r of [shallow, deep]) {
+      expect(r.maxPly - r.forced.length).toBeGreaterThanOrEqual(CRAWL_PLIES)
+    }
   })
 
   it('never caps a branch before it is allowed to stop', () => {
@@ -190,11 +201,13 @@ describe('resolveEntry — how deep each branch crawls', () => {
     // studying, and cannot also be the study.
     expect(resolveEntry({ line: 'e4 c6 d4 d5 e5 Bf5' }).minPly).toBe(6 + MIN_OWN_PLIES)
     expect(resolveEntry({ line: 'd4 d5 c4 c6 Nf3 Nf6' }).minPly).toBe(6 + MIN_OWN_PLIES)
+    // ...and that is past the global floor, so the prefix is what decided it
+    expect(6 + MIN_OWN_PLIES).toBeGreaterThan(GLOBAL_MIN_PLY - 1)
   })
 
   it('keeps the global floor for a branch that starts shallower', () => {
-    expect(resolveEntry({ line: 'd4' }).minPly).toBe(6)
-    expect(resolveEntry({ line: 'd4 d5 c4' }).minPly).toBe(6)
+    expect(resolveEntry({ line: 'd4' }).minPly).toBe(GLOBAL_MIN_PLY)
+    expect(resolveEntry({ line: 'd4 d5 c4' }).minPly).toBe(GLOBAL_MIN_PLY)
   })
 
   it('still leaves room to stop once the floor moves', () => {
@@ -791,5 +804,132 @@ describe('readBranch — resume re-renders rather than replaying an old file', (
     const [r] = await build(ENTRIES.slice(1))
     await writeBranch(dir, r)
     expect((await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })).pgnError).toBeNull()
+  })
+})
+
+describe('how deep a branch runs before it may stop', () => {
+  // The first built repertoire bottomed out at move 5 everywhere, because a
+  // line stops the moment it is *allowed* to and almost every position is quiet
+  // by then. maxPly was never the constraint — minPly was.
+  it('gives a branch several moves of its own before it may stop', () => {
+    expect(resolveEntry({ line: 'd4 d5 c4' }).minPly).toBe(Math.max(GLOBAL_MIN_PLY, 3 + MIN_OWN_PLIES))
+    expect(resolveEntry({ line: 'd4' }).minPly).toBe(GLOBAL_MIN_PLY)
+  })
+
+  it('runs past the old five-move ceiling', () => {
+    // Every branch must be able to reach at least move 6 for both sides.
+    for (const line of ['d4', 'd4 d5 c4', 'e4 c6 d4 d5 exd5 cxd5']) {
+      expect(resolveEntry({ line }).maxPly, line).toBeGreaterThanOrEqual(12)
+    }
+  })
+
+  it('still leaves room between the floor and the cap', () => {
+    for (const line of ['d4', 'd4 f5 g3', 'd4 d5 c4 c6 Nf3 Nf6']) {
+      const r = resolveEntry({ line })
+      expect(r.maxPly - r.minPly, line).toBeGreaterThanOrEqual(2)
+    }
+  })
+
+  it('deepens the branches that start deepest, not just the shallow ones', () => {
+    const deep = resolveEntry({ line: 'e4 c6 d4 d5 exd5 cxd5' })
+    expect(deep.minPly).toBeGreaterThan(6 + MIN_OWN_PLIES - 1)
+    expect(deep.maxPly).toBeGreaterThan(deep.minPly)
+  })
+
+  it('is still overridable per entry, for a line that needs a specific depth', () => {
+    expect(resolveEntry({ line: 'd4 d5 c4 dxc4 e3', minPly: 7, maxPly: 13 })).toMatchObject({
+      minPly: 7,
+      maxPly: 13,
+    })
+  })
+})
+
+describe('the depth floor has one owner', () => {
+  it('takes the crawler’s default rather than keeping a second copy', () => {
+    // Two constants for "earliest a line may stop" meant `crawl.mjs --line X`
+    // and `build.mjs --only X` crawled the same branch to different depths, and
+    // the single-line crawler is what you reach for to test a manifest change.
+    expect(GLOBAL_MIN_PLY).toBe(DEFAULTS.minPly)
+  })
+
+  it('lets the run override it', () => {
+    expect(resolveEntry({ line: 'd4' }, { minPly: 6 }).minPly).toBe(6)
+  })
+
+  it('keeps the cap above an overridden floor', () => {
+    const r = resolveEntry({ line: 'd4' }, { minPly: 20 })
+    expect(r.maxPly).toBeGreaterThan(r.minPly)
+  })
+})
+
+describe('--min-ply', () => {
+  it('is accepted, since the constant’s own doc points at it', () => {
+    expect(parseArgs(['--min-ply', '8'])).toEqual({ 'min-ply': '8' })
+  })
+
+  it('is validated like every other numeric flag', () => {
+    expect(() => numberFlag({ 'min-ply': true }, 'min-ply')).toThrow(/needs a number/)
+  })
+})
+
+describe('a crawl actually runs deeper, not just its arithmetic', () => {
+  // The gap that mattered: every depth test above checks `resolveEntry`, and an
+  // hour ago the [Orientation] fix passed every test while never reaching the
+  // built file. A constant is not an outcome.
+  const DEEP_BOOK = stubBook(
+    Object.fromEntries(
+      // A book deep enough that only minPly, not the data, decides where a line
+      // ends: one reply at every ply out to 16.
+      (() => {
+        const spec = {}
+        const line = ['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O', 'e3', 'h6', 'Bh4', 'b6', 'cxd5', 'Nxd5']
+        for (let i = 0; i < line.length; i++) {
+          spec[line.slice(0, i).join(' ')] = [{ san: line[i], w: 400, d: 100, b: 300 }]
+        }
+        return Object.entries(spec)
+      })(),
+    ),
+  )
+
+  const deepest = (crawled) =>
+    Math.max(...[...crawled.nodes.values()].map((n) => n.ply ?? 0))
+
+  const crawlTo = async (minPly) => {
+    const [r] = await buildAll({
+      entries: [{ id: 'deep', name: 'D', color: 'w', line: 'd4 d5 c4' }],
+      engine: stubEngine(),
+      explorer: DEEP_BOOK,
+      date: '2026-08-06',
+      defaults: { minPly },
+    })
+    return r
+  }
+
+  it('stops at the floor it was given, not before', async () => {
+    const shallow = await crawlTo(6)
+    expect(deepest(shallow.crawled)).toBeGreaterThanOrEqual(6)
+    expect(deepest(shallow.crawled)).toBeLessThan(10)
+  })
+
+  it('runs deeper when the floor is raised', async () => {
+    const shallow = await crawlTo(6)
+    const deep = await crawlTo(12)
+    expect(deepest(deep.crawled)).toBeGreaterThan(deepest(shallow.crawled))
+    expect(deep.load.ourDecisions).toBeGreaterThan(shallow.load.ourDecisions)
+  })
+
+  it('runs a full five moves for both sides at the shipped default', async () => {
+    // The complaint that started this: lines ended around ply 6, move 3. A line
+    // stops at the first quiet position it is allowed to stop at, so the floor
+    // *is* the typical depth — ply 10 is five moves each, complete.
+    const built = await crawlTo(GLOBAL_MIN_PLY)
+    expect(deepest(built.crawled)).toBeGreaterThanOrEqual(GLOBAL_MIN_PLY)
+  })
+
+  it('the PGN it renders is as deep as the tree it crawled', async () => {
+    const built = await crawlTo(GLOBAL_MIN_PLY)
+    const chess = new Chess()
+    chess.loadPgn(built.pgn)
+    expect(chess.history().length).toBeGreaterThanOrEqual(GLOBAL_MIN_PLY)
   })
 })

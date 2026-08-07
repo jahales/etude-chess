@@ -1,6 +1,6 @@
 # 0022 — One repertoire from many crawls: each branch owns its subtree
 
-**Status:** Accepted · 2026-08-06
+**Status:** Accepted · 2026-08-06 · **amended 2026-08-06** (depth, below)
 **Extends:** ADR [0021](0021-opening-repertoire-generator.md) (the generator itself)
 **Relates to:** [repertoire-v1.md](../repertoire-v1.md) (the spec) · issue #92
 
@@ -64,8 +64,17 @@ owns, so an incremental rebuild could reintroduce the contradiction the full bui
 - Depth becomes per-branch. A flat cap is wrong in both directions — too shallow for a branch
   starting at ply 6 to reach a quiet position, and far too deep for a "don't be surprised by
   1...c5" sweeper, which at half a second per engine search is most of an hour spent on the
-  least valuable branch in the repertoire. Every branch gets the same *crawl*, not the same
-  *depth*.
+  least valuable branch in the repertoire.
+
+  > **Amended 2026-08-06.** This originally read "every branch gets the same *crawl*, not the
+  > same *depth*", and that is no longer true. The first built repertoire ended every line
+  > around move 5, because a line stops the moment it is *allowed* to and almost every opening
+  > position is quiet by move 4 — so the floor, not the cap, was deciding depth. A **global
+  > floor** (`minPly`, now 10) was added beneath the per-branch rule. It binds only on shallow
+  > branches, which therefore now crawl *further* than deep ones: `caro` (prefix 2) gets 10
+  > plies of its own, `caro-advance` (prefix 6) gets 8. The per-branch rule still sets the cap
+  > and still prevents a branch stopping on its own root; what changed is that it is now a
+  > minimum on top of a floor rather than the only rule.
 - Move-order coverage is bounded by what the manifest lists. A line reached only by an unusual
   order is crawled by whichever branch reaches it, and may be crawled twice by two branches.
   Accepted: duplicate study of a transposition is cheap, and the alternative — position-keyed

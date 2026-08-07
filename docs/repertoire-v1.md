@@ -20,11 +20,18 @@ position is the item**. The moves leading to it are scaffolding to get you out o
 with a position you can think in. This is what keeps openings inside constitution §1 (train
 judgment, not memory of lines); see [decisions/0021](decisions/0021-opening-repertoire-generator.md).
 
-Depth is therefore **variable**, and measured from each branch's own starting point rather than
-from move one: a branch crawls two plies before it may stop and six before it must. Lines end as
-soon as they go quiet, so sharp lines run longer because they have to. A flat depth would be
-wrong in both directions — it truncates a branch that starts deep before it can find a quiet
-position, and it pads a "don't be surprised by 1...c5" sweeper with moves that carry no decision.
+Depth is therefore **variable**, and set by two rules rather than one. A **floor** — no line may
+stop before ply 10, five moves each — and a **per-branch minimum** of four plies past the
+branch's own curated prefix, whichever is deeper. The cap is eight plies past the prefix.
+
+The floor is what actually decides depth, and it is worth knowing why: a line stops the moment
+it is *allowed* to, because almost every opening position passes the quiet test by move 4. With
+a floor of six, all 25 branches ended around move 3 — which is not preparation. Lines still end
+as soon as they go quiet past the floor, so sharp lines run longer because they have to.
+
+A flat depth would be wrong in both directions: it truncates a branch that starts deep before it
+can find a quiet position, and it pads a "don't be surprised by 1...c5" sweeper with moves that
+carry no decision. See ADR [0022](decisions/0022-repertoire-branch-ownership.md), amended.
 
 ## White — 1.d4, Queen's Gambit spine
 
