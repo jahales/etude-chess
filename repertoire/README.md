@@ -7,8 +7,33 @@ rebuild instead.
 
 | File | What it is |
 |---|---|
-| `etude-repertoire-v1.pgn` | The repertoire. One game per branch, named in its `[Event]` header. Import into En Croissant → **Files**, then point the repertoire trainer at it. |
+| `etude-repertoire-v1-white.pgn` | The White repertoire — 14 branches, one game each, named in its `[Event]` header. |
+| `etude-repertoire-v1-black.pgn` | The Black repertoire — 11 branches. |
 | `summary.json` | What it cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
+
+## Importing into En Croissant
+
+1. **Copy both `.pgn` files into En Croissant's documents directory.** By default
+   that is `Documents\EnCroissant` — the Files page has an *open folder* button
+   that takes you straight there, and the location is configurable in settings.
+2. **Give each one a `.info` sidecar** with the same basename, so the app files
+   it as a repertoire rather than as `other`:
+
+   ```json
+   { "type": "repertoire", "tags": [] }
+   ```
+
+   i.e. `etude-repertoire-v1-white.info` next to `etude-repertoire-v1-white.pgn`.
+   En Croissant writes one of these itself for any `.pgn` it finds, but it
+   defaults the type to `other`, and only a `repertoire` file offers Practice.
+3. Open the file from the **Files** page and pick a branch — each game is one
+   branch of the repertoire — then use **Practice** to drill it.
+
+Every game carries `[Orientation "white"]` or `[Orientation "black"]`, which is
+what the trainer reads to decide which side it is quizzing you on. Without it
+the practice deck is built as White for everything (`headers.orientation ||
+"white"`), so a Black repertoire hands you the opponent's side of every line.
+That tag matters more than the file split does.
 
 Why these openings and not others: [docs/repertoire-v1.md](../docs/repertoire-v1.md). How the
 thing works: [scripts/repertoire/README.md](../scripts/repertoire/README.md). Why it terminates
@@ -101,8 +126,10 @@ node scripts/repertoire/build.mjs --book out/band.json --canon-book out/otb.json
      --nodes 120000 --trap 0.01 --min-node-games 20 --out out/repertoire
 ```
 
-Then copy `out/repertoire/repertoire.pgn` and `summary.json` here. Validate the manifest without
-spending engine time with `node scripts/repertoire/build.mjs --check`.
+Then copy `out/repertoire/repertoire-white.pgn`, `repertoire-black.pgn` and `summary.json` here.
+The build also writes a combined `repertoire.pgn` — useful for reading the whole thing at once,
+not for importing. Validate the manifest without spending engine time with
+`node scripts/repertoire/build.mjs --check`.
 
 The books are not committed (ADR [0018](../docs/decisions/0018-games-corpus-and-annotations.md)
 — we ship no corpus). Rebuild them with `buildBook.mjs`; see the generator README.

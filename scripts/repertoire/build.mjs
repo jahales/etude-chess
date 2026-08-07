@@ -87,7 +87,25 @@ export function parseManifest(text) {
  * what the PGN standard wants and what En Croissant's importer reads.
  */
 export function mergePgn(games) {
+  if (games.length === 0) return ''
   return `${games.map((g) => g.trim()).join('\n\n')}\n`
+}
+
+/**
+ * The repertoire as one file per side.
+ *
+ * En Croissant trains from one side's point of view, so a file holding both
+ * colours is not importable as either — it would try to drill you as White in
+ * the Caro-Kann. The split lives in the build rather than in a pair of manual
+ * commands, because a manual step drifts the moment the manifest changes.
+ *
+ * Order within each file follows the input, which `main` has already put in
+ * manifest order.
+ */
+export function splitByColour(results) {
+  const ok = results.filter((r) => !r.error)
+  const pgnFor = (colour) => mergePgn(ok.filter((r) => r.entry.color === colour).map((r) => r.pgn))
+  return { white: pgnFor('w'), black: pgnFor('b') }
 }
 
 /**
@@ -258,14 +276,44 @@ export function isBuilt(outDir, entry) {
  * back the merged PGN would hold only what today's run happened to crawl — a
  * repertoire missing most of itself, written without complaint.
  */
-export async function readBranch(outDir, entry, defaults = {}) {
+export async function readBranch(outDir, entry, defaults = {}, render = {}) {
   const saved = JSON.parse(await readFile(join(outDir, `${entry.id}.json`), 'utf8'))
-  const pgn = await readFile(join(outDir, `${entry.id}.pgn`), 'utf8')
+  const stored = await readFile(join(outDir, `${entry.id}.pgn`), 'utf8')
   const nodes = new Map(Object.entries(saved.nodes ?? {}))
+  const resolved = resolveEntry(entry, defaults)
+
+  // The date this branch was crawled, kept from the file rather than restamped
+  // with today's. A re-render is not a new crawl, and stamping it as one would
+  // churn the committed artefact's dates every time the renderer changes.
+  const crawledOn = stored.match(/\[Date "(\d{4})\.(\d{2})\.(\d{2})"\]/)
+  const date = crawledOn ? `${crawledOn[1]}-${crawledOn[2]}-${crawledOn[3]}` : render.date
+  if (!date) throw new Error(`${entry.id}.pgn has no [Date] and none was supplied`)
+
+  // Rendered from the stored tree, not read back from the stored .pgn.
+  //
+  // The crawl is the expensive part and the PGN is a cheap rendering of it, so
+  // resume should reuse the first and redo the second. Replaying the old file
+  // meant a change to the renderer never reached a resumed branch: the
+  // [Orientation] tag En Croissant's trainer needs was added, every test
+  // passed, and the regenerated repertoire still did not have it.
+  const pgn = toPgn({
+    nodes,
+    rootFen: saved.rootFen,
+    forcedSans: resolved.forced,
+    ourColor: entry.color,
+    date,
+    name: entry.name,
+    why: entry.why,
+    provenance: {
+      ...render.provenance,
+      minDepth: Number.isFinite(saved.report?.minDepth) ? saved.report.minDepth : undefined,
+    },
+  })
+
   return {
     // With the run's defaults, so a resumed branch is described by the flags
     // this invocation was given rather than by the built-in constants.
-    entry: resolveEntry(entry, defaults),
+    entry: resolved,
     crawled: {
       nodes,
       rootFen: saved.rootFen,
@@ -280,10 +328,9 @@ export async function readBranch(outDir, entry, defaults = {}) {
     // and a load of zero would quietly shrink the repertoire's reported cost.
     load: saved.load ?? theoryLoad(nodes.values()),
     pgn,
-    // Checked on the way back in, not assumed. A reused branch was written by a
-    // different version of the renderer as often as not, and reporting "no
-    // unparseable branches" without having looked at most of them is the same
-    // silent success this check exists to catch.
+    // Checked on the way back in, not assumed — the renderer that produced it
+    // is the current one, but reporting "no unparseable branches" without
+    // having looked is the same silent success this check exists to catch.
     pgnError: pgnError(pgn),
     seconds: 0,
     reused: true,
@@ -517,25 +564,38 @@ async function main() {
     ...maybe('crawlPlies', numberFlag(args, 'crawl-plies')),
   }
 
+  const enginePath = stringFlag(args, 'engine')
+  const date = new Date().toISOString().slice(0, 10)
+  // What every rendered PGN records about the conditions that produced it.
+  // Hoisted above the resume block, which re-renders reused branches with it.
+  const provenance = {
+    engine: basename(enginePath ?? DEFAULT_ENGINE_PATH),
+    nodes: deepNodes,
+    threads: 1,
+  }
+
   // Branches an earlier run already built. Read back rather than skipped, so
   // the merged PGN and the summary still describe the whole repertoire.
   const reused = []
   if (args.resume) {
     const done = entries.filter((e) => isBuilt(outDir, e))
-    for (const e of done) reused.push(await readBranch(outDir, e, crawlDefaults))
+    for (const e of done) {
+      const r = await readBranch(outDir, e, crawlDefaults, { date, provenance })
+      // Re-rendered, so the file on disk matches what the merge is about to use.
+      await writeBranch(outDir, r)
+      reused.push(r)
+    }
     if (done.length) console.log(`resuming: reusing ${done.length} branch(es) already built`)
     entries = entries.filter((e) => !done.includes(e))
   }
 
   const bookPath = stringFlag(args, 'book')
   const canonPath = stringFlag(args, 'canon-book')
-  const enginePath = stringFlag(args, 'engine')
   const explorer = bookPath
     ? await createLocalBook({ path: bookPath })
     : createExplorer({ cacheDir: join(outDir, '.explorer-cache') })
   const canon = canonPath ? await createLocalBook({ path: canonPath }) : null
   const engine = createEngine({ path: enginePath })
-  const date = new Date().toISOString().slice(0, 10)
   const started = Date.now()
   console.log(`building ${entries.length} branch(es) at ${deepNodes.toLocaleString()} nodes → ${outDir}\n`)
 
@@ -550,11 +610,7 @@ async function main() {
       canon,
       defaults: crawlDefaults,
       date,
-      provenance: {
-        engine: basename(enginePath ?? DEFAULT_ENGINE_PATH),
-        nodes: deepNodes,
-        threads: 1,
-      },
+      provenance,
       // Written as each branch lands, not at the end. A run long enough to want
       // --resume is long enough to be interrupted, and output that only appears
       // after the last branch gives --resume nothing to resume from.
@@ -579,8 +635,14 @@ async function main() {
     const complete = [...reused, ...results].sort(
       (a, b) => (order.get(a.entry.id) ?? 0) - (order.get(b.entry.id) ?? 0),
     )
-    const merged = mergePgn(complete.filter((r) => !r.error).map((r) => r.pgn))
-    await writeFile(join(outDir, 'repertoire.pgn'), merged, 'utf8')
+    // One file per side is what actually gets imported: En Croissant trains
+    // from one colour's point of view, so a mixed file is usable as neither.
+    // The combined file is written too, for reading the whole thing at once.
+    const usable = complete.filter((r) => !r.error)
+    const { white, black } = splitByColour(usable)
+    await writeFile(join(outDir, 'repertoire-white.pgn'), white, 'utf8')
+    await writeFile(join(outDir, 'repertoire-black.pgn'), black, 'utf8')
+    await writeFile(join(outDir, 'repertoire.pgn'), mergePgn(usable.map((r) => r.pgn)), 'utf8')
 
     const summary = summarise(complete)
     await writeFile(
@@ -643,10 +705,15 @@ engine searches ${engine.searchCount()}`)
       for (const f of summary.failed) console.error(`  ${f.id}: ${f.error}`)
     }
 
+    const branchCount = (pgn) => (pgn ? pgn.split(/\n\s*\n(?=\[Event )/).filter((g) => g.trim()).length : 0)
+    const whiteN = branchCount(white)
+    const blackN = branchCount(black)
     console.log(
-      `\nwrote ${resolve(outDir)} — repertoire.pgn holds ` +
-        `${complete.length - summary.failed.length} branch(es)` +
-        `${reused.length ? ` (${reused.length} reused from an earlier run)` : ''}`,
+      `\nwrote ${resolve(outDir)}` +
+        `${reused.length ? ` (${reused.length} branch(es) reused from an earlier run)` : ''}\n` +
+        `  repertoire-white.pgn   ${whiteN} branches — import this as your White repertoire\n` +
+        `  repertoire-black.pgn   ${blackN} branches — and this as your Black one\n` +
+        `  repertoire.pgn         all ${whiteN + blackN}, for reading rather than importing`,
     )
     if (summary.failed.length || summary.unparseable.length || summary.unwritten.length) process.exitCode = 1
   } finally {

@@ -18,6 +18,7 @@ import {
   pgnError,
   readBranch,
   resolveOnly,
+  splitByColour,
   stringFlag,
   writeBranch,
   CRAWL_PLIES,
@@ -284,8 +285,10 @@ describe('mergePgn', () => {
     expect(merged.match(/\[Event /g)).toHaveLength(2)
   })
 
-  it('survives an empty build', () => {
-    expect(mergePgn([])).toBe('\n')
+  it('produces nothing at all for an empty build, not a blank line', () => {
+    // A file holding one newline imports as a game with no moves, which then
+    // sits in the library looking like a branch that failed.
+    expect(mergePgn([])).toBe('')
   })
 })
 
@@ -459,17 +462,32 @@ describe('readBranch — a reused branch is checked, not assumed', () => {
     expect((await readBranch(dir, ENTRIES[1])).pgnError).toBeNull()
   })
 
-  it('reports a branch an older renderer left unreadable', async () => {
+  it('re-renders past a stored PGN an older renderer left unreadable', async () => {
     // The case that matters: the renderer changed between runs, so what is on
-    // disk was produced by code that no longer exists. Trusting it would report
-    // a clean repertoire built mostly from files nobody looked at.
+    // disk was produced by code that no longer exists. Rendering afresh from the
+    // stored tree means a fixed renderer reaches every reused branch — and the
+    // check still runs on what it produced, not on what it found.
     const dir = scratch('rep-reuse-')
     const [written] = await build(ENTRIES.slice(1))
     await writeBranch(dir, written)
-    writeFileSync(join(dir, 'exchange.pgn'), '[Event "t"]\n\n1. d4 d5 { a } { b } *\n')
+    writeFileSync(
+      join(dir, 'exchange.pgn'),
+      '[Event "t"]\n[Date "2026.08.06"]\n\n1. d4 d5 { a } { b } *\n',
+    )
     const read = await readBranch(dir, ENTRIES[1])
-    expect(read.pgnError).toBeTruthy()
-    expect(summarise([read]).unparseable).toHaveLength(1)
+    expect(read.pgnError).toBeNull()
+    expect(read.pgn).not.toMatch(/\}\s*\{/)
+    expect(summarise([read]).unparseable).toEqual([])
+  })
+
+  it('keeps the date the branch was crawled rather than restamping it', async () => {
+    // A re-render is not a new crawl. Restamping would churn the committed
+    // artefact's dates every time the renderer changes.
+    const dir = scratch('rep-date-')
+    const [written] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, written)
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2030-01-01' })
+    expect(read.pgn).toContain('[Date "2026.08.06"]')
   })
 })
 
@@ -668,5 +686,110 @@ describe('illegalLines — a curated prefix that is not legal chess', () => {
   it('accepts every line in the shipped manifest', async () => {
     const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
     expect(illegalLines(entries)).toEqual([])
+  })
+})
+
+describe('splitByColour — one file per side', () => {
+  // En Croissant trains a repertoire from one side's point of view, so a file
+  // mixing White and Black branches is not importable as either. The split is
+  // part of the build rather than a manual step, or it drifts on the next run.
+  const load = (pgn) => {
+    const chess = new Chess()
+    chess.loadPgn(pgn)
+    return chess.history()
+  }
+  const games = (pgn) => pgn.split(/\n\s*\n(?=\[Event )/).filter((g) => g.trim())
+
+  const MIXED = [
+    ...ENTRIES,
+    { id: 'caro', name: 'Caro-Kann', color: 'b', line: 'e4 c6', why: 'the defence', maxPly: 8 },
+  ]
+
+  it('puts every branch in the file for its own colour', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    expect(games(white)).toHaveLength(2)
+    expect(games(black)).toHaveLength(1)
+  })
+
+  it('never mixes the two, which is the whole point', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    expect(white).not.toContain('Repertoire — Black')
+    expect(black).not.toContain('Repertoire — White')
+  })
+
+  it('emits files a parser still reads', async () => {
+    const { white, black } = splitByColour(await build(MIXED))
+    for (const pgn of [white, black]) {
+      for (const g of games(pgn)) expect(() => load(g)).not.toThrow()
+    }
+  })
+
+  it('loses nothing — every branch lands in exactly one file', async () => {
+    const results = await build(MIXED)
+    const { white, black } = splitByColour(results)
+    expect(games(white).length + games(black).length).toBe(results.length)
+  })
+
+  it('keeps manifest order within each file', async () => {
+    const { white } = splitByColour(await build(MIXED))
+    expect(games(white)[0]).toContain('rare replies')
+    expect(games(white)[1]).toContain('QGD Exchange')
+  })
+
+  it('gives an empty string for a colour with no branches, not a stray newline', async () => {
+    // A one-line file imports as a game with no moves and clutters the library.
+    const { black } = splitByColour(await build(ENTRIES))
+    expect(black).toBe('')
+  })
+
+  it('skips branches that failed to crawl', async () => {
+    const results = await build([{ id: 'broken', name: 'B', color: 'w', line: 'd4 d4' }, ...ENTRIES])
+    expect(games(splitByColour(results).white)).toHaveLength(2)
+  })
+})
+
+describe('readBranch — resume re-renders rather than replaying an old file', () => {
+  // The crawl is the expensive part and the PGN is a cheap rendering of it, so
+  // resume should reuse the first and redo the second. Reading the stored .pgn
+  // back verbatim meant a change to the renderer never reached a resumed
+  // branch: the [Orientation] tag the trainer needs was added, every test
+  // passed, and the regenerated files did not have it.
+  let dir
+  beforeEach(() => {
+    dir = scratch('rep-render-')
+  })
+
+  it('renders the PGN from the stored tree, not from the stored PGN', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    writeFileSync(join(dir, 'exchange.pgn'), '[Event "stale"]\n\n1. d4 *\n')
+
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })
+    expect(read.pgn).not.toContain('stale')
+    expect(read.pgn).toBe(r.pgn)
+  })
+
+  it('picks up a renderer change without re-crawling', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })
+    expect(read.pgn).toContain('[Orientation "white"]')
+  })
+
+  it('carries the run provenance into the re-rendered file', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const read = await readBranch(dir, ENTRIES[1], {}, {
+      date: '2026-08-06',
+      provenance: { engine: 'sf.exe', nodes: 120000, threads: 1 },
+    })
+    expect(read.pgn).toContain('[EngineNodes "120000"]')
+    expect(read.pgn).toContain('[Reproducible "yes"]')
+  })
+
+  it('still checks that what it rendered will parse', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    expect((await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })).pgnError).toBeNull()
   })
 })
