@@ -1,0 +1,1704 @@
+{
+  "generated": "2026-08-07T22:36:31.659Z",
+  "manifest": "scripts/repertoire/manifest.e4.json",
+  "nodes": 120000,
+  "trapThreshold": 0.01,
+  "band": {
+    "source": "db/cache/2026-05.pgn.zst.part",
+    "ratings": [
+      1300,
+      1800
+    ],
+    "speeds": [
+      "blitz",
+      "rapid"
+    ],
+    "maxPly": 16,
+    "gamesScanned": 1398392,
+    "maxGames": 2000000,
+    "stoppedAtLimit": false,
+    "gamesUsed": 367216,
+    "positions": 45502,
+    "minGames": 5,
+    "hits": 818,
+    "misses": 157
+  },
+  "canon": {
+    "source": "db/LumbrasGigaBase_OTB_Complete.7z",
+    "ratings": [
+      2200,
+      2900
+    ],
+    "speeds": [
+      "blitz",
+      "rapid",
+      "classical"
+    ],
+    "maxPly": 16,
+    "gamesScanned": 7338052,
+    "maxGames": 2000000,
+    "stoppedAtLimit": true,
+    "gamesUsed": 2000000,
+    "positions": 174368,
+    "minGames": 5,
+    "hits": 137,
+    "misses": 80
+  },
+  "branches": 12,
+  "failed": [],
+  "unparseable": [],
+  "unwritten": [],
+  "emptyBranches": [
+    {
+      "id": "caro-white",
+      "positions": 4,
+      "delegated": 3
+    }
+  ],
+  "positions": 545,
+  "load": {
+    "ourDecisions": 210,
+    "preparedReplies": 344,
+    "quietTargets": 109,
+    "delegated": 21,
+    "outOfBook": 41,
+    "deepestPly": 12
+  },
+  "traps": [
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.6879,
+      "frequency": 0.422,
+      "swing": 12.4,
+      "practical": 0.501,
+      "expected": 0.352,
+      "games": 709,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Qf6 Nc3 c6",
+      "san": "c6",
+      "trapValue": 0.442,
+      "frequency": 0.7561,
+      "swing": 5,
+      "practical": 0.477,
+      "expected": 0.323,
+      "games": 310,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6 Nf3 Qg6",
+      "san": "Qg6",
+      "trapValue": 0.4145,
+      "frequency": 0.3883,
+      "swing": 10.5,
+      "practical": 0.527,
+      "expected": 0.286,
+      "games": 73,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Bg4 dxe5 Bxf3",
+      "san": "Bxf3",
+      "trapValue": 0.267,
+      "frequency": 0.7236,
+      "swing": 6.7,
+      "practical": 0.438,
+      "expected": 0.359,
+      "games": 233,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.2658,
+      "frequency": 0.3283,
+      "swing": 7.2,
+      "practical": 0.502,
+      "expected": 0.338,
+      "games": 216,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 d6 d4 Bg4",
+      "san": "Bg4",
+      "trapValue": 0.2067,
+      "frequency": 0.3316,
+      "swing": 7,
+      "practical": 0.542,
+      "expected": 0.384,
+      "games": 130,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 d6 d4 e5 dxe5 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.1472,
+      "frequency": 0.338,
+      "swing": 5.1,
+      "practical": 0.566,
+      "expected": 0.409,
+      "games": 121,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6 Nf3 Bd7",
+      "san": "Bd7",
+      "trapValue": 0.1008,
+      "frequency": 0.266,
+      "swing": 6,
+      "practical": 0.52,
+      "expected": 0.331,
+      "games": 50,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 e5 Nf3 Qf6 Nc3 Bc5",
+      "san": "Bc5",
+      "trapValue": 0.0972,
+      "frequency": 0.1756,
+      "swing": 6.1,
+      "practical": 0.528,
+      "expected": 0.312,
+      "games": 72,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Qg6",
+      "san": "Qg6",
+      "trapValue": 0.0752,
+      "frequency": 0.1976,
+      "swing": 5.3,
+      "practical": 0.485,
+      "expected": 0.358,
+      "games": 130,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 d6",
+      "san": "d6",
+      "trapValue": 0.0519,
+      "frequency": 0.2195,
+      "swing": 5.2,
+      "practical": 0.444,
+      "expected": 0.327,
+      "games": 63,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Bc5",
+      "san": "Bc5",
+      "trapValue": 0.0496,
+      "frequency": 0.0482,
+      "swing": 14,
+      "practical": 0.5,
+      "expected": 0.336,
+      "games": 81,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 f5",
+      "san": "f5",
+      "trapValue": 0.0378,
+      "frequency": 0.0364,
+      "swing": 8.6,
+      "practical": 0.523,
+      "expected": 0.385,
+      "games": 710,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nd4",
+      "san": "Nd4",
+      "trapValue": 0.0376,
+      "frequency": 0.0392,
+      "swing": 8.1,
+      "practical": 0.524,
+      "expected": 0.39,
+      "games": 766,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.0372,
+      "frequency": 0.0687,
+      "swing": 12.3,
+      "practical": 0.421,
+      "expected": 0.342,
+      "games": 126,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 h6",
+      "san": "h6",
+      "trapValue": 0.0297,
+      "frequency": 0.0596,
+      "swing": 10.2,
+      "practical": 0.463,
+      "expected": 0.37,
+      "games": 109,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Qe7",
+      "san": "Qe7",
+      "trapValue": 0.0279,
+      "frequency": 0.1381,
+      "swing": 5.4,
+      "practical": 0.476,
+      "expected": 0.422,
+      "games": 232,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qa5 d4 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.0258,
+      "frequency": 0.061,
+      "swing": 5.6,
+      "practical": 0.588,
+      "expected": 0.365,
+      "games": 51,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5",
+      "san": "Bc5",
+      "trapValue": 0.0252,
+      "frequency": 0.0294,
+      "swing": 9.2,
+      "practical": 0.472,
+      "expected": 0.374,
+      "games": 1882,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.0244,
+      "frequency": 0.0692,
+      "swing": 7.7,
+      "practical": 0.464,
+      "expected": 0.4,
+      "games": 261,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 d6",
+      "san": "d6",
+      "trapValue": 0.0232,
+      "frequency": 0.0765,
+      "swing": 6.1,
+      "practical": 0.489,
+      "expected": 0.411,
+      "games": 178,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 d6",
+      "san": "d6",
+      "trapValue": 0.022,
+      "frequency": 0.1436,
+      "swing": 6.2,
+      "practical": 0.452,
+      "expected": 0.397,
+      "games": 83,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 cxd4 cxd4 d5 e5 Bb4+",
+      "san": "Bb4+",
+      "trapValue": 0.0208,
+      "frequency": 0.1712,
+      "swing": 5.1,
+      "practical": 0.48,
+      "expected": 0.408,
+      "games": 50,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 e5 Nf3 Qf6",
+      "san": "Qf6",
+      "trapValue": 0.0153,
+      "frequency": 0.0192,
+      "swing": 8.3,
+      "practical": 0.488,
+      "expected": 0.383,
+      "games": 1228,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e6 d4 b6",
+      "san": "b6",
+      "trapValue": 0.0147,
+      "frequency": 0.0561,
+      "swing": 5.7,
+      "practical": 0.457,
+      "expected": 0.403,
+      "games": 610,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 f6",
+      "san": "f6",
+      "trapValue": 0.0138,
+      "frequency": 0.0392,
+      "swing": 9.2,
+      "practical": 0.42,
+      "expected": 0.353,
+      "games": 132,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 Nc6 d4 d6 Nf3 e5 Bb5 a6",
+      "san": "a6",
+      "trapValue": 0.0134,
+      "frequency": 0.1526,
+      "swing": 6.8,
+      "practical": 0.394,
+      "expected": 0.367,
+      "games": 94,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 Nc6",
+      "san": "Nc6",
+      "trapValue": 0.0132,
+      "frequency": 0.0631,
+      "swing": 8.3,
+      "practical": 0.418,
+      "expected": 0.352,
+      "games": 61,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 g6",
+      "san": "g6",
+      "trapValue": 0.0115,
+      "frequency": 0.1384,
+      "swing": 10.3,
+      "practical": 0.375,
+      "expected": 0.357,
+      "games": 80,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 c4",
+      "san": "c4",
+      "trapValue": 0.0104,
+      "frequency": 0.0339,
+      "swing": 6.5,
+      "practical": 0.541,
+      "expected": 0.416,
+      "games": 61,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 c4",
+      "san": "c4",
+      "trapValue": 0.0104,
+      "frequency": 0.0339,
+      "swing": 6.5,
+      "practical": 0.541,
+      "expected": 0.416,
+      "games": 61,
+      "entry": "french-advance"
+    }
+  ],
+  "transposed": [
+    {
+      "line": "e4 d6 d4 Nc6",
+      "to": "nimzowitsch",
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Nc6",
+      "to": "nimzowitsch",
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Nd7",
+      "to": "e4-sidelines",
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e6 d4 d6",
+      "to": "e4-sidelines",
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 b6 Nf3 Bb7 Bd3 Nf6",
+      "to": "owens",
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 b6 Nf3 Bb7 Bd3 h6",
+      "to": "owens",
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 Nc6",
+      "to": "nimzowitsch",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 Nc6",
+      "to": "alapin",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 Qb6",
+      "to": "alapin",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 cxd4",
+      "to": "alapin",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 c4",
+      "to": "alapin",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 c6 d4 e6",
+      "to": "french",
+      "entry": "caro-white"
+    },
+    {
+      "line": "e4 c6 d4 d6",
+      "to": "e4-sidelines",
+      "entry": "caro-white"
+    }
+  ],
+  "unpunished": [],
+  "unverified": [
+    {
+      "line": "e4 e6 d4 d5 e5 Nc6",
+      "why": "transposed into the \"nimzowitsch\" line, which covers it",
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 c4",
+      "why": "transposed into the \"alapin\" line, which covers it",
+      "entry": "french-advance"
+    }
+  ],
+  "tooRareToJudge": [
+    {
+      "line": "e4 Nh6",
+      "games": 21,
+      "swing": 7.5,
+      "practical": 0.429,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 Na6",
+      "games": 12,
+      "swing": 7.3,
+      "practical": 0.417,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 f5",
+      "games": 46,
+      "swing": 6.5,
+      "practical": 0.478,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 b6",
+      "games": 43,
+      "swing": 5.6,
+      "practical": 0.547,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 f6",
+      "games": 34,
+      "swing": 10.4,
+      "practical": 0.485,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 g6 d4 f6",
+      "games": 9,
+      "swing": 8,
+      "practical": 0.667,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 e5 dxe5 Be6",
+      "games": 5,
+      "swing": 7.9,
+      "practical": 0.7,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 Nd7 Nf3 Ngf6",
+      "games": 15,
+      "swing": 6.7,
+      "practical": 0.5,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 Nf6 Nc3 Nbd7 Nf3 g6",
+      "games": 9,
+      "swing": 8.3,
+      "practical": 0.611,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 Nf6 Nc3 e5 Nf3 Be7",
+      "games": 20,
+      "swing": 12.6,
+      "practical": 0.45,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 d6 d4 Nd7 Nf3 e5 Bc4 Be7",
+      "games": 11,
+      "swing": 12.3,
+      "practical": 0.545,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 g6 d4 Bg7 c4 e6 Nc3 c6",
+      "games": 7,
+      "swing": 5.6,
+      "practical": 0.571,
+      "entry": "e4-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 c5",
+      "games": 35,
+      "swing": 11.2,
+      "practical": 0.414,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 g6",
+      "games": 24,
+      "swing": 11.8,
+      "practical": 0.5,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 h6",
+      "games": 21,
+      "swing": 7.6,
+      "practical": 0.5,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Ne7",
+      "games": 11,
+      "swing": 9.6,
+      "practical": 0.545,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 g5",
+      "games": 9,
+      "swing": 16.2,
+      "practical": 0.333,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Be7",
+      "games": 48,
+      "swing": 7.3,
+      "practical": 0.438,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 f5",
+      "games": 39,
+      "swing": 7.1,
+      "practical": 0.397,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Qf6",
+      "games": 34,
+      "swing": 7.5,
+      "practical": 0.412,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 h6",
+      "games": 29,
+      "swing": 6.4,
+      "practical": 0.448,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Be6",
+      "games": 17,
+      "swing": 6.2,
+      "practical": 0.412,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Bd7",
+      "games": 7,
+      "swing": 7,
+      "practical": 0.429,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 a6",
+      "games": 5,
+      "swing": 6.5,
+      "practical": 0.4,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 d5",
+      "games": 25,
+      "swing": 7.6,
+      "practical": 0.48,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Bd6",
+      "games": 18,
+      "swing": 12.8,
+      "practical": 0.444,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 c6",
+      "games": 7,
+      "swing": 7.6,
+      "practical": 0.429,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 Bxf2+",
+      "games": 49,
+      "swing": 18.2,
+      "practical": 0.469,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 Qe7",
+      "games": 36,
+      "swing": 6.8,
+      "practical": 0.472,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 Qh4",
+      "games": 35,
+      "swing": 8.4,
+      "practical": 0.429,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 Qf6",
+      "games": 17,
+      "swing": 9,
+      "practical": 0.471,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Qf6 Nc3 Bb4",
+      "games": 8,
+      "swing": 14,
+      "practical": 0.375,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 exd4 Nxd4 Qf6",
+      "games": 26,
+      "swing": 9.7,
+      "practical": 0.423,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 exd4 Nxd4 Be6",
+      "games": 13,
+      "swing": 8.7,
+      "practical": 0.692,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 d6 d4 Bg4 dxe5 dxe5",
+      "games": 27,
+      "swing": 12.1,
+      "practical": 0.315,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Bc5 Bc4 Bxf2+",
+      "games": 35,
+      "swing": 9.1,
+      "practical": 0.686,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Bc5 Bc4 Nxe4",
+      "games": 18,
+      "swing": 8.4,
+      "practical": 0.361,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nf6 Nxe5 Bc5 Bc4 d6",
+      "games": 6,
+      "swing": 8.2,
+      "practical": 0.583,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Bc5 Nxe5 Bxf2+ Kxf2 Qh4+",
+      "games": 21,
+      "swing": 5.8,
+      "practical": 0.381,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Qf6 Nc3 Bc5 Nd5 Qd6",
+      "games": 19,
+      "swing": 11.5,
+      "practical": 0.447,
+      "entry": "e5-sidelines"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nh6",
+      "games": 42,
+      "swing": 8.3,
+      "practical": 0.393,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Qe7",
+      "games": 17,
+      "swing": 7.6,
+      "practical": 0.5,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Qe7",
+      "games": 6,
+      "swing": 5.9,
+      "practical": 0.5,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 d5",
+      "games": 5,
+      "swing": 15.3,
+      "practical": 0.8,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Na5",
+      "games": 27,
+      "swing": 5.2,
+      "practical": 0.519,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 d6 d4 f6",
+      "games": 7,
+      "swing": 10.5,
+      "practical": 0.714,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 d6 d4 Qe7",
+      "games": 5,
+      "swing": 5.4,
+      "practical": 0.6,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 f5 d3 fxe4",
+      "games": 18,
+      "swing": 6.2,
+      "practical": 0.417,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d3 Ng4",
+      "games": 30,
+      "swing": 10.5,
+      "practical": 0.433,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Bc5 O-O Ng4",
+      "games": 19,
+      "swing": 8.9,
+      "practical": 0.5,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 Bc5 O-O Nd4",
+      "games": 7,
+      "swing": 15.2,
+      "practical": 0.643,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 h6 O-O d5",
+      "games": 30,
+      "swing": 6.6,
+      "practical": 0.433,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nf6 d3 d6 Ng5 Be6",
+      "games": 20,
+      "swing": 11.1,
+      "practical": 0.45,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 h6 O-O Bc5 c3 a6",
+      "games": 13,
+      "swing": 6.6,
+      "practical": 0.615,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 d6 d4 exd4 Nxd4 Be6",
+      "games": 5,
+      "swing": 14.3,
+      "practical": 0.4,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 d6 d4 Nf6 dxe5 Nxe5",
+      "games": 11,
+      "swing": 13.7,
+      "practical": 0.727,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nd4 Nxd4 exd4 d3 Bc5",
+      "games": 14,
+      "swing": 16.1,
+      "practical": 0.286,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4 Nd4 Nxd4 exd4 d3 Bb4+",
+      "games": 6,
+      "swing": 7.1,
+      "practical": 0.5,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 c5 c3 b6",
+      "games": 15,
+      "swing": 5.7,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 d6",
+      "games": 12,
+      "swing": 6.4,
+      "practical": 0.417,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 g6",
+      "games": 5,
+      "swing": 9.2,
+      "practical": 0.8,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 Nc6",
+      "games": 21,
+      "swing": 6.4,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 b6",
+      "games": 14,
+      "swing": 5.5,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 Nf6",
+      "games": 22,
+      "swing": 14.8,
+      "practical": 0.318,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 Qb6",
+      "games": 8,
+      "swing": 13.2,
+      "practical": 0.625,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 Qa5+",
+      "games": 7,
+      "swing": 13.8,
+      "practical": 0.429,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 a6",
+      "games": 6,
+      "swing": 8.7,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 cxd4 cxd4 a6",
+      "games": 18,
+      "swing": 5.1,
+      "practical": 0.528,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 cxd4 cxd4 d6",
+      "games": 16,
+      "swing": 6,
+      "practical": 0.438,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 cxd4 cxd4 g6",
+      "games": 7,
+      "swing": 6.3,
+      "practical": 0.429,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 Nd7",
+      "games": 13,
+      "swing": 5,
+      "practical": 0.538,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 Nc6 Nf3 Nf6",
+      "games": 22,
+      "swing": 6.6,
+      "practical": 0.614,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 d5 exd5 Qxd5 d4 e5",
+      "games": 5,
+      "swing": 5,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 a6",
+      "games": 23,
+      "swing": 8.3,
+      "practical": 0.435,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 Nge7",
+      "games": 18,
+      "swing": 16.3,
+      "practical": 0.389,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 g6",
+      "games": 15,
+      "swing": 15.8,
+      "practical": 0.533,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 Be7",
+      "games": 13,
+      "swing": 11.5,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 Qa5+",
+      "games": 7,
+      "swing": 8.7,
+      "practical": 0.429,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 Qb6",
+      "games": 6,
+      "swing": 9.3,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 e6 Nf3 h6",
+      "games": 5,
+      "swing": 10.6,
+      "practical": 0.6,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 d5 e5 g6",
+      "games": 6,
+      "swing": 6.3,
+      "practical": 0.667,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 d6 Nf3 d5",
+      "games": 8,
+      "swing": 13.7,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 Nc6 d4 cxd4 cxd4 g6 d5 Ne5",
+      "games": 11,
+      "swing": 13.5,
+      "practical": 0.227,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 cxd4 cxd4 d5 e5 a6",
+      "games": 15,
+      "swing": 5.2,
+      "practical": 0.667,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 Nc6 Nf3 f6",
+      "games": 20,
+      "swing": 5.1,
+      "practical": 0.55,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 Nc6 Nf3 b6",
+      "games": 13,
+      "swing": 6.9,
+      "practical": 0.538,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 Nc6 Nf3 Nh6",
+      "games": 8,
+      "swing": 5,
+      "practical": 0.438,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 Nc6 Nf3 Be7",
+      "games": 8,
+      "swing": 5.7,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 d5 e5 c4 Nf3 a5",
+      "games": 5,
+      "swing": 5.8,
+      "practical": 0.8,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 c5 c3 e6 d4 a6 Nf3 cxd4 cxd4 Nc6",
+      "games": 8,
+      "swing": 6.1,
+      "practical": 0.5,
+      "entry": "alapin"
+    },
+    {
+      "line": "e4 d5 exd5 c5",
+      "games": 21,
+      "swing": 5.6,
+      "practical": 0.429,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Nc6",
+      "games": 11,
+      "swing": 27.4,
+      "practical": 0.227,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qh5",
+      "games": 7,
+      "swing": 34.5,
+      "practical": 0.143,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qg5",
+      "games": 7,
+      "swing": 5,
+      "practical": 0.429,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 e6",
+      "games": 5,
+      "swing": 31.7,
+      "practical": 0.2,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 b6",
+      "games": 13,
+      "swing": 9.2,
+      "practical": 0.615,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 c5",
+      "games": 8,
+      "swing": 5.9,
+      "practical": 0.75,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Bd7",
+      "games": 28,
+      "swing": 6.3,
+      "practical": 0.429,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 h5",
+      "games": 23,
+      "swing": 5.9,
+      "practical": 0.543,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Qc6",
+      "games": 8,
+      "swing": 27.5,
+      "practical": 0.375,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe5+ Be2 Qg5",
+      "games": 11,
+      "swing": 7.2,
+      "practical": 0.364,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 Nf6 Nf3 Nd5",
+      "games": 7,
+      "swing": 6.8,
+      "practical": 0.643,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 Nf6 Nf3 b6",
+      "games": 5,
+      "swing": 9.4,
+      "practical": 0.6,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qd8 d4 Bf5 Nf3 h6",
+      "games": 5,
+      "swing": 9.4,
+      "practical": 0.4,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qa5 d4 c6 Nf3 e6",
+      "games": 12,
+      "swing": 5.1,
+      "practical": 0.583,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6 Nf3 b6",
+      "games": 11,
+      "swing": 17.3,
+      "practical": 0.636,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6 Nf3 h5",
+      "games": 9,
+      "swing": 11.5,
+      "practical": 0.667,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nc6 Nf3 h6",
+      "games": 5,
+      "swing": 12.5,
+      "practical": 0.6,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Qg6 Nf3 Nc6",
+      "games": 12,
+      "swing": 8,
+      "practical": 0.625,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nf6 Nf3 Nc6",
+      "games": 26,
+      "swing": 5.1,
+      "practical": 0.462,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 Nf6 Nf3 Ne4",
+      "games": 8,
+      "swing": 5.5,
+      "practical": 0.75,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe6+ Be2 c6 Nf3 f6",
+      "games": 10,
+      "swing": 10.5,
+      "practical": 0.45,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe5+ Be2 Bg4 d4 Qe6",
+      "games": 24,
+      "swing": 10,
+      "practical": 0.375,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe5+ Be2 Nc6 Nf3 Qf6",
+      "games": 18,
+      "swing": 9,
+      "practical": 0.528,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe5+ Be2 Nc6 Nf3 Qe6",
+      "games": 13,
+      "swing": 11.8,
+      "practical": 0.462,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 d5 exd5 Qxd5 Nc3 Qe5+ Be2 Nc6 Nf3 Qh5",
+      "games": 6,
+      "swing": 12.4,
+      "practical": 0.583,
+      "entry": "scandinavian"
+    },
+    {
+      "line": "e4 b6 d4 Ba6",
+      "games": 31,
+      "swing": 5.2,
+      "practical": 0.532,
+      "entry": "owens"
+    },
+    {
+      "line": "e4 b6 d4 Bb7 Bd3 f5",
+      "games": 6,
+      "swing": 6.7,
+      "practical": 0.833,
+      "entry": "owens"
+    },
+    {
+      "line": "e4 Nc6 d4 g6",
+      "games": 13,
+      "swing": 7.4,
+      "practical": 0.5,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 d5 e5 b6",
+      "games": 5,
+      "swing": 6.4,
+      "practical": 0.6,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 e5 dxe5 Qe7",
+      "games": 8,
+      "swing": 7.8,
+      "practical": 0.625,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 e6 Nf3 g6",
+      "games": 7,
+      "swing": 5.3,
+      "practical": 0.429,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 d5 e5 Bf5 Nf3 Nb4",
+      "games": 19,
+      "swing": 5.2,
+      "practical": 0.526,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 d6 Nf3 e5 Bb5 Qe7",
+      "games": 8,
+      "swing": 5.1,
+      "practical": 0.438,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nc6 d4 d6 Nf3 e5 Bb5 Bd7 Nc3 a6",
+      "games": 16,
+      "swing": 9.9,
+      "practical": 0.438,
+      "entry": "nimzowitsch"
+    },
+    {
+      "line": "e4 Nf6 e5 Ng8",
+      "games": 49,
+      "swing": 5.1,
+      "practical": 0.592,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Ne4",
+      "games": 48,
+      "swing": 6.1,
+      "practical": 0.5,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Ng4",
+      "games": 8,
+      "swing": 24.8,
+      "practical": 0.375,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 b5",
+      "games": 20,
+      "swing": 9.9,
+      "practical": 0.65,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 Nc6",
+      "games": 18,
+      "swing": 12.1,
+      "practical": 0.472,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 f6",
+      "games": 8,
+      "swing": 13.2,
+      "practical": 0.313,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 g6",
+      "games": 7,
+      "swing": 5.3,
+      "practical": 0.429,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 d6 Nf3 Nc6",
+      "games": 7,
+      "swing": 5.8,
+      "practical": 0.643,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 e6 c4 Bb4+",
+      "games": 10,
+      "swing": 8.6,
+      "practical": 0.7,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 Nf6 e5 Nd5 d4 Nb6 c4 Nc6",
+      "games": 6,
+      "swing": 11.5,
+      "practical": 0.5,
+      "entry": "alekhine"
+    },
+    {
+      "line": "e4 e6 d4 Qe7",
+      "games": 23,
+      "swing": 8,
+      "practical": 0.587,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 g5",
+      "games": 14,
+      "swing": 11.2,
+      "practical": 0.643,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 f6",
+      "games": 14,
+      "swing": 8.1,
+      "practical": 0.536,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Nf6",
+      "games": 49,
+      "swing": 9.2,
+      "practical": 0.561,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Qb6",
+      "games": 24,
+      "swing": 7.5,
+      "practical": 0.542,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Qc7",
+      "games": 16,
+      "swing": 7,
+      "practical": 0.438,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 h6",
+      "games": 12,
+      "swing": 6,
+      "practical": 0.625,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Be7",
+      "games": 8,
+      "swing": 5.4,
+      "practical": 0.75,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 g6",
+      "games": 5,
+      "swing": 10.6,
+      "practical": 0.4,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 b6 Nf3 Ba6",
+      "games": 9,
+      "swing": 6.5,
+      "practical": 0.556,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 cxd4 Nxd4 e5",
+      "games": 33,
+      "swing": 5.2,
+      "practical": 0.47,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 cxd4 Nxd4 d5",
+      "games": 24,
+      "swing": 7,
+      "practical": 0.417,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 cxd4 Nxd4 Ne7",
+      "games": 17,
+      "swing": 7.9,
+      "practical": 0.5,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 cxd4 Nxd4 Qc7",
+      "games": 9,
+      "swing": 10.2,
+      "practical": 0.556,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c6 Nc3 d5 Nf3 c5",
+      "games": 13,
+      "swing": 7.8,
+      "practical": 0.462,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c6 Nc3 d5 Nf3 Ne7",
+      "games": 6,
+      "swing": 6.2,
+      "practical": 0.667,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Nc6 d5 exd5 exd5 Nb4",
+      "games": 31,
+      "swing": 10.7,
+      "practical": 0.452,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Nc6 d5 exd5 exd5 Nce7",
+      "games": 19,
+      "swing": 11.1,
+      "practical": 0.395,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 c5 Nf3 Nc6 d5 exd5 exd5 Nb8",
+      "games": 18,
+      "swing": 6.3,
+      "practical": 0.444,
+      "entry": "french"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 Bb4+",
+      "games": 29,
+      "swing": 7.4,
+      "practical": 0.5,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 Nd7",
+      "games": 18,
+      "swing": 5,
+      "practical": 0.472,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 b6",
+      "games": 12,
+      "swing": 6.5,
+      "practical": 0.5,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 f5",
+      "games": 10,
+      "swing": 7.6,
+      "practical": 0.5,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 e6 d4 d5 e5 c5 c3 Nd7",
+      "games": 13,
+      "swing": 5,
+      "practical": 0.538,
+      "entry": "french-advance"
+    },
+    {
+      "line": "e4 c6 d4 Qb6",
+      "games": 21,
+      "swing": 6,
+      "practical": 0.524,
+      "entry": "caro-white"
+    },
+    {
+      "line": "e4 c6 d4 e5",
+      "games": 16,
+      "swing": 10.4,
+      "practical": 0.563,
+      "entry": "caro-white"
+    },
+    {
+      "line": "e4 c6 d4 f6",
+      "games": 8,
+      "swing": 9.3,
+      "practical": 0.5,
+      "entry": "caro-white"
+    },
+    {
+      "line": "e4 c6 d4 b6",
+      "games": 6,
+      "swing": 5.6,
+      "practical": 0.5,
+      "entry": "caro-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 Nd7",
+      "games": 13,
+      "swing": 7.4,
+      "practical": 0.615,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 h6",
+      "games": 7,
+      "swing": 5.4,
+      "practical": 0.429,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 Bf5 Nf3 c5",
+      "games": 31,
+      "swing": 10.9,
+      "practical": 0.387,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 Bf5 Nf3 Nd7",
+      "games": 23,
+      "swing": 6.3,
+      "practical": 0.5,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 Bf5 Nf3 f6",
+      "games": 9,
+      "swing": 7.7,
+      "practical": 0.444,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 c5 dxc5 Bf5",
+      "games": 8,
+      "swing": 9,
+      "practical": 0.625,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 c5 dxc5 Nc6 Bb5 Bf5",
+      "games": 14,
+      "swing": 8.4,
+      "practical": 0.464,
+      "entry": "caro-advance-white"
+    },
+    {
+      "line": "e4 c6 d4 d5 e5 c5 dxc5 Nc6 Bb5 a6",
+      "games": 5,
+      "swing": 6.3,
+      "practical": 0.4,
+      "entry": "caro-advance-white"
+    }
+  ],
+  "truncated": [
+    {
+      "line": "e4 e5 Nf3 Nc6 Bc4",
+      "evaluated": 20,
+      "available": 21,
+      "entry": "open-italian"
+    },
+    {
+      "line": "e4 e6 d4",
+      "evaluated": 20,
+      "available": 23,
+      "entry": "french"
+    }
+  ],
+  "seconds": 1051.2479999999998
+}

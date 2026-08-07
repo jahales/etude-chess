@@ -7,9 +7,10 @@ rebuild instead.
 
 | File | What it is |
 |---|---|
-| `etude-repertoire-v1-white.pgn` | The White repertoire — 14 branches, one game each, named in its `[Event]` header. |
-| `etude-repertoire-v1-black.pgn` | The Black repertoire — 12 branches. |
-| `summary.json` | What it cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
+| `etude-repertoire-v1-white.pgn` | The **1.d4** White repertoire — 14 branches, one game each, named in its `[Event]` header. |
+| `etude-repertoire-v1-black.pgn` | The Black repertoire — 12 branches. Shared by both White repertoires. |
+| `etude-repertoire-v1-white-e4.pgn` | The **1.e4** White repertoire — 12 branches. A separate deck, not more cards in the 1.d4 one. |
+| `summary.json`, `summary-e4.json` | What each cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
 
 ## Importing into En Croissant
 
@@ -69,6 +70,49 @@ guess that ended out of book two moves later.
 `out of book` doubling is the honest cost, and the cause is measured: a richer master book lets
 lines run two plies deeper (`deepestPly` 11 → 13), and the opponent book — only 22% larger — cannot
 follow them there. **The fix is more Lichess data, not a smarter build.**
+
+## The 1.e4 repertoire — 2026-08-07
+
+**12 branches · 545 positions · 210 decisions · 109 quiet positions to train · 31 ranked traps.**
+Built from [`manifest.e4.json`](../scripts/repertoire/manifest.e4.json) and shipped as its own
+file so it is a genuine *alternative* to the Queen's Gambit rather than more cards in the same
+deck. The Black repertoire serves both.
+
+It is markedly cheaper than the 1.d4 one — 210 decisions against 341, for 109 training positions
+against 157. That is a better ratio of what-you-train to what-you-memorise than the 1.d4 file
+achieves anywhere.
+
+Branch weights come from the owner's band, and they are **not** what a repertoire book would
+say:
+
+| Black's reply | share | branch |
+|---|---|---|
+| 1...e5 | **44.7%** | Italian, plus a 2.Nf3 sweeper for the Petrov and Philidor |
+| 1...c5 | 15.3% | Alapin — one system, not the Open Sicilian's library |
+| **1...d5** | **10.0%** | Scandinavian — *more common here than the French or Caro* |
+| 1...e6 | 9.7% | Advance |
+| 1...c6 | 8.4% | Advance |
+| 1...b6 / Nc6 / Nf6 | 4.4% | Owen's, Nimzowitsch, Alekhine — named defences, own branches |
+
+At master level the Sicilian is roughly half of all replies to 1.e4; here it is a sixth, and the
+Scandinavian is third. Designing from theory would have mis-weighted this badly.
+
+**Chosen for transfer.** Against 1...e6 and 1...c6 we play the Advance — the same pawn chain the
+Black repertoire already trains in `caro-advance`, so you learn one structure from both sides.
+The Alapin rhymes with it (2.c3 Nf6 3.e5 is the same chain; 2...d5 3.exd5 is a Scandinavian
+structure), which puts ~43% of what you meet in related territory. No Ruy Lopez: the Italian
+reaches a playable game from natural moves, and theory load is the resource in shortest supply.
+
+**Some branches look nearly empty, and that is the design working.** `french-advance` holds one
+decision of its own because `1.e4 e6 2.d4 d5 3.e5 c5 4.c3 Nc6` is the *same position* as
+`1.e4 c5 2.c3 e6 3.d4 d5 4.e5 Nc6`, which the Alapin reached first. One position, one answer
+(ADR [0022](../docs/decisions/0022-repertoire-branch-ownership.md)) — the content is there, filed
+under whichever branch owns it. Measured end to end, **23 of 23 probe positions are answered and
+99.0% of 1.e4 replies have a move at move one.** Read branch sizes as ownership, not as coverage.
+
+`caro-white` is the one genuinely empty branch. It exists because removing it would leave a
+validation gap under `caro-advance-white`, and its own tail (2...g6, 2...Nf6, 2...b5 — together
+about 0.1% of games) is either reached by transposition or too rare to judge.
 
 ### Where to start
 

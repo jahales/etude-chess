@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import manifest from '../../scripts/repertoire/manifest.v1.json'
+import e4Manifest from '../../scripts/repertoire/manifest.e4.json'
 import {
   delegationsFor,
   isOurPly,
@@ -240,5 +241,39 @@ describe('the tail of the opening — the moves nothing else owns', () => {
     const sweeper = entries.find((e) => e.id === 'd4-sidelines')!
     expect(sweeper.maxOpponentMoves ?? 6).toBeGreaterThan(6)
     expect(sweeper.massTarget ?? 0.85).toBeGreaterThan(0.85)
+  })
+})
+
+describe('the 1.e4 manifest', () => {
+  // A second White repertoire, shipped separately so it is an alternative to the
+  // Queen's Gambit rather than more cards in the same deck.
+  const entries = e4Manifest.entries as PlanEntry[]
+
+  it('has no coverage gaps', () => {
+    expect(validatePlan(entries)).toEqual([])
+  })
+
+  it('is White-only — the Black repertoire is shared, not duplicated', () => {
+    expect([...new Set(entries.map((e) => e.color))]).toEqual(['w'])
+  })
+
+  it('names a branch for each reply that carries real weight in the band', () => {
+    // Measured over 231,700 games at Lichess 1300–1800: 1...e5 44.7%, 1...c5
+    // 15.3%, 1...d5 10.0%, 1...e6 9.7%, 1...c6 8.4% — 88% between them. Note
+    // 1...d5 outranks both the French and the Caro-Kann here, which is the
+    // opposite of master practice and the reason this list is measured.
+    const seconds = new Set(
+      entries.map((e) => plies(e.line)[1]).filter((m): m is string => Boolean(m)),
+    )
+    for (const reply of ['e5', 'c5', 'd5', 'e6', 'c6']) expect(seconds, reply).toContain(reply)
+  })
+
+  it('sweeps the tail from 1.e4 with a raised budget', () => {
+    // The five replies above are delegated and carry 88% of the mass, so the
+    // default budget would be spent entirely on moves this branch hands away —
+    // the failure that left 1...c5 unanswered in the 1.d4 sweeper.
+    const root = entries.find((e) => e.line === 'e4')
+    expect(root?.role).toBe('sweeper')
+    expect(root?.maxOpponentMoves ?? 6).toBeGreaterThan(6)
   })
 })

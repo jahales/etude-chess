@@ -1,0 +1,370 @@
+[Event "Repertoire — White: 1.e4 — irregular replies"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "C41"]
+[Opening "Philidor Defense: Lion Variation"]
+[Variation "e4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Everything that is not 1...e5, 1...c5, 1...d5, 1...e6 or 1...c6 — mainly the Pirc, Modern, Owen's and 1...Nc6. Together about 11% of what you will meet, and the point is to answer them at all rather than five plies of follow-up.}
+1. e4 {→ Philidor Defense: Lion Variation} d6 { [%eval 0.60] }
+(1... e5 { [%eval 0.42] · covered in the "e5-sidelines" line})
+(1... c5 { [%eval 0.41] · covered in the "alapin" line})
+(1... d5 { [%eval 0.80] · covered in the "scandinavian" line})
+(1... e6 { [%eval 0.44] · covered in the "french" line})
+(1... c6 { [%eval 0.46] · covered in the "caro-white" line})
+(1... g6 { [%eval 0.70] } 2. d4 {→ King's Indian Defense: Normal Variation} Bg7 { [%eval 0.63] } (2... d6 { [%eval 0.75] } 3. Nc3 {→ Modern Defense: Standard Defense} Bg7 { [%eval 0.73] } 4. Be3 Nf6 { [%eval 0.79] · quiet: 5 playable moves — judgment from here}) 3. c4 d6 { [%eval 0.59] } (3... e6 { [%eval 0.80] } 4. Nc3 Ne7 { [%eval 0.78] · quiet: 5 playable moves — judgment from here}) 4. Nc3 Nf6 { [%eval 0.62] · quiet: 5 playable moves — judgment from here} (4... Nd7 { [%eval 0.76] · quiet: 5 playable moves — judgment from here}) (4... Nc6 { [%eval 0.83] · quiet: 4 playable moves — judgment from here}))
+2. d4 {→ Philidor Defense: Lion Variation} Nf6 { [%eval 0.47] }
+(2... g6 { [%eval 0.75] } 3. Nc3 {→ Modern Defense: Standard Defense} Bg7 { [%eval 0.73] } 4. Be3 Nf6 { [%eval 0.79] · quiet: 5 playable moves — judgment from here})
+(2... e6 { [%eval 0.86] } 3. c4 {beyond master theory — chosen from club play} Be7 { [%eval 0.84] } (3... c6 { [%eval 1.10] } 4. Nc3 {beyond master theory — chosen from club play · out of book (0 games)}) 4. Nc3 {beyond master theory — chosen from club play · out of book (0 games)})
+(2... c6 { [%eval 0.63] } 3. Nc3 {→ Czech Defense} Nf6 { [%eval 0.94] } 4. Nf3 Qa5 { [%eval 0.96] · quiet: 5 playable moves — judgment from here} (4... Bg4 { [%eval 1.06] · quiet: 5 playable moves — judgment from here}) (4... g6 { [%eval 0.65] · quiet: 5 playable moves — judgment from here}))
+(2... e5 { [%eval 0.64] } 3. dxe5 {→ Nimzowitsch Defense: Kennedy Variation, de Smet Gambit} dxe5 { [%eval 0.38] } (3... Nc6?! { [%eval 1.00] · trap · 34% play this · they score 57% where 41% is deserved · n=121} 4. exd6 {beyond master theory — chosen from club play} Bxd6 { [%eval 0.88] · quiet: 5 playable moves — judgment from here}) 4. Qxd8+ Kxd8 { [%eval 0.41] · quiet: 5 playable moves — judgment from here})
+(2... Nd7 { [%eval 0.84] } 3. Nf3 {→ Philidor Defense: Hanham Variation} e5 { [%eval 0.79] } (3... c6 { [%eval 0.82] } 4. Bc4 {out of book (0 games)}) 4. Bc4)
+(2... Nc6 { [%eval 0.78] · covered in the "nimzowitsch" line}) 3. Nc3 g6
+{ [%eval 0.71] }
+(3... c6 { [%eval 1.02] } 4. Nf3 Qa5 { [%eval 0.96] · quiet: 5 playable moves — judgment from here} (4... Bg4 { [%eval 1.06] · quiet: 5 playable moves — judgment from here}) (4... g6 { [%eval 0.65] · quiet: 5 playable moves — judgment from here}))
+(3... Nbd7 { [%eval 1.09] } 4. Nf3 e5 { [%eval 0.61] · quiet: 5 playable moves — judgment from here})
+(3... e5 { [%eval 0.50] } 4. Nf3 exd4 { [%eval 0.72] } (4... Nbd7 { [%eval 0.62] · quiet: 5 playable moves — judgment from here}) (4... Bg4?! { [%eval 1.35] · quiet: 5 playable moves — judgment from here}) (4... Nc6 { [%eval 0.71] · quiet: 5 playable moves — judgment from here}) (4... Be7?! { [%eval 1.92] } 5. dxe5 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Nxd4 {quiet: 5 playable moves — judgment from here})
+(3... Nc6 { [%eval 0.90] } 4. Nf3 Bg4 { [%eval 1.09] · quiet: 5 playable moves — judgment from here})
+4. f4 {→ Pirc Defense: Austrian Attack} Bg7
+{ [%eval 0.72] · quiet: 5 playable moves — judgment from here} *
+
+[Event "Repertoire — White: 1.e4 e5 2.Nf3 — Black's alternatives"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "C41"]
+[Opening "Philidor Defense: Exchange Variation"]
+[Variation "e4 e5 Nf3"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{The Petrov (2...Nf6), Philidor (2...d6) and the gambits. 2.Nf3 is 61.7% of the band's choice here and it is the move that asks the most; these are what Black does instead of 2...Nc6.}
+1. e4 {→ King's Pawn Game} e5 2. Nf3 {→ Philidor Defense: Exchange Variation} d6
+{ [%eval 0.64] } (2... Nc6 { [%eval 0.39] · covered in the "open-italian" line})
+(2... Nf6 { [%eval 0.53] } 3. Nxe5 {→ Petrov's Defense: Stafford Gambit Accepted} Nc6?! { [%eval 1.66] · trap · 42% play this · they score 50% where 35% is deserved · n=709} (3... d6 { [%eval 0.53] } 4. Nf3 {→ Petrov's Defense} Nxe4 { [%eval 0.46] · quiet: 5 playable moves — judgment from here}) (3... Qe7?! { [%eval 0.85] · trap · 14% play this · they score 48% where 42% is deserved · n=232} 4. d4 {beyond master theory — chosen from club play} d6 { [%eval 0.88] } 5. Nf3 {beyond master theory — chosen from club play} Nxe4 { [%eval 0.96] · quiet: 3 playable moves — judgment from here} (5... Qxe4+ { [%eval 0.90] · out of book (0 games)})) (3... Nxe4 { [%eval 0.69] } 4. Qe2 {→ Petrov's Defense: Damiano Variation, Kholmov Gambit · engine refutation — too rare to appear in human play} Qe7 { [%eval 0.79] } (4... d5 { [%eval 1.40] } 5. d3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Qxe4 d6 { [%eval 0.66] } 6. d4 {depth cap}) (3... Bc5?! { [%eval 1.85] · trap · 5% play this · they score 50% where 34% is deserved · n=81} 4. Bc4 {beyond master theory — chosen from club play} O-O { [%eval 1.64] } (4... Bxf2+?! { [%eval 2.82] } 5. Kxf2 {beyond master theory — chosen from club play} Nxe4+ { [%eval 2.65] } 6. Kg1 {engine refutation — too rare to appear in human play · depth cap}) (4... d5 { [%eval 1.98] · out of book (0 games)}) 5. d4 {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here}) 4. Nxc6 {beyond master theory — chosen from club play} dxc6 { [%eval 1.78] } 5. d3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2... Bc5?! { [%eval 1.40] · trap · 3% play this · they score 47% where 37% is deserved · n=1882} 3. Nxe5 {→ King's Pawn Game: Busch-Gass Gambit, Chiodini Gambit · beyond master theory — chosen from club play} d6?! { [%eval 1.96] · trap · 22% play this · they score 44% where 33% is deserved · n=63} (3... Nf6 { [%eval 1.85] } 4. Bc4 {beyond master theory — chosen from club play} O-O { [%eval 1.64] } (4... Bxf2+?! { [%eval 2.82] } 5. Kxf2 {beyond master theory — chosen from club play} Nxe4+ { [%eval 2.65] } 6. Kg1 {engine refutation — too rare to appear in human play · depth cap}) (4... d5 { [%eval 1.98] · out of book (0 games)}) 5. d4 {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here}) (3... Bxf2+? { [%eval 3.81] } 4. Kxf2 {beyond master theory — chosen from club play} Qh4+?! { [%eval 4.66] } 5. g3 {beyond master theory — chosen from club play · out of book (0 games)}) (3... Qe7?! { [%eval 2.16] } 4. d4 {beyond master theory — chosen from club play · out of book (0 games)}) (3... Qh4?! { [%eval 2.36] } 4. d4 {beyond master theory — chosen from club play · out of book (0 games)}) (3... Nc6 { [%eval 1.60] } 4. Nxc6 {beyond master theory — chosen from club play · out of book (0 games)}) 4. Nf3 {beyond master theory — chosen from club play})
+(2... Qf6?! { [%eval 1.29] · trap · 2% play this · they score 49% where 38% is deserved · n=1228} 3. Nc3 {beyond master theory — chosen from club play} c6?! { [%eval 2.01] · trap · 76% play this · they score 48% where 32% is deserved · n=310} (3... Bc5?! { [%eval 2.15] · trap · 18% play this · they score 53% where 31% is deserved · n=72} 4. Nd5 {beyond master theory — chosen from club play}) 4. d4 {beyond master theory — chosen from club play} exd4 { [%eval 2.08] } (4... d6 { [%eval 2.32] } 5. dxe5 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Bg5 {beyond master theory — chosen from club play · out of book (0 games)})
+3. d4 {→ Philidor Defense: Exchange Variation} exd4 { [%eval 0.71] }
+(3... Bg4 { [%eval 0.93] } 4. dxe5 Bxf3?! { [%eval 1.58] · trap · 72% play this · they score 44% where 36% is deserved · n=233} (4... Nc6 { [%eval 0.94] · quiet: 5 playable moves — judgment from here}) 5. Qxf3 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here})
+(3... Nc6 { [%eval 0.88] · covered in the "nimzowitsch" line})
+(3... f6?! { [%eval 1.64] · trap · 4% play this · they score 42% where 35% is deserved · n=132} 4. Bc4 {beyond master theory — chosen from club play})
+(3... Nd7 { [%eval 0.60] · covered in the "e4-sidelines" line}) 4. Nxd4 Nf6
+{ [%eval 0.78] · quiet: 5 playable moves — judgment from here}
+(4... c5 { [%eval 0.89] · quiet: 5 playable moves — judgment from here})
+(4... Be7 { [%eval 0.75] · quiet: 5 playable moves — judgment from here})
+(4... Bd7 { [%eval 1.11] · quiet: 5 playable moves — judgment from here})
+(4... Nc6 { [%eval 0.66] · quiet: 5 playable moves — judgment from here})
+(4... h6 { [%eval 1.17] · quiet: 5 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: Italian Game"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "C53"]
+[Opening "Italian Game: Classical Variation, La Bourdonnais Variation"]
+[Variation "e4 e5 Nf3 Nc6 Bc4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{1...e5 is 44.7% of replies at this band — nearly half of everything, and far more than at master level. The Italian develops naturally toward the f7 square and asks Black to know something, without the Ruy Lopez's theory bill. This is the single most valuable branch in the file.}
+1. e4 {→ King's Pawn Game} e5 2. Nf3 {→ King's Knight Opening} Nc6 3. Bc4
+{→ Italian Game: Classical Variation, La Bourdonnais Variation} Bc5
+{ [%eval 0.17] }
+(3... Nf6 { [%eval 0.33] } 4. d3 {→ Italian Game: Two Knights Defense, Modern Bishop's Opening} Bc5 { [%eval 0.35] } (4... h6 { [%eval 0.38] } 5. O-O Bc5 { [%eval 0.31] · quiet: 5 playable moves — judgment from here} (5... Be7 { [%eval 0.46] · quiet: 5 playable moves — judgment from here}) (5... d6 { [%eval 0.43] · quiet: 5 playable moves — judgment from here}) (5... d5?! { [%eval 1.02] } 6. exd5 {beyond master theory — chosen from club play} Nxd5 { [%eval 1.15] · quiet: 5 playable moves — judgment from here})) (4... d5 { [%eval 0.61] } 5. exd5 Nxd5 { [%eval 0.56] · quiet: 5 playable moves — judgment from here}) (4... Be7 { [%eval 0.42] } 5. O-O O-O { [%eval 0.33] · quiet: 5 playable moves — judgment from here} (5... d6 { [%eval 0.42] · quiet: 5 playable moves — judgment from here})) (4... d6?! { [%eval 0.98] · trap · 8% play this · they score 49% where 41% is deserved · n=178} 5. Ng5 {beyond master theory — chosen from club play} d5 { [%eval 0.84] } (5... Be6?! { [%eval 2.10] · out of book (0 games)}) 6. exd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 5. O-O O-O { [%eval 0.29] · quiet: 5 playable moves — judgment from here} (5... d6 { [%eval 0.36] · quiet: 5 playable moves — judgment from here}) (5... h6 { [%eval 0.32] · quiet: 5 playable moves — judgment from here}))
+(3... h6 { [%eval 0.75] } 4. O-O {→ Italian Game: Two Knights Defense, Modern Bishop's Opening} Nf6 { [%eval 0.68] } (4... Bc5 { [%eval 0.97] } 5. c3 {beyond master theory — chosen from club play} Nf6 { [%eval 1.52] } (5... d6 { [%eval 0.98] · quiet: 4 playable moves — judgment from here}) 6. d4 {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here}) 5. d3 {beyond master theory — chosen from club play} Bc5 { [%eval 0.31] · quiet: 5 playable moves — judgment from here} (5... Be7 { [%eval 0.46] · quiet: 5 playable moves — judgment from here}) (5... d6 { [%eval 0.43] · quiet: 5 playable moves — judgment from here}) (5... d5?! { [%eval 1.02] } 6. exd5 {beyond master theory — chosen from club play} Nxd5 { [%eval 1.15] · quiet: 5 playable moves — judgment from here}))
+(3... d6 { [%eval 0.51] } 4. d4 {→ Italian Game: Scotch Invitation Declined} exd4 { [%eval 0.49] } (4... Bg4?! { [%eval 1.28] · trap · 33% play this · they score 54% where 38% is deserved · n=130} 5. c3 exd4 { [%eval 0.91] · quiet: 3 playable moves — judgment from here}) (4... Nf6 { [%eval 0.53] } 5. dxe5) 5. Nxd4 Nxd4 { [%eval 0.82] } (5... Nf6 { [%eval 0.48] · quiet: 5 playable moves — judgment from here}) (5... Ne5 { [%eval 0.78] · quiet: 5 playable moves — judgment from here}) (5... Bd7 { [%eval 0.80] · quiet: 5 playable moves — judgment from here}) 6. Qxd4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(3... Nd4?! { [%eval 1.21] · trap · 4% play this · they score 52% where 39% is deserved · n=766} 4. Nxd4 {beyond master theory — chosen from club play} exd4 { [%eval 1.07] } 5. d3 {beyond master theory — chosen from club play} Nf6 { [%eval 1.06] · quiet: 3 playable moves — judgment from here} (5... d6 { [%eval 1.39] · quiet: 3 playable moves — judgment from here}))
+(3... f5?! { [%eval 1.27] · trap · 4% play this · they score 52% where 39% is deserved · n=710} 4. d3 {→ Italian Game: Giuoco Pianissimo, Lucchini Gambit · beyond master theory — chosen from club play} Nf6 { [%eval 1.00] } (4... Bc5 { [%eval 1.36] } 5. Ng5 {beyond master theory — chosen from club play · out of book (0 games)}) (4... f4 { [%eval 1.27] } 5. Nc3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Bg5 {beyond master theory — chosen from club play · out of book (0 games)})
+4. c3 {→ Italian Game: Classical Variation, La Bourdonnais Variation} Nf6
+{ [%eval 0.23] }
+(4... d6 { [%eval 0.77] } 5. d4 {engine refutation — too rare to appear in human play} exd4 { [%eval 0.83] } 6. cxd4 Bb4+ { [%eval 1.02] · quiet: 5 playable moves — judgment from here} (6... Bb6 { [%eval 0.77] · quiet: 3 playable moves — judgment from here}))
+(4... h6?! { [%eval 1.45] · trap · 6% play this · they score 46% where 37% is deserved · n=109} 5. d4 {beyond master theory — chosen from club play} exd4 { [%eval 1.08] } 6. cxd4 {beyond master theory — chosen from club play} Bb4+ { [%eval 1.62] · quiet: 4 playable moves — judgment from here} (6... Bb6 { [%eval 1.11] · quiet: 5 playable moves — judgment from here}))
+5. d3 {→ Italian Game: Classical Variation, Giuoco Pianissimo} d6
+{ [%eval 0.29] · quiet: 5 playable moves — judgment from here}
+(5... O-O { [%eval 0.31] · quiet: 5 playable moves — judgment from here})
+(5... h6 { [%eval 0.35] · quiet: 5 playable moves — judgment from here})
+(5... d5?! { [%eval 1.11] } 6. exd5 {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here})
+*
+
+[Event "Repertoire — White: Sicilian — Alapin"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "C02"]
+[Opening "French Defense: Advance Variation, Euwe Variation"]
+[Variation "e4 c5 c3"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{One system against the whole Sicilian instead of the Open Sicilian's library. Build the big centre with d4; if Black stops it with 2...d5 3.exd5 Qxd5 we are in a Scandinavian structure, and after 2...Nf6 3.e5 the same chain as the Advance lines. The Sicilian is only 15.3% here, so paying Open Sicilian theory for it would be the worst trade in the repertoire.}
+1. e4 {→ King's Pawn Game} c5 2. c3
+{→ French Defense: Advance Variation, Euwe Variation} Nc6 { [%eval 0.32] }
+(2... e6 { [%eval 0.34] } 3. d4 {→ French Defense: Advance Variation, Euwe Variation} cxd4 { [%eval 0.44] } (3... d5 { [%eval 0.29] } 4. e5 Nc6 { [%eval 0.35] } (4... Qb6 { [%eval 0.42] } 5. Nf3 {→ French Defense: Advance Variation, Wade Variation} Nc6 { [%eval 0.51] · quiet: 5 playable moves — judgment from here} (5... Bd7 { [%eval 0.48] · quiet: 5 playable moves — judgment from here})) (4... cxd4 { [%eval 0.55] } 5. cxd4 {beyond master theory — chosen from club play} Nc6 { [%eval 0.52] · quiet: 5 playable moves — judgment from here} (5... Bb4+?! { [%eval 1.01] · trap · 17% play this · they score 48% where 41% is deserved · n=50} 6. Nc3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})) (4... c4?! { [%eval 0.92] · trap · 3% play this · they score 54% where 42% is deserved · n=61} 5. Nf3 {beyond master theory — chosen from club play}) 5. Nf3 Qb6 { [%eval 0.51] · quiet: 5 playable moves — judgment from here} (5... Bd7 { [%eval 0.35] · quiet: 5 playable moves — judgment from here}) (5... cxd4 { [%eval 0.46] } 6. cxd4 {quiet: 5 playable moves — judgment from here}) (5... Nge7 { [%eval 0.44] · quiet: 5 playable moves — judgment from here})) (3... a6 { [%eval 0.63] } 4. Nf3 cxd4 { [%eval 0.95] } 5. cxd4 {beyond master theory — chosen from club play}) (3... Nc6?! { [%eval 1.08] } 4. Nf3 {beyond master theory — chosen from club play} cxd4 { [%eval 0.54] } (4... d5 { [%eval 0.38] } 5. e5 Qb6 { [%eval 0.51] · quiet: 5 playable moves — judgment from here} (5... Bd7 { [%eval 0.35] · quiet: 5 playable moves — judgment from here}) (5... cxd4 { [%eval 0.46] } 6. cxd4 {quiet: 5 playable moves — judgment from here}) (5... Nge7 { [%eval 0.44] · quiet: 5 playable moves — judgment from here})) 5. cxd4 d5 { [%eval 0.46] · quiet: 5 playable moves — judgment from here} (5... Nf6 { [%eval 0.82] · quiet: 5 playable moves — judgment from here}) (5... Bb4+ { [%eval 0.99] } 6. Nc3 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here}) (5... a6?! { [%eval 1.37] } 6. d5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})) 4. cxd4 d5 { [%eval 0.47] } (4... Nc6 { [%eval 0.53] } 5. Nf3 {beyond master theory — chosen from club play} d5 { [%eval 0.46] · quiet: 5 playable moves — judgment from here} (5... Nf6 { [%eval 0.82] · quiet: 5 playable moves — judgment from here}) (5... Bb4+ { [%eval 0.99] } 6. Nc3 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here}) (5... a6?! { [%eval 1.37] } 6. d5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})) (4... Nf6 { [%eval 1.02] } 5. Nc3 {beyond master theory — chosen from club play · out of book (0 games)}) (4... Bb4+ { [%eval 0.89] } 5. Nc3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. e5 Nc6 { [%eval 0.52] · quiet: 5 playable moves — judgment from here} (5... Bb4+?! { [%eval 1.01] · trap · 17% play this · they score 48% where 41% is deserved · n=50} 6. Nc3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}))
+(2... d6 { [%eval 0.68] } 3. d4 cxd4 { [%eval 0.86] } 4. cxd4 Nf6 { [%eval 0.83] } (4... e6 { [%eval 1.14] } 5. Nf3 {beyond master theory — chosen from club play} Nf6 { [%eval 1.05] · quiet: 4 playable moves — judgment from here}) (4... g6 { [%eval 0.77] } 5. Nf3 {beyond master theory — chosen from club play} Bg7 { [%eval 0.74] · quiet: 5 playable moves — judgment from here}) (4... Nc6 { [%eval 1.08] } 5. Nf3 {beyond master theory — chosen from club play} Nf6 { [%eval 0.76] · quiet: 5 playable moves — judgment from here} (5... e6 { [%eval 1.15] · quiet: 5 playable moves — judgment from here}) (5... Bg4 { [%eval 1.47] · quiet: 5 playable moves — judgment from here}) (5... g6 { [%eval 1.05] · quiet: 5 playable moves — judgment from here})) 5. Nc3 g6 { [%eval 0.80] · quiet: 5 playable moves — judgment from here})
+(2... d5 { [%eval 0.40] } 3. exd5 {→ Sicilian Defense: Alapin Variation, Barmen Defense} Qxd5 { [%eval 0.35] } 4. d4 cxd4 { [%eval 0.27] } 5. cxd4 Nc6 { [%eval 0.61] · quiet: 3 playable moves — judgment from here})
+(2... Nf6 { [%eval 0.26] } 3. e5 {→ Sicilian Defense: Alapin Variation, Smith-Morra Declined} Nd5 { [%eval 0.24] } 4. d4 cxd4 { [%eval 0.23] } 5. Nf3 {out of book (0 games)})
+3. d4 cxd4 { [%eval 0.32] } 4. cxd4 e6 { [%eval 0.66] }
+(4... d5 { [%eval 0.47] } 5. e5 {beyond master theory — chosen from club play} Bf5 { [%eval 0.14] · quiet: 5 playable moves — judgment from here} (5... e6 { [%eval 0.43] · quiet: 5 playable moves — judgment from here}))
+(4... d6?! { [%eval 1.13] · trap · 14% play this · they score 45% where 40% is deserved · n=83} 5. Nf3 {beyond master theory — chosen from club play} Nf6 { [%eval 0.76] · quiet: 5 playable moves — judgment from here} (5... e6 { [%eval 1.15] · quiet: 5 playable moves — judgment from here}) (5... Bg4 { [%eval 1.47] · quiet: 5 playable moves — judgment from here}) (5... g6 { [%eval 1.05] · quiet: 5 playable moves — judgment from here}))
+(4... g6?! { [%eval 1.60] · trap · 14% play this · they score 38% where 36% is deserved · n=80} 5. d5 {beyond master theory — chosen from club play})
+5. Nf3 {beyond master theory — chosen from club play} d5
+{ [%eval 0.46] · quiet: 5 playable moves — judgment from here}
+(5... Nf6 { [%eval 0.82] · quiet: 5 playable moves — judgment from here})
+(5... Bb4+ { [%eval 0.99] } 6. Nc3 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here})
+(5... a6?! { [%eval 1.37] } 6. d5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+*
+
+[Event "Repertoire — White: Scandinavian Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B01"]
+[Opening "Scandinavian Defense: Valencian Variation, Main Line"]
+[Variation "e4 d5 exd5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{10.0% of replies — third most common, ahead of the French and the Caro-Kann, and almost invisible in master practice. Take the pawn and develop with tempo against the queen.}
+1. e4 {→ King's Pawn Game} d5 2. exd5
+{→ Scandinavian Defense: Valencian Variation, Main Line} Qxd5 { [%eval 0.81] }
+(2... Nf6 { [%eval 0.70] } 3. d4 {→ Scandinavian Defense: Classical Variation} Nxd5 { [%eval 0.74] } (3... Qxd5 { [%eval 0.74] } 4. Nc3 Qa5 { [%eval 0.80] } (4... Qd8 { [%eval 0.79] } 5. Nf3 {→ Scandinavian Defense: Valencian Variation, Main Line} e6 { [%eval 0.80] · quiet: 5 playable moves — judgment from here} (5... Bg4 { [%eval 0.85] · quiet: 5 playable moves — judgment from here}) (5... Nc6 { [%eval 1.01] · quiet: 5 playable moves — judgment from here}) (5... Bf5 { [%eval 1.00] · quiet: 5 playable moves — judgment from here}) (5... g6 { [%eval 0.77] · quiet: 5 playable moves — judgment from here})) 5. Nf3 Bg4 { [%eval 1.01] · quiet: 3 playable moves — judgment from here} (5... c6 { [%eval 0.75] · quiet: 5 playable moves — judgment from here}) (5... Bf5 { [%eval 0.87] · quiet: 5 playable moves — judgment from here})) (3... Bg4 { [%eval 0.85] } 4. f3 {out of book (0 games)}) 4. Nf3 {→ Scandinavian Defense: Modern Variation, Gipslis Variation} Bg4 { [%eval 1.01] } (4... Nc6 { [%eval 1.06] } 5. c4 {beyond master theory — chosen from club play · out of book (0 games)}) (4... Bf5 { [%eval 0.76] } 5. Bd3 {out of book (0 games)}) 5. Be2 Nc6 { [%eval 1.06] · quiet: 5 playable moves — judgment from here})
+3. Nc3 {→ Scandinavian Defense: Valencian Variation, Main Line} Qd8
+{ [%eval 0.82] }
+(3... Qa5 { [%eval 0.69] } 4. d4 {→ Scandinavian Defense: Classical Variation} c6 { [%eval 0.83] } (4... Nf6 { [%eval 0.74] } 5. Nf3 Bg4 { [%eval 1.01] · quiet: 3 playable moves — judgment from here} (5... c6 { [%eval 0.75] · quiet: 5 playable moves — judgment from here}) (5... Bf5 { [%eval 0.87] · quiet: 5 playable moves — judgment from here})) (4... Bf5 { [%eval 0.90] } 5. Nf3) (4... Nc6?! { [%eval 1.50] · trap · 6% play this · they score 59% where 37% is deserved · n=51} 5. Nf3 {beyond master theory — chosen from club play} Bg4 { [%eval 1.14] } 6. Bb5 {quiet: 4 playable moves — judgment from here}) 5. Nf3 Nf6 { [%eval 0.79] · quiet: 5 playable moves — judgment from here} (5... Bg4 { [%eval 1.12] · quiet: 5 playable moves — judgment from here}))
+(3... Qe6+ { [%eval 1.08] } 4. Be2 {beyond master theory — chosen from club play} Nc6?! { [%eval 1.82] · trap · 33% play this · they score 50% where 34% is deserved · n=216} (4... Qg6?! { [%eval 1.59] · trap · 20% play this · they score 49% where 36% is deserved · n=130} 5. Nf3 {beyond master theory — chosen from club play}) (4... Nf6 { [%eval 1.06] } 5. Nf3 {beyond master theory — chosen from club play} Nc6?! { [%eval 1.48] · quiet: 5 playable moves — judgment from here}) (4... c6 { [%eval 1.10] } 5. Nf3 {beyond master theory — chosen from club play} Qg6 { [%eval 1.62] } 6. g3 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4... b6 { [%eval 1.54] } 5. Nf3 {beyond master theory — chosen from club play} Bb7 { [%eval 1.85] } 6. O-O {beyond master theory — chosen from club play · out of book (0 games)}) 5. Nf3 {beyond master theory — chosen from club play} Qg6?! { [%eval 2.48] · trap · 39% play this · they score 53% where 29% is deserved · n=73} (5... Bd7?! { [%eval 1.91] · trap · 27% play this · they score 52% where 33% is deserved · n=50} 6. O-O {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (5... Nf6 { [%eval 1.48] · quiet: 5 playable moves — judgment from here}) 6. d4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(3... Qe5+ { [%eval 0.95] } 4. Be2 Bg4 { [%eval 1.08] } (4... Nc6 { [%eval 1.30] } 5. Nf3 {beyond master theory — chosen from club play}) (4... c6 { [%eval 1.03] } 5. Nf3 Qc7 { [%eval 0.90] · quiet: 5 playable moves — judgment from here}) (4... Bf5 { [%eval 1.15] } 5. Nf3 {beyond master theory — chosen from club play}) 5. d4 Bxe2 { [%eval 1.06] } (5... Qe6?! { [%eval 2.20] · out of book (0 games)}) 6. Ngxe2 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4. d4 Nf6 { [%eval 0.76] }
+(4... e6 { [%eval 0.82] } 5. Nf3 {beyond master theory — chosen from club play} Nf6 { [%eval 0.79] · quiet: 5 playable moves — judgment from here} (5... Bb4 { [%eval 1.00] · quiet: 5 playable moves — judgment from here}) (5... c6 { [%eval 1.24] · quiet: 5 playable moves — judgment from here}))
+(4... Bf5 { [%eval 0.96] } 5. Nf3 {beyond master theory — chosen from club play} e6 { [%eval 0.64] · quiet: 5 playable moves — judgment from here} (5... Nf6 { [%eval 1.00] · quiet: 5 playable moves — judgment from here}))
+(4... c6 { [%eval 1.01] } 5. Bc4 {out of book (0 games)})
+(4... Nc6?! { [%eval 1.66] · trap · 6% play this · they score 42% where 35% is deserved · n=61} 5. d5 {beyond master theory — chosen from club play · out of book (0 games)})
+5. Nf3 {→ Scandinavian Defense: Valencian Variation, Main Line} e6
+{ [%eval 0.80] · quiet: 5 playable moves — judgment from here}
+(5... Bg4 { [%eval 0.85] · quiet: 5 playable moves — judgment from here})
+(5... Nc6 { [%eval 1.01] · quiet: 5 playable moves — judgment from here})
+(5... Bf5 { [%eval 1.00] · quiet: 5 playable moves — judgment from here})
+(5... g6 { [%eval 0.77] · quiet: 5 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: Owen's Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[Variation "e4 b6 d4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "11"]
+
+{2.1% of replies — more common here than the Alekhine and the Nimzowitsch put together, and nearly invisible in master practice. Take the full centre; the bishop on b7 is biting on granite once we hold e4 and d4.}
+1. e4 {→ King's Pawn Game} b6 2. d4 Bb7 { [%eval 0.89] } 3. Bd3 e6
+{ [%eval 0.83] }
+(3... g6 { [%eval 0.97] } 4. Nf3 Bg7 { [%eval 1.01] } 5. O-O {out of book (0 games)})
+(3... Nf6 { [%eval 0.89] } 4. Qe2 {out of book (0 games)}) 4. Nf3 Nf6
+{ [%eval 1.01] }
+(4... h6 { [%eval 1.18] } 5. O-O {beyond master theory — chosen from club play · out of book (0 games)})
+5. Qe2 {out of book (0 games)} *
+
+[Event "Repertoire — White: Nimzowitsch Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B00"]
+[Opening "Nimzowitsch Defense: Kennedy Variation, Paulsen Attack"]
+[Variation "e4 Nc6 d4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{1.3%. Answer it by taking the centre rather than by memorising it — after 2.d4 most of Black's tries transpose into the Scandinavian or Pirc structures this file already covers.}
+1. e4 {→ King's Pawn Game} Nc6 2. d4
+{→ Nimzowitsch Defense: Kennedy Variation, Paulsen Attack} d5 { [%eval 0.64] }
+(2... e5 { [%eval 0.80] } 3. dxe5 {→ Nimzowitsch Defense: Kennedy Variation, Paulsen Attack} Nxe5 { [%eval 0.57] } 4. Nf3 Nxf3+ { [%eval 0.73] } 5. Qxf3)
+(2... e6 { [%eval 0.93] } 3. Nf3 {beyond master theory — chosen from club play} d5 { [%eval 0.91] } (3... Nf6 { [%eval 1.18] } 4. e5 {beyond master theory — chosen from club play · out of book (0 games)}) 4. e5 Nge7 { [%eval 1.15] } (4... Bb4+ { [%eval 1.55] } 5. c3 {beyond master theory — chosen from club play} Ba5 { [%eval 1.90] } 6. Bb5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4... f6 { [%eval 0.84] } 5. Bb5 {out of book (0 games)}) (4... Bd7 { [%eval 1.01] } 5. c3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Bb5 {beyond master theory — chosen from club play})
+(2... d6 { [%eval 0.85] } 3. Nf3 {→ Ruy Lopez: Steinitz Defense} Bg4 { [%eval 1.22] } (3... e5 { [%eval 0.77] } 4. Bb5 exd4 { [%eval 0.57] } (4... Bd7 { [%eval 0.98] } 5. Nc3 exd4 { [%eval 0.65] · quiet: 4 playable moves — judgment from here}) (4... a6?! { [%eval 1.48] · trap · 15% play this · they score 39% where 37% is deserved · n=94} 5. Bxc6+ {beyond master theory — chosen from club play} bxc6 { [%eval 1.53] } 6. dxe5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 5. Nxd4 Bd7 { [%eval 0.56] · quiet: 5 playable moves — judgment from here}) 4. Bb5 {out of book (0 games)})
+3. e5 {→ Nimzowitsch Defense: Scandinavian Variation, Advance Variation} Bf5
+{ [%eval 0.69] } (3... f6 { [%eval 0.68] } 4. f4)
+(3... e6 { [%eval 1.11] } 4. Nf3 {beyond master theory — chosen from club play} Nge7 { [%eval 1.15] } (4... Bb4+ { [%eval 1.55] } 5. c3 {beyond master theory — chosen from club play} Ba5 { [%eval 1.90] } 6. Bb5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4... f6 { [%eval 0.84] } 5. Bb5 {out of book (0 games)}) (4... Bd7 { [%eval 1.01] } 5. c3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. Bb5 {beyond master theory — chosen from club play})
+4. Nf3 e6 { [%eval 0.51] } 5. c3 {out of book (0 games)} *
+
+[Event "Repertoire — White: Alekhine's Defence"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B03"]
+[Opening "Alekhine Defense: Exchange Variation"]
+[Variation "e4 Nf6 e5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{1.0%. Chase the knight and take the space it invited us to take. The Four Pawns is a theory trap; the plain 2.e5 with natural development is the point here.}
+1. e4 {→ King's Pawn Game} Nf6 2. e5 {→ Alekhine Defense: Exchange Variation}
+Nd5 { [%eval 0.71] } 3. d4 {→ Alekhine Defense: Exchange Variation} d6
+{ [%eval 0.67] }
+(3... e6 { [%eval 0.91] } 4. c4 {beyond master theory — chosen from club play} Nb6 { [%eval 1.13] } 5. Nf3 {beyond master theory — chosen from club play · out of book (0 games)})
+(3... Nb6 { [%eval 0.95] } 4. c4 d6 { [%eval 0.75] } (4... e6 { [%eval 1.16] } 5. Nf3 {beyond master theory — chosen from club play · out of book (0 games)}) 5. exd6 cxd6 { [%eval 0.66] · quiet: 5 playable moves — judgment from here} (5... exd6 { [%eval 0.71] · quiet: 5 playable moves — judgment from here}))
+(3... b5?! { [%eval 1.78] · out of book (0 games)}) 4. Nf3
+{→ Alekhine Defense: Modern Variation} *
+
+[Event "Repertoire — White: French — White's 2nd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B44"]
+[Opening "Sicilian Defense: Taimanov Variation"]
+[Variation "e4 e6 d4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{Black's alternatives to 2...d5, which mostly transpose or invite us to take a bigger centre.}
+1. e4 {→ King's Pawn Game} e6 2. d4 {→ Sicilian Defense: Taimanov Variation} c5
+{ [%eval 0.68] }
+(2... d5 { [%eval 0.45] · covered in the "french-advance" line})
+(2... c6 { [%eval 0.81] } 3. Nc3 {beyond master theory — chosen from club play} d5 { [%eval 0.86] } 4. Nf3 Bb4 { [%eval 0.91] · quiet: 5 playable moves — judgment from here} (4... Nf6 { [%eval 1.29] · out of book (0 games)}))
+(2... b6?! { [%eval 1.07] · trap · 6% play this · they score 46% where 40% is deserved · n=610} 3. Nf3 Bb7 { [%eval 0.80] } 4. Bd3 Nf6 { [%eval 1.12] · covered in the "owens" line} (4... h6 { [%eval 1.18] · covered in the "owens" line}))
+(2... d6 { [%eval 0.86] · covered in the "e4-sidelines" line}) 3. Nf3
+{→ Sicilian Defense: Taimanov Variation} cxd4 { [%eval 0.52] }
+(3... d5 { [%eval 0.89] } 4. exd5 exd5 { [%eval 1.03] } 5. Bb5+ Nc6 { [%eval 0.98] · quiet: 5 playable moves — judgment from here} (5... Bd7 { [%eval 1.07] · quiet: 4 playable moves — judgment from here}))
+(3... Nc6?! { [%eval 1.78] · trap · 7% play this · they score 42% where 34% is deserved · n=126} 4. d5 {beyond master theory — chosen from club play} exd5 { [%eval 2.21] } 5. exd5 {beyond master theory — chosen from club play} Nb4?! { [%eval 3.73] · out of book (0 games)})
+4. Nxd4 Nc6 { [%eval 0.44] · quiet: 5 playable moves — judgment from here}
+(4... a6 { [%eval 0.51] · quiet: 5 playable moves — judgment from here})
+(4... Nf6 { [%eval 0.57] · quiet: 5 playable moves — judgment from here})
+(4... Bc5 { [%eval 0.88] · quiet: 4 playable moves — judgment from here}) *
+
+[Event "Repertoire — White: French Defence — Advance"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "C02"]
+[Opening "French Defense: Advance Variation"]
+[Variation "e4 e6 d4 d5 e5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "10"]
+
+{Close the centre and play on the chain. Chosen over 3.Nc3 because it is one plan rather than three theoretical complexes, and because it is the same structure as the Caro Advance below — 18% of replies for one idea.}
+1. e4 {→ King's Pawn Game} e6 2. d4 {→ French Defense: Normal Variation} d5
+3. e5 {→ French Defense: Advance Variation} c5 { [%eval 0.34] }
+(3... Nc6?! { [%eval 1.10] · trap · 7% play this · they score 46% where 40% is deserved · n=261 · punishment not verified — play it out yourself · covered in the "nimzowitsch" line})
+4. c3 {→ French Defense: Advance Variation} Nc6
+{ [%eval 0.35] · covered in the "alapin" line}
+(4... Qb6 { [%eval 0.42] · covered in the "alapin" line})
+(4... cxd4 { [%eval 0.55] · covered in the "alapin" line})
+(4... c4?! { [%eval 0.92] · trap · 3% play this · they score 54% where 42% is deserved · n=61 · punishment not verified — play it out yourself · covered in the "alapin" line})
+*
+
+[Event "Repertoire — White: Caro-Kann — White's 2nd move"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense"]
+[Variation "e4 c6 d4"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "11"]
+
+{Black's alternatives to 2...d5 — mainly 2...e6, 2...d6 and 2...g6, together about 5% of the Caro.}
+1. e4 {→ King's Pawn Game} c6 2. d4 e6
+{ [%eval 0.81] · covered in the "french" line}
+(2... d5 { [%eval 0.36] · covered in the "caro-advance-white" line})
+(2... d6 { [%eval 0.63] · covered in the "e4-sidelines" line}) *
+
+[Event "Repertoire — White: Caro-Kann — Advance"]
+[Site "etude-chess repertoire generator"]
+[Date "2026.08.07"]
+[White "Repertoire"]
+[Black "Opponent"]
+[Result "*"]
+[Orientation "white"]
+[Annotator "Stockfish + Lichess explorer"]
+[ECO "B12"]
+[Opening "Caro-Kann Defense: Advance Variation, Short Variation"]
+[Variation "e4 c6 d4 d5 e5"]
+[Engine "stockfish-windows-x86-64-avx2.exe"]
+[EngineNodes "120000"]
+[EngineThreads "1"]
+[Reproducible "yes"]
+[MinDepth "9"]
+
+{The other side of a structure you already train as Black in caro-advance. Learning both sides of the same pawn chain is the cheapest theory in either repertoire, and it means your own Black repertoire doubles as preparation for this one.}
+1. e4 {→ King's Pawn Game} c6 2. d4 d5 3. e5
+{→ Caro-Kann Defense: Advance Variation, Short Variation} Bf5 { [%eval 0.42] }
+(3... c5 { [%eval 0.43] } 4. dxc5 Nc6 { [%eval 0.71] } (4... e6 { [%eval 0.45] } 5. a3 {out of book (0 games)}) 5. Bb5)
+4. Nf3 {→ Caro-Kann Defense: Advance Variation, Short Variation} e6
+{ [%eval 0.37] } 5. Be2 c5
+{ [%eval 0.40] · quiet: 5 playable moves — judgment from here} *
