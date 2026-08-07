@@ -220,8 +220,12 @@ describe('the tail of the opening — the moves nothing else owns', () => {
   it('roots a Black branch at the initial position, so 1.Nc3 and 1.b3 are answered', () => {
     const root = entries.filter((e) => e.color === 'b' && plies(e.line).length === 0)
     expect(root).toHaveLength(1)
-    // A sweeper: meeting the move is the point, not five plies of follow-up.
-    expect(root[0]?.role).toBe('sweeper')
+    // A signpost, and measured rather than assumed: run as a sweeper it cost 38
+    // decisions to answer 2% of the owner's games — 11% of the repertoire's
+    // whole memorisation budget — because massTarget buys breadth at every ply,
+    // not just the root one it was raised for. The decision here is the first
+    // move; everything after transposes into what the curated branches teach.
+    expect(root[0]?.role).toBe('signpost')
   })
 
   it('hands that root branch every first move a real branch owns, and keeps the rest', () => {
