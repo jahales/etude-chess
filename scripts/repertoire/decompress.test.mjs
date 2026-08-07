@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { zstdCompressSync, gzipSync } from 'node:zlib'
+import { gzipSync } from 'node:zlib'
+import { compress } from 'zstd-napi'
 import { randomBytes } from 'node:crypto'
 import { decompressZstd, sniffAndDecompress, looksLikeZstd, SAFETY_MARGIN } from './decompress.mjs'
 
@@ -20,7 +21,10 @@ function skippable(size = 4) {
   return Buffer.concat([head, Buffer.alloc(size, 0xab)])
 }
 
-const frame = (text) => zstdCompressSync(Buffer.from(text))
+// Built with libzstd, not node:zlib — `zstdCompressSync` only exists from Node
+// 22.15, so fixtures built with it fail on any older runtime. CI runs Node 20
+// and had been red for three merges before anyone looked.
+const frame = (text) => compress(Buffer.from(text))
 
 /** Feed a buffer through in `chunkSize` pieces, as a stream would. */
 async function* chunked(buf, chunkSize = 64 * 1024) {

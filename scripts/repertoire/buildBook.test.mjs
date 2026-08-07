@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { gzipSync, zstdCompressSync } from 'node:zlib'
+import { gzipSync } from 'node:zlib'
+import { compress as zstdCompress } from 'zstd-napi'
 import { buildBook } from './buildBook.mjs'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
 import { auditBook } from '../../src/domain/bookQuality.ts'
@@ -196,7 +197,7 @@ describe('buildBook — input formats', () => {
 
   it('reads a zstd PGN', async () => {
     const path = join(dir, 'z.pgn.zst')
-    writeFileSync(path, zstdCompressSync(Buffer.from(one)))
+    writeFileSync(path, zstdCompress(Buffer.from(one)))
     const { meta } = await buildBook({ file: path, minRating: 1500, maxRating: 1900, minGames: 1 })
     expect(meta.gamesUsed).toBe(1)
   })
