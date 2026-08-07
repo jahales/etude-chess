@@ -1,0 +1,102 @@
+{
+  "$schema": "./manifest.v1.json",
+  "$note": "A second White repertoire, built and shipped separately from the Queen's Gambit one so it is a genuine alternative rather than more cards in the same deck. Branch weights come from the owner's own band (Lichess 1300-1800, 367k games) and not from theory: 1...e5 is 44.7% of replies here against roughly half that at master level, and 1...d5 at 10.0% is MORE common than the French or the Caro-Kann. A repertoire designed from a book would under-weight the Scandinavian badly.",
+  "$system": "Low theory, and chosen for transfer. Against 1...e6 and 1...c6 we play the Advance, which is the same pawn chain the owner already studies from the Black side in caro-advance — one structural idea covering 18% of replies, seen from both sides. The Alapin rhymes with it (2.c3 Nf6 3.e5 is the same chain; 2...d5 3.exd5 is the Scandinavian structure), so 43% of what we meet lands in related territory. Against 1...e5 the Italian: natural development, no Ruy Lopez theory load.",
+  "entries": [
+    {
+      "id": "e4-sidelines",
+      "name": "1.e4 — irregular replies",
+      "color": "w",
+      "line": "e4",
+      "why": "Everything that is not 1...e5, 1...c5, 1...d5, 1...e6 or 1...c6 — mainly the Pirc, Modern, Owen's and 1...Nc6. Together about 11% of what you will meet, and the point is to answer them at all rather than five plies of follow-up.",
+      "$roleNote": "The five replies above are delegated and carry 88% of the mass, so the default budget is spent entirely on moves this branch hands away, leaving the tail it exists for covered by nobody — the same failure that left 1...c5 unanswered in the 1.d4 sweeper.",
+      "$tuningNote": "0.93 was first copied across from the 1.d4 sweeper by analogy, and the measured distribution says that stops at exactly 94.6% — leaving 1...b6, 1...Nc6 and 1...Nf6 unanswered. Raising it to 0.99 does reach them, and was measured too: 29 decisions became 82, because massTarget buys breadth at every ply and not just the root one it was raised for. Those three are named defences, so they get their own branches below, the same way the 1.d4 side gives one to the Dutch and the Budapest. The sweeper stays cheap and keeps only what is genuinely irregular.",
+      "role": "sweeper",
+      "massTarget": 0.93,
+      "maxOpponentMoves": 9
+    },
+    {
+      "id": "e5-sidelines",
+      "name": "1.e4 e5 2.Nf3 — Black's alternatives",
+      "color": "w",
+      "line": "e4 e5 Nf3",
+      "why": "The Petrov (2...Nf6), Philidor (2...d6) and the gambits. 2.Nf3 is 61.7% of the band's choice here and it is the move that asks the most; these are what Black does instead of 2...Nc6.",
+      "role": "sweeper"
+    },
+    {
+      "id": "open-italian",
+      "name": "Italian Game",
+      "color": "w",
+      "line": "e4 e5 Nf3 Nc6 Bc4",
+      "why": "1...e5 is 44.7% of replies at this band — nearly half of everything, and far more than at master level. The Italian develops naturally toward the f7 square and asks Black to know something, without the Ruy Lopez's theory bill. This is the single most valuable branch in the file."
+    },
+    {
+      "id": "alapin",
+      "name": "Sicilian — Alapin",
+      "color": "w",
+      "line": "e4 c5 c3",
+      "why": "One system against the whole Sicilian instead of the Open Sicilian's library. Build the big centre with d4; if Black stops it with 2...d5 3.exd5 Qxd5 we are in a Scandinavian structure, and after 2...Nf6 3.e5 the same chain as the Advance lines. The Sicilian is only 15.3% here, so paying Open Sicilian theory for it would be the worst trade in the repertoire."
+    },
+    {
+      "id": "scandinavian",
+      "name": "Scandinavian Defence",
+      "color": "w",
+      "line": "e4 d5 exd5",
+      "why": "10.0% of replies — third most common, ahead of the French and the Caro-Kann, and almost invisible in master practice. Take the pawn and develop with tempo against the queen."
+    },
+    {
+      "id": "owens",
+      "name": "Owen's Defence",
+      "color": "w",
+      "line": "e4 b6 d4",
+      "why": "2.1% of replies — more common here than the Alekhine and the Nimzowitsch put together, and nearly invisible in master practice. Take the full centre; the bishop on b7 is biting on granite once we hold e4 and d4."
+    },
+    {
+      "id": "nimzowitsch",
+      "name": "Nimzowitsch Defence",
+      "color": "w",
+      "line": "e4 Nc6 d4",
+      "why": "1.3%. Answer it by taking the centre rather than by memorising it — after 2.d4 most of Black's tries transpose into the Scandinavian or Pirc structures this file already covers."
+    },
+    {
+      "id": "alekhine",
+      "name": "Alekhine's Defence",
+      "color": "w",
+      "line": "e4 Nf6 e5",
+      "why": "1.0%. Chase the knight and take the space it invited us to take. The Four Pawns is a theory trap; the plain 2.e5 with natural development is the point here."
+    },
+    {
+      "id": "french",
+      "name": "French — White's 2nd move",
+      "color": "w",
+      "line": "e4 e6 d4",
+      "why": "Black's alternatives to 2...d5, which mostly transpose or invite us to take a bigger centre.",
+      "role": "sweeper"
+    },
+    {
+      "id": "french-advance",
+      "name": "French Defence — Advance",
+      "color": "w",
+      "line": "e4 e6 d4 d5 e5",
+      "why": "Close the centre and play on the chain. Chosen over 3.Nc3 because it is one plan rather than three theoretical complexes, and because it is the same structure as the Caro Advance below — 18% of replies for one idea."
+    },
+    {
+      "id": "caro-white",
+      "name": "Caro-Kann — White's 2nd move",
+      "color": "w",
+      "line": "e4 c6 d4",
+      "why": "Black's alternatives to 2...d5 — mainly 2...e6, 2...d6 and 2...g6, together about 5% of the Caro.",
+      "$roleNote": "2...d5 is 93.6% here and belongs to caro-advance-white, so on the default target this branch covered *nothing of its own* and the build flagged it as empty. The French sweeper next door needs no such help because 2...d5 is only 63.3% there and the default budget still reaches the tail — which is the tell that the setting must follow the distribution, not the branch's shape. maxOpponentMoves is held at 5 so the raised target does not buy breadth at every ply below, the mistake that made black-irregular cost 38 decisions.",
+      "role": "sweeper",
+      "massTarget": 0.97,
+      "maxOpponentMoves": 5
+    },
+    {
+      "id": "caro-advance-white",
+      "name": "Caro-Kann — Advance",
+      "color": "w",
+      "line": "e4 c6 d4 d5 e5",
+      "why": "The other side of a structure you already train as Black in caro-advance. Learning both sides of the same pawn chain is the cheapest theory in either repertoire, and it means your own Black repertoire doubles as preparation for this one."
+    }
+  ]
+}

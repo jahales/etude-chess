@@ -1,8 +1,8 @@
 import { describe, it, expect, afterAll, beforeEach } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { Chess } from 'chess.js'
 import { DEFAULTS } from './crawl.mjs'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
@@ -993,7 +993,7 @@ describe('the shipped manifest’s roles', () => {
     const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
     const shallow = entries.filter((e) => e.role && e.role !== 'curated')
     expect(shallow.map((e) => e.id).sort()).toEqual(
-      ['caro', 'd4-black', 'd4-sidelines', 'english', 'reti'].sort(),
+      ['black-irregular', 'caro', 'd4-black', 'd4-sidelines', 'english', 'reti'].sort(),
     )
   })
 
@@ -1081,6 +1081,33 @@ describe('--check validates roles', () => {
 
   it('accepts every role in the shipped manifest', async () => {
     expect(badRoles(parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8')))).toEqual([])
+  })
+})
+
+describe('every shipped manifest, not only the default one', () => {
+  // The 1.e4 repertoire ships as its own manifest, and for a while nothing here
+  // saw it: every check above reads DEFAULT_MANIFEST, so an illegal SAN or an
+  // unknown role in manifest.e4.json passed `npm run verify` and CI untouched
+  // and surfaced only if someone happened to run `--check` by hand. Discovered
+  // rather than listed, so the next manifest is covered the day it lands.
+  const manifests = async () => {
+    const dir = dirname(DEFAULT_MANIFEST)
+    const names = (await readdir(dir)).filter((f) => /^manifest\..+\.json$/.test(f))
+    return names.map((name) => ({ name, path: join(dir, name) }))
+  }
+
+  it('finds more than one, or this guard is watching nothing', async () => {
+    expect((await manifests()).map((m) => m.name).sort()).toEqual(
+      ['manifest.e4.json', 'manifest.v1.json'],
+    )
+  })
+
+  it('plays every line legally and names only known roles', async () => {
+    for (const { name, path } of await manifests()) {
+      const entries = parseManifest(await readFile(path, 'utf8'))
+      expect(illegalLines(entries), name).toEqual([])
+      expect(badRoles(entries), name).toEqual([])
+    }
   })
 })
 
