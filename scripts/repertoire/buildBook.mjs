@@ -30,7 +30,7 @@ import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
-import { sniffAndDecompress } from './zstdFrames.mjs'
+import { sniffAndDecompress } from './decompress.mjs'
 
 const DUMP = (month) =>
   `https://database.lichess.org/standard/lichess_db_standard_rated_${month}.pgn.zst`
@@ -57,8 +57,8 @@ const MAX_TRANSITIONS = 1_500_000
  */
 function decompressedStream(source, opts) {
   // highWaterMark is in *objects* here, and our objects are whole 32 MiB
-  // decompressed frames — the default of 16 lets the stream sit on half a
-  // gigabyte of them while readline works through the first. Two is plenty to
+  // decompressed chunks — the default of 16 lets the stream sit on a large
+  // backlog of them while readline works through the first. Two is plenty to
   // keep the consumer fed.
   const stream = Readable.from(sniffAndDecompress(source, opts), { highWaterMark: 2 })
   stream.on('error', () => {})
@@ -82,10 +82,11 @@ function decompressedStream(source, opts) {
  * poisons every subsequent run: that is exactly what wedged the 2026-05 build,
  * repeatedly, always at the same offset.
  *
- * The sidecar records `validBytes`, advanced only on a frame boundary that
- * decoded and matched its declared size. On startup we truncate back to that
- * mark, discarding any untrusted tail, and re-fetch from there. The cache is
- * therefore always a prefix of verified frames, whatever happened last time.
+ * The sidecar records `validBytes`: bytes the decoder has consumed, held a
+ * safety margin behind the feed position mid-stream and marked in full once the
+ * stream ends cleanly (see SAFETY_MARGIN in decompress.mjs). On startup we
+ * truncate back to that mark, discarding any untrusted tail, and re-fetch from
+ * there — so a killed build costs at most the margin, never a wedged cache.
  */
 export function readValidBytes(metaPath) {
   try {

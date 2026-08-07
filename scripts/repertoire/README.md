@@ -96,11 +96,18 @@ size. That matters: 2013-01 is 17 MB but a 2026 month is ~27 GB.
 Then point the crawler at it with `--book out/book.json`.
 
 > **Note on the dump format.** These are *seekable* zstd: a leading skippable frame, many
-> independent ~32 MiB frames, and a trailing seek table. Node's `createZstdDecompress` decodes
-> only the **first** frame and then rejects the next frame's header — piping a dump straight
-> through it silently yields a well-formed book built from ~3% of the games, with no error.
-> `buildBook.mjs` frames the stream itself to avoid that. Verified against 2013-01, whose
-> documented total is 121,332 games.
+> independent ~32 MiB frames, and a trailing seek table. **Node's own zstd binding cannot read
+> them.** `createZstdDecompress` decodes only the first frame and then stops — measured on a real
+> dump it produced **0 MB and raised no error**, which is how a well-formed book got built from
+> ~3% of the games.
+>
+> So decompression goes through **libzstd** (`zstd-napi`), whose streaming decoder consumes
+> concatenated frames natively: 902 MB from the same input. That replaced ~250 lines of
+> hand-rolled frame splitting which had caused three separate faults on its own. See
+> [decompress.mjs](decompress.mjs).
+>
+> Verified against 2013-01, whose documented total is 121,332 games — `verifyBook.mjs` asserts
+> that number, and it is what exposed the original silent truncation.
 
 ### Checking a book is actually right — `verifyBook.mjs`
 
