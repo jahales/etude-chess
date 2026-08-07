@@ -92,18 +92,17 @@ the repertoire came to about a hundred between them.
 | `sweeper` | ply 8 | `d4-sidelines`, `d4-black`, `caro` — so you are not surprised |
 | `signpost` | ply 6 | `english`, `reti` — the decision *is* the first move |
 
-That took 467 decisions down to **336 while losing three trainable positions** — 193 quiet
-targets became 190. The memorisation fell 28%; the material worth drilling did not move. A
+That took 467 decisions to 336, and collapsing the transpositions above took it to **269**. A
 signpost pays for itself the moment you answer 1.c4 with 1...c6, because everything after it is
 a Slav structure the curated branches already teach.
 
-`ourDecisions` is still the number to read first. If 336 is more than you can hold, the next cut
+`ourDecisions` is still the number to read first. If 269 is more than you can hold, the next cut
 is the same shape: demote a branch's role, do not shorten a curated line.
 
 | | |
 |---|---|
 | Deviations to prepare | **25** ranked traps, **8** of which we cannot actually punish (marked in the PGN) |
-| Move glyphs | 54 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
+| Move glyphs | 45 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
 | Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
 | Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
 | Engine | Stockfish, 120,000 nodes, **Threads=1** — anything else is not reproducible |
@@ -113,9 +112,9 @@ is the same shape: demote a branch's role, do not shorten a curated line.
 
 - **1.e4 as White.** Deliberate: one first move at a time. The planned expansion.
 - **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch.
-- **30 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
-  the sweepers removed most of them, which is what you would expect if the depth was reaching
-  past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
+- **27 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
+  the sweepers and collapsing the transpositions removed most of them, which is what you would
+  expect if the depth was reaching past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
   that ends that way as **unfinished**, not as a quiet position worth training.
 - **Lines that look like traps but have too few games to judge.** Listed in `summary.json` under
   `tooRareToJudge` rather than dropped — a rare line may be the vicious one, we just cannot yet
