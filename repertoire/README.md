@@ -101,7 +101,7 @@ is the same shape: demote a branch's role, do not shorten a curated line.
 
 | | |
 |---|---|
-| Deviations to prepare | **25** ranked traps, **8** of which we cannot actually punish (marked in the PGN) |
+| Deviations to prepare | **19** ranked traps, **6** of which we cannot actually punish (marked in the PGN) |
 | Move glyphs | 45 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
 | Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
 | Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
