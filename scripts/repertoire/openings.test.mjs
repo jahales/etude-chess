@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
 import { Chess } from 'chess.js'
 import { loadOpenings, parseEcoTsv, positionKeyFor, variationFor } from './openings.mjs'
 
@@ -152,5 +153,23 @@ describe('variationFor — where a line is heading', () => {
     // not follow it forever.
     const nodes = treeOf(['Nf3 Nf6 Ng1 Ng8'])
     expect(() => variationFor(nodes, new Chess().fen())).not.toThrow()
+  })
+})
+
+describe('the ECO table has to actually be there', () => {
+  // It was not, for one commit: .gitignore's blanket `data/` rule for chess
+  // datasets swallowed the directory, `git add -A` reported nothing, and every
+  // local test passed because the files were on disk. CI caught it.
+  it('ships the five files the build reads', () => {
+    // Repo-relative: vitest's transform leaves import.meta.url as a non-file
+    // URL, and its root is the repo root.
+    const files = readdirSync('scripts/repertoire/data').filter((f) => f.endsWith('.tsv'))
+    expect(files.sort()).toEqual(['eco-a.tsv', 'eco-b.tsv', 'eco-c.tsv', 'eco-d.tsv', 'eco-e.tsv'])
+  })
+
+  it('records where they came from and under what licence', () => {
+    const readme = readFileSync('scripts/repertoire/data/README.md', 'utf8')
+    expect(readme).toMatch(/CC0/)
+    expect(readme).toMatch(/lichess-org\/chess-openings/)
   })
 })

@@ -57,7 +57,25 @@ let cache = null
 export function loadOpenings() {
   if (cache) return cache
   const openings = new Map()
-  for (const file of readdirSync(DATA_DIR).filter((f) => f.endsWith('.tsv')).sort()) {
+
+  // Named, not left as an opaque ENOENT from readdirSync. The blanket `data/`
+  // rule in .gitignore swallowed this directory once — `git add -A` said
+  // nothing, every local test passed, and CI was the only thing that noticed.
+  let files
+  try {
+    files = readdirSync(DATA_DIR).filter((f) => f.endsWith('.tsv')).sort()
+  } catch (err) {
+    throw new Error(
+      `no ECO table at ${DATA_DIR} — is that directory gitignored? ` +
+        `See scripts/repertoire/data/README.md for how to fetch it.`,
+      { cause: err },
+    )
+  }
+  if (files.length === 0) {
+    throw new Error(`no .tsv files in ${DATA_DIR} — see its README.md for how to fetch them.`)
+  }
+
+  for (const file of files) {
     for (const { eco, name, sans } of parseEcoTsv(readFileSync(join(DATA_DIR, file), 'utf8'))) {
       const board = new Chess()
       let legal = true
