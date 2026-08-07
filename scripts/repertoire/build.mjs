@@ -63,9 +63,40 @@ export const MIN_OWN_PLIES = 4
  */
 export const GLOBAL_MIN_PLY = DEFAULTS.minPly
 
+/**
+ * How deep a branch runs, by what it is for.
+ *
+ * Depth used to be one number for everything, and the bill made the problem
+ * obvious: the sweepers and signposts carried **58% of the memorisation load**
+ * — 272 decisions of 467 — while every curated line in the repertoire came to
+ * about a hundred between them. Five moves of theory is the right answer for
+ * the Queen's Gambit Exchange and the wrong one for "don't be surprised by
+ * 1...c5".
+ *
+ * - `curated` — a line you are actually learning. Full depth.
+ * - `sweeper` — covers the replies no curated branch owns, so you are not
+ *   surprised. The value is in meeting the move at all, not in five moves of
+ *   follow-up.
+ * - `signpost` — says "answer this and transpose". The decision *is* the first
+ *   move; after it you are in structures the curated branches already teach.
+ *
+ * A shallow role never overrides `MIN_OWN_PLIES`, so a branch still cannot stop
+ * on its own root.
+ */
+export const DEPTH_BY_ROLE = {
+  curated: GLOBAL_MIN_PLY,
+  sweeper: 8,
+  signpost: 6,
+}
+
 export function resolveEntry(entry, defaults = {}) {
   const forced = plies(entry.line)
-  const minPly = entry.minPly ?? Math.max(defaults.minPly ?? GLOBAL_MIN_PLY, forced.length + MIN_OWN_PLIES)
+  const role = entry.role ?? 'curated'
+  if (!(role in DEPTH_BY_ROLE)) {
+    throw new Error(`unknown role "${role}" — expected ${Object.keys(DEPTH_BY_ROLE).join(', ')}`)
+  }
+  const floor = defaults.minPly ?? DEPTH_BY_ROLE[role]
+  const minPly = entry.minPly ?? Math.max(floor, forced.length + MIN_OWN_PLIES)
   return {
     ...entry,
     forced,

@@ -277,7 +277,13 @@ Caro-Kann Advance opens `1.e4 c6 2.d4 d5 3.e5 Bf5`, which is already quiet at pl
 branch terminated on its own root and was one node with no content. The prefix is scaffolding to
 reach the position worth studying; it cannot also be the study. Override either per entry.
 
-Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`.
+**`role` decides depth**, and is the knob to reach for when the repertoire gets too big to hold:
+`curated` (the default, full depth), `sweeper`, `signpost`. Demote a branch rather than
+shortening a curated line — see `DEPTH_BY_ROLE` in [build.mjs](build.mjs) for the measured
+reason. An unrecognised role is an error, not a silent fall back to full depth.
+
+Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`,
+and `minPly`/`maxPly` where a specific line needs an exact depth.
 `massTarget` earns its keep on a sweeper whose popular replies all belong to other branches —
 after `1.e4 c6 2.d4 d5`, White's 3.Nc3, 3.e5 and 3.exd5 are *exactly* 85% of the node, so the
 default target is met before a single move that branch owns is reached and it covers nothing.

@@ -24,6 +24,7 @@ import {
   writeBranch,
   CRAWL_PLIES,
   DEFAULT_MANIFEST,
+  DEPTH_BY_ROLE,
   GLOBAL_MIN_PLY,
   MIN_OWN_PLIES,
 } from './build.mjs'
@@ -931,5 +932,73 @@ describe('a crawl actually runs deeper, not just its arithmetic', () => {
     const chess = new Chess()
     chess.loadPgn(built.pgn)
     expect(chess.history().length).toBeGreaterThanOrEqual(GLOBAL_MIN_PLY)
+  })
+})
+
+describe('depth follows what a branch is for', () => {
+  // The review's altitude finding: depth was a tuned constant with no way to
+  // say *why* a branch should be shallow. A sweeper exists so you are not
+  // surprised, and a signpost exists to say "transpose" — neither needs five
+  // moves of theory, and between them they carried 58% of the memorisation
+  // load for a fraction of the value.
+  it('gives a curated line the full floor', () => {
+    expect(resolveEntry({ line: 'd4 d5 c4 e6 cxd5', role: 'curated' }).minPly).toBe(
+      DEPTH_BY_ROLE.curated,
+    )
+    expect(resolveEntry({ line: 'd4 d5 c4 e6 cxd5' }).minPly).toBe(DEPTH_BY_ROLE.curated)
+  })
+
+  it('stops a sweeper earlier', () => {
+    const sweeper = resolveEntry({ line: 'd4', role: 'sweeper' })
+    const curated = resolveEntry({ line: 'd4', role: 'curated' })
+    expect(sweeper.minPly).toBe(DEPTH_BY_ROLE.sweeper)
+    expect(sweeper.minPly).toBeLessThan(curated.minPly)
+  })
+
+  it('stops a signpost earlier still — its decision is the first move', () => {
+    const signpost = resolveEntry({ line: 'c4 c6', role: 'signpost' })
+    expect(signpost.minPly).toBe(DEPTH_BY_ROLE.signpost)
+    expect(signpost.minPly).toBeLessThan(resolveEntry({ line: 'c4 c6', role: 'sweeper' }).minPly)
+  })
+
+  it('still keeps a branch from stopping on its own root', () => {
+    // A shallow role must not undo the per-branch minimum: the Caro-Kann
+    // Advance opens on an already-quiet position at ply 6.
+    const deep = resolveEntry({ line: 'e4 c6 d4 d5 e5 Bf5', role: 'sweeper' })
+    expect(deep.minPly).toBeGreaterThanOrEqual(6 + MIN_OWN_PLIES)
+  })
+
+  it('still leaves room between floor and cap for every role', () => {
+    for (const role of Object.keys(DEPTH_BY_ROLE)) {
+      for (const line of ['d4', 'c4 c6', 'e4 c6 d4 d5 exd5 cxd5']) {
+        const r = resolveEntry({ line, role })
+        expect(r.maxPly, `${role} ${line}`).toBeGreaterThan(r.minPly)
+      }
+    }
+  })
+
+  it('lets an explicit minPly beat the role', () => {
+    expect(resolveEntry({ line: 'd4', role: 'sweeper', minPly: 14 }).minPly).toBe(14)
+  })
+
+  it('rejects a role nobody defined, rather than silently crawling deep', () => {
+    expect(() => resolveEntry({ line: 'd4', role: 'skimmer' })).toThrow(/unknown role "skimmer"/)
+  })
+})
+
+describe('the shipped manifest’s roles', () => {
+  it('names a role for every branch that is not a curated line', async () => {
+    const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
+    const shallow = entries.filter((e) => e.role && e.role !== 'curated')
+    expect(shallow.map((e) => e.id).sort()).toEqual(
+      ['caro', 'd4-black', 'd4-sidelines', 'english', 'reti'].sort(),
+    )
+  })
+
+  it('leaves every curated line at full depth', async () => {
+    const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
+    for (const e of entries.filter((x) => !x.role || x.role === 'curated')) {
+      expect(resolveEntry(e).minPly, e.id).toBeGreaterThanOrEqual(DEPTH_BY_ROLE.curated)
+    }
   })
 })

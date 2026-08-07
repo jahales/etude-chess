@@ -20,9 +20,15 @@ position is the item**. The moves leading to it are scaffolding to get you out o
 with a position you can think in. This is what keeps openings inside constitution §1 (train
 judgment, not memory of lines); see [decisions/0021](decisions/0021-opening-repertoire-generator.md).
 
-Depth is therefore **variable**, and set by two rules rather than one. A **floor** — no line may
-stop before ply 10, five moves each — and a **per-branch minimum** of four plies past the
-branch's own curated prefix, whichever is deeper. The cap is eight plies past the prefix.
+Depth is therefore **variable**, and set by what a branch is *for*. A **curated** line — one you
+are actually learning — runs to at least ply 10, five moves each. A **sweeper**, which exists so
+you are not surprised by a reply no curated branch owns, stops at 8. A **signpost** such as the
+answer to 1.c4 stops at 6, because its decision *is* the first move and everything after it is a
+structure the curated branches already teach. On top of that, every branch crawls at least four
+plies past its own prefix, and the cap is eight.
+
+Measured: one number for everything cost 467 decisions to memorise; roles took that to 336 while
+the count of trainable quiet positions fell by three.
 
 The floor is what actually decides depth, and it is worth knowing why: a line stops the moment
 it is *allowed* to, because almost every opening position passes the quiet test by move 4. With
