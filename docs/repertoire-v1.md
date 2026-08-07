@@ -41,7 +41,16 @@ carry no decision. See ADR [0022](decisions/0022-repertoire-branch-ownership.md)
 
 ## White — 1.d4, Queen's Gambit spine
 
-We play **one** first move. 1.e4 is the planned expansion, not part of v1.
+~~We play **one** first move. 1.e4 is the planned expansion, not part of v1.~~
+
+**Amended 2026-08-07 by ADR [0023](decisions/0023-second-white-repertoire-1-e4.md): 1.e4 now
+ships as a second, separate White repertoire.** The reasoning above was that a repertoire you
+half-know is worse than a narrow one you know — which still holds, and is why the two are
+separate decks rather than one bigger file. What overturned the scope call was evidence rather
+than a change of mind: replaying the owner's 248 real games showed 1.e4 was already **17% of
+their games as White, scored at 39%, with no preparation at all** — a larger hole than any of the
+gaps this milestone closed on the 1.d4 side. Everything below still describes the 1.d4 spine,
+which is unchanged and remains the primary repertoire.
 
 | Black plays | Our answer | Why |
 |---|---|---|
