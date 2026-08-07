@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
-import { crawl } from './crawl.mjs'
+import { crawl, DEFAULTS } from './crawl.mjs'
 
 // Unit tests for the crawler itself. `crawl()` takes its engine and books as
 // parameters, so the whole thing runs deterministically with stubs — no
@@ -432,5 +432,46 @@ describe('crawl — delegating a subtree to another branch', () => {
   it('accepts a plain object as well as a Map', async () => {
     const result = await delegated({ delegations: { 'd4 d5 c4 e6': 'qgd-exchange' } })
     expect(result.report.delegated).toEqual([{ line: 'd4 d5 c4 e6', to: 'qgd-exchange' }])
+  })
+})
+
+describe('crawl — the shipped defaults must be usable', () => {
+  // How the break got in: `DEFAULTS.minPly` was raised to match build.mjs and
+  // `DEFAULTS.maxPly` was left behind, so the depth cap fired before the quiet
+  // test could and no line could ever end quiet. build.mjs always passes an
+  // explicit maxPly, so nothing in the suite noticed — every depth test spells
+  // both plies out.
+  const ladder = (sans) => {
+    const spec = {}
+    for (let i = 0; i < sans.length; i++) {
+      spec[sans.slice(0, i).join(' ')] = [{ san: sans[i], w: 400, d: 100, b: 300 }]
+    }
+    return stubBook(spec)
+  }
+
+  it('leaves room between the floor and the cap', () => {
+    expect(DEFAULTS.minPly).toBeLessThan(DEFAULTS.maxPly)
+  })
+
+  it('produces quiet terminals with no ply options at all', async () => {
+    const deep = ladder(['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O', 'e3', 'h6'])
+    const result = await crawl({ engine: stubEngine(), explorer: deep, ourColor: 'w', forcedLine: [] })
+    expect(result.report.terminal.quiet).toBeGreaterThan(0)
+  })
+
+  it('refuses a floor raised past the default cap, rather than ending every line on it', async () => {
+    // The shape the mistake takes: raise the floor, do not notice the cap it
+    // now meets. Nothing here says maxPly, so the default is in play.
+    await expect(
+      crawl({ engine: stubEngine(), explorer: stubBook({}), ourColor: 'w', minPly: DEFAULTS.maxPly }),
+    ).rejects.toThrow(/no line could end quiet/)
+  })
+
+  it('leaves a caller that set both plies alone', async () => {
+    // "Crawl to depth 6 and never stop early" is a legitimate thing to ask for,
+    // and is how most of this file's tests are written.
+    await expect(
+      crawl({ engine: stubEngine(), explorer: stubBook({}), ourColor: 'w', minPly: 99, maxPly: 6 }),
+    ).resolves.toBeTruthy()
   })
 })

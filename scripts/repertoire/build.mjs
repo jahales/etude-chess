@@ -52,11 +52,11 @@ export const CRAWL_PLIES = 8
 export const MIN_OWN_PLIES = 4
 
 /**
- * Earliest ply any branch may stop at, however shallow its prefix.
+ * The base floor every role is measured from — a `curated` branch's own floor.
  *
- * Re-exported from the crawler rather than declared here. A second copy meant
+ * Taken from the crawler rather than declared here. A second copy meant
  * `crawl.mjs --line X` and `build.mjs --only X` crawled the same branch to
- * different depths — and the single-line crawler is exactly what you reach for
+ * different depths, and the single-line crawler is exactly what you reach for
  * to test a manifest change before spending an hour on the full build.
  *
  * Overridable per entry, and for a whole run with `--min-ply`.
@@ -73,29 +73,65 @@ export const GLOBAL_MIN_PLY = DEFAULTS.minPly
  * the Queen's Gambit Exchange and the wrong one for "don't be surprised by
  * 1...c5".
  *
- * - `curated` — a line you are actually learning. Full depth.
+ * - `curated` — a line you are actually learning. The base floor.
  * - `sweeper` — covers the replies no curated branch owns, so you are not
  *   surprised. The value is in meeting the move at all, not in five moves of
- *   follow-up.
+ *   follow-up. Two plies shallower.
  * - `signpost` — says "answer this and transpose". The decision *is* the first
  *   move; after it you are in structures the curated branches already teach.
+ *   Four plies shallower.
  *
+ * Expressed as offsets from the base floor rather than as absolute plies, so
+ * the order survives the base moving and `--min-ply` raises all three together.
  * A shallow role never overrides `MIN_OWN_PLIES`, so a branch still cannot stop
  * on its own root.
  */
-export const DEPTH_BY_ROLE = {
-  curated: GLOBAL_MIN_PLY,
-  sweeper: 8,
-  signpost: 6,
+export const ROLE_DEPTH_OFFSET = {
+  curated: 0,
+  sweeper: -2,
+  signpost: -4,
+}
+
+/** Roles, in the order their depths must stay. */
+export const ROLES = Object.keys(ROLE_DEPTH_OFFSET)
+
+/**
+ * The floor for one role, relative to the run's base floor.
+ *
+ * Offsets rather than absolute plies, so two things hold that did not before:
+ * the ordering cannot invert when the base moves (an absolute `sweeper: 8`
+ * would have outranked a `curated` lowered to 6), and `--min-ply` raises every
+ * role together instead of flattening them onto one number — which was the
+ * 467-decision build the roles exist to avoid.
+ */
+export function floorForRole(role, base = GLOBAL_MIN_PLY) {
+  // `hasOwn`, not `in`: `in` walks the prototype chain, so `role: 'toString'`
+  // passed validation and the lookup returned a function. minPly became NaN,
+  // every `ply >= NaN` was false, and the branch crawled until the book ran dry.
+  if (!Object.hasOwn(ROLE_DEPTH_OFFSET, role)) {
+    throw new Error(`unknown role "${role}" — expected ${ROLES.join(', ')}`)
+  }
+  return Math.max(0, base + ROLE_DEPTH_OFFSET[role])
+}
+
+/** Manifest entries whose role is not one we know. Checked by `--check`. */
+export function badRoles(entries) {
+  const problems = []
+  for (const entry of entries) {
+    if (entry.role === undefined) continue
+    if (!Object.hasOwn(ROLE_DEPTH_OFFSET, entry.role)) {
+      problems.push({
+        entryId: entry.id,
+        message: `unknown role "${entry.role}" — expected ${ROLES.join(', ')}`,
+      })
+    }
+  }
+  return problems
 }
 
 export function resolveEntry(entry, defaults = {}) {
   const forced = plies(entry.line)
-  const role = entry.role ?? 'curated'
-  if (!(role in DEPTH_BY_ROLE)) {
-    throw new Error(`unknown role "${role}" — expected ${Object.keys(DEPTH_BY_ROLE).join(', ')}`)
-  }
-  const floor = defaults.minPly ?? DEPTH_BY_ROLE[role]
+  const floor = floorForRole(entry.role ?? 'curated', defaults.minPly ?? GLOBAL_MIN_PLY)
   const minPly = entry.minPly ?? Math.max(floor, forced.length + MIN_OWN_PLIES)
   return {
     ...entry,
@@ -567,8 +603,10 @@ Build the whole repertoire from a manifest (issue #88, ADR 0021)
   --max-eval 20          opponent moves evaluated per node
   --min-node-games 50    stop expanding below this many games in the band book
   --max-replies    6     most opponent moves covered at one node
-  --min-ply  10          earliest ply any line may stop at — the knob that
-                         decides depth, since a line stops as soon as it may
+  --min-ply  10          base floor for a curated branch. A line stops as soon
+                         as it may, so this is what decides depth. Sweepers sit
+                         2 plies below it and signposts 4, and all three move
+                         together when it does.
   --crawl-plies 8        plies each branch crawls past its curated prefix
   --resume               skip branches whose output already exists
   --check                validate the manifest and exit — no engine, no crawling
@@ -589,7 +627,7 @@ async function main() {
   // stops at are a property of the manifest, not of what we chose to run today.
   // Both checks run — a structural one that needs no board, and a legality one
   // that does.
-  const problems = [...validatePlan(all), ...illegalLines(all)]
+  const problems = [...validatePlan(all), ...illegalLines(all), ...badRoles(all)]
   for (const p of problems) console.error(`error: [${p.entryId}] ${p.message}`)
   if (problems.length) {
     console.error(`\n${problems.length} problem(s) in ${manifestPath} — nothing was crawled.`)

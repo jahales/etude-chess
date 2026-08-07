@@ -24,8 +24,9 @@ import {
   writeBranch,
   CRAWL_PLIES,
   DEFAULT_MANIFEST,
-  DEPTH_BY_ROLE,
+  ROLE_DEPTH_OFFSET,
   GLOBAL_MIN_PLY,
+  badRoles,
   MIN_OWN_PLIES,
 } from './build.mjs'
 
@@ -943,21 +944,21 @@ describe('depth follows what a branch is for', () => {
   // load for a fraction of the value.
   it('gives a curated line the full floor', () => {
     expect(resolveEntry({ line: 'd4 d5 c4 e6 cxd5', role: 'curated' }).minPly).toBe(
-      DEPTH_BY_ROLE.curated,
+      GLOBAL_MIN_PLY,
     )
-    expect(resolveEntry({ line: 'd4 d5 c4 e6 cxd5' }).minPly).toBe(DEPTH_BY_ROLE.curated)
+    expect(resolveEntry({ line: 'd4 d5 c4 e6 cxd5' }).minPly).toBe(GLOBAL_MIN_PLY)
   })
 
   it('stops a sweeper earlier', () => {
     const sweeper = resolveEntry({ line: 'd4', role: 'sweeper' })
     const curated = resolveEntry({ line: 'd4', role: 'curated' })
-    expect(sweeper.minPly).toBe(DEPTH_BY_ROLE.sweeper)
+    expect(sweeper.minPly).toBe(GLOBAL_MIN_PLY + ROLE_DEPTH_OFFSET.sweeper)
     expect(sweeper.minPly).toBeLessThan(curated.minPly)
   })
 
   it('stops a signpost earlier still — its decision is the first move', () => {
     const signpost = resolveEntry({ line: 'c4 c6', role: 'signpost' })
-    expect(signpost.minPly).toBe(DEPTH_BY_ROLE.signpost)
+    expect(signpost.minPly).toBe(GLOBAL_MIN_PLY + ROLE_DEPTH_OFFSET.signpost)
     expect(signpost.minPly).toBeLessThan(resolveEntry({ line: 'c4 c6', role: 'sweeper' }).minPly)
   })
 
@@ -969,7 +970,7 @@ describe('depth follows what a branch is for', () => {
   })
 
   it('still leaves room between floor and cap for every role', () => {
-    for (const role of Object.keys(DEPTH_BY_ROLE)) {
+    for (const role of Object.keys(ROLE_DEPTH_OFFSET)) {
       for (const line of ['d4', 'c4 c6', 'e4 c6 d4 d5 exd5 cxd5']) {
         const r = resolveEntry({ line, role })
         expect(r.maxPly, `${role} ${line}`).toBeGreaterThan(r.minPly)
@@ -998,7 +999,86 @@ describe('the shipped manifest’s roles', () => {
   it('leaves every curated line at full depth', async () => {
     const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
     for (const e of entries.filter((x) => !x.role || x.role === 'curated')) {
-      expect(resolveEntry(e).minPly, e.id).toBeGreaterThanOrEqual(DEPTH_BY_ROLE.curated)
+      expect(resolveEntry(e).minPly, e.id).toBeGreaterThanOrEqual(GLOBAL_MIN_PLY)
     }
+  })
+})
+
+describe('roles keep their order and their meaning', () => {
+  it('cannot invert, however the base floor moves', () => {
+    // The absolute form tied `curated` to DEFAULTS.minPly and left the other
+    // two at 8 and 6, so lowering the default would have made curated lines
+    // *shallower* than the sweepers they exist to outrank.
+    for (const base of [6, 8, 10, 14, 20]) {
+      // A shallow prefix, so the role is what decides — with a deep prefix
+      // MIN_OWN_PLIES dominates and every role lands on the same number.
+      const at = (role) => resolveEntry({ line: 'd4', role }, { minPly: base }).minPly
+      expect(at('curated'), `base ${base}`).toBeGreaterThanOrEqual(at('sweeper'))
+      expect(at('sweeper'), `base ${base}`).toBeGreaterThanOrEqual(at('signpost'))
+    }
+  })
+
+  it('moves every role together when the run raises the floor', () => {
+    // --min-ply used to replace the role's floor outright, flattening the
+    // distinction the manifest spends five notes establishing.
+    const at = (role, base) => resolveEntry({ line: 'd4', role }, { minPly: base }).minPly
+    expect(at('sweeper', 14)).toBeGreaterThan(at('sweeper', 10))
+    expect(at('signpost', 14)).toBeGreaterThan(at('signpost', 10))
+    expect(at('curated', 14) - at('sweeper', 14)).toBe(at('curated', 10) - at('sweeper', 10))
+  })
+
+  it('keeps the shipped depths at the shipped default', () => {
+    const at = (role) => resolveEntry({ line: 'd4', role }).minPly
+    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([10, 8, 6])
+  })
+
+  it('lets the per-branch minimum win where the prefix is already deep', () => {
+    // A role makes a branch shallower relative to the base floor, never
+    // shallower than four plies past its own prefix — so on a five-ply curated
+    // prefix all three roles land on the same number, and demoting such a
+    // branch would buy nothing.
+    const at = (role) => resolveEntry({ line: 'd4 d5 c4 e6 cxd5', role }).minPly
+    expect(at('sweeper')).toBe(5 + MIN_OWN_PLIES)
+    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([10, 9, 9])
+  })
+
+  it('rejects a prototype member masquerading as a role', () => {
+    // `role in DEPTH_BY_ROLE` walked the prototype chain, so 'toString' passed
+    // and the lookup returned a function — minPly NaN, maxPly NaN, and every
+    // `ply >= NaN` false, so the branch crawled until the book ran dry.
+    for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+      expect(() => resolveEntry({ line: 'd4', role: key }), key).toThrow(/unknown role/)
+    }
+  })
+
+  it('never yields a non-finite ply', () => {
+    for (const role of Object.keys(ROLE_DEPTH_OFFSET)) {
+      const r = resolveEntry({ line: 'd4', role })
+      expect(Number.isFinite(r.minPly), role).toBe(true)
+      expect(Number.isFinite(r.maxPly), role).toBe(true)
+    }
+  })
+})
+
+describe('--check validates roles', () => {
+  it('rejects a role nobody defined, before any engine time is spent', () => {
+    const problems = badRoles([{ id: 'a', name: 'A', color: 'w', line: 'd4', role: 'sweeperr' }])
+    expect(problems).toHaveLength(1)
+    expect(problems[0].entryId).toBe('a')
+    expect(problems[0].message).toMatch(/sweeperr/)
+  })
+
+  it('names what it will accept', () => {
+    expect(badRoles([{ id: 'a', name: 'A', color: 'w', line: 'd4', role: 'x' }])[0].message).toMatch(
+      /curated/,
+    )
+  })
+
+  it('accepts an entry with no role at all', () => {
+    expect(badRoles([{ id: 'a', name: 'A', color: 'w', line: 'd4' }])).toEqual([])
+  })
+
+  it('accepts every role in the shipped manifest', async () => {
+    expect(badRoles(parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8')))).toEqual([])
   })
 })

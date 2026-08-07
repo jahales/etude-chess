@@ -67,14 +67,24 @@ owns, so an incremental rebuild could reintroduce the contradiction the full bui
   least valuable branch in the repertoire.
 
   > **Amended 2026-08-06.** This originally read "every branch gets the same *crawl*, not the
-  > same *depth*", and that is no longer true. The first built repertoire ended every line
-  > around move 5, because a line stops the moment it is *allowed* to and almost every opening
-  > position is quiet by move 4 — so the floor, not the cap, was deciding depth. A **global
-  > floor** (`minPly`, now 10) was added beneath the per-branch rule. It binds only on shallow
-  > branches, which therefore now crawl *further* than deep ones: `caro` (prefix 2) gets 10
-  > plies of its own, `caro-advance` (prefix 6) gets 8. The per-branch rule still sets the cap
-  > and still prevents a branch stopping on its own root; what changed is that it is now a
-  > minimum on top of a floor rather than the only rule.
+  > same *depth*", and that is no longer true. Depth is now decided by a **floor**, and the
+  > floor by what the branch is *for*.
+  >
+  > Two measurements forced it. The first built repertoire ended every line around move 5,
+  > because a line stops the moment it is *allowed* to and almost every opening position is
+  > quiet by move 4 — the floor, not the cap, was deciding depth. Raising it uniformly to 10
+  > then cost **467 decisions to memorise**, of which the sweepers and signposts carried 58%
+  > while every curated line came to about a hundred between them.
+  >
+  > So a branch declares a `role`, and the floor follows it: `curated` at the base (10),
+  > `sweeper` two plies below, `signpost` four. Offsets rather than absolutes, so the ordering
+  > survives the base moving and `--min-ply` raises all three together. That took 467 decisions
+  > to 336 while the count of trainable quiet positions fell by three, 193 to 190.
+  >
+  > The per-branch rule still sets the cap and still prevents a branch stopping on its own root
+  > — a role never makes a branch shallower than four plies past its own prefix, so on a deep
+  > curated prefix all three roles land on the same number. What changed is that the per-branch
+  > rule is now a minimum on top of a role-dependent floor rather than the only rule.
 - Move-order coverage is bounded by what the manifest lists. A line reached only by an unusual
   order is crawled by whichever branch reaches it, and may be crawled twice by two branches.
   Accepted: duplicate study of a transposition is cheap, and the alternative — position-keyed

@@ -278,9 +278,15 @@ branch terminated on its own root and was one node with no content. The prefix i
 reach the position worth studying; it cannot also be the study. Override either per entry.
 
 **`role` decides depth**, and is the knob to reach for when the repertoire gets too big to hold:
-`curated` (the default, full depth), `sweeper`, `signpost`. Demote a branch rather than
-shortening a curated line — see `DEPTH_BY_ROLE` in [build.mjs](build.mjs) for the measured
-reason. An unrecognised role is an error, not a silent fall back to full depth.
+`curated` (the default, the base floor), `sweeper` (two plies shallower), `signpost` (four).
+Demote a branch rather than shortening a curated line — see `ROLE_DEPTH_OFFSET` in
+[build.mjs](build.mjs) for the measured reason.
+
+They are **offsets**, so `--min-ply` raises all three together rather than flattening them onto
+one number, and the ordering cannot invert when the base moves. A role never makes a branch
+shallower than four plies past its own prefix, so demoting a branch with a deep curated prefix
+buys nothing. An unrecognised role is an error `--check` catches, not a silent fall back to
+full depth.
 
 Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`,
 and `minPly`/`maxPly` where a specific line needs an exact depth.
