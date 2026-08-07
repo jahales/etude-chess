@@ -89,15 +89,15 @@ export function delegationsFor(
 
     const point = theirs.slice(0, mine.length + 1).join(' ')
     const held = owners.get(point)
-    if (!held || plies(other.line).length < plies(held.line).length) owners.set(point, other)
+    if (!held || theirs.length < plies(held.line).length) owners.set(point, other)
   }
 
   return new Map([...owners].map(([point, owner]) => [point, owner.id]))
 }
 
+/** Something wrong with the manifest. Every one of these aborts the run. */
 export interface PlanProblem {
   entryId: string
-  severity: 'error' | 'warn'
   message: string
 }
 
@@ -121,7 +121,7 @@ export function validatePlan(entries: readonly PlanEntry[]): PlanProblem[] {
 
   for (const entry of entries) {
     if (byId.has(entry.id)) {
-      problems.push({ entryId: entry.id, severity: 'error', message: 'duplicate id' })
+      problems.push({ entryId: entry.id, message: 'duplicate id' })
     }
     byId.set(entry.id, entry)
 
@@ -130,7 +130,6 @@ export function validatePlan(entries: readonly PlanEntry[]): PlanProblem[] {
     if (clash) {
       problems.push({
         entryId: entry.id,
-        severity: 'error',
         message: `same colour and line as "${clash.id}" — one of them decides nothing`,
       })
     }
@@ -147,7 +146,6 @@ export function validatePlan(entries: readonly PlanEntry[]): PlanProblem[] {
       if (gap === -1) continue
       problems.push({
         entryId: entry.id,
-        severity: 'error',
         message:
           `stops at "${point}" for "${ownerId}", which then assumes ${forced[gap]} — ` +
           `the opponent's alternatives there are covered by nothing. ` +
@@ -212,4 +210,26 @@ export function theoryLoad(nodes: Iterable<LoadedNode>): TheoryLoad {
     if (typeof node.ply === 'number') load.deepestPly = Math.max(load.deepestPly, node.ply)
   }
   return load
+}
+
+/**
+ * Add per-branch loads into the repertoire's total.
+ *
+ * Every field, not a chosen four. An aggregate that quietly drops `delegated`
+ * and `deepestPly` is a different shape from the thing it claims to sum, and a
+ * consumer typing it as `TheoryLoad` gets `undefined` for both.
+ */
+export function sumLoads(loads: Iterable<TheoryLoad>): TheoryLoad {
+  const total = theoryLoad([])
+  for (const load of loads) {
+    total.ourDecisions += load.ourDecisions
+    total.preparedReplies += load.preparedReplies
+    total.quietTargets += load.quietTargets
+    total.delegated += load.delegated
+    total.outOfBook += load.outOfBook
+    // Depth is the deepest anywhere, not a sum: adding plies across branches
+    // would describe a game nobody plays.
+    total.deepestPly = Math.max(total.deepestPly, load.deepestPly)
+  }
+  return total
 }

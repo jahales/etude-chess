@@ -103,6 +103,19 @@ function safeComment(text: string): string {
   return text.replace(/[{}]/g, '')
 }
 
+/**
+ * A header value is a quoted string, so a quote inside one ends it early and
+ * makes the whole game unparseable.
+ *
+ * Stripped rather than escaped, though the spec allows `\"`: chess.js rejects
+ * the escaped form outright, so spec-correct output would still be a file this
+ * project's own parser will not read. Losing a quote from a branch name we
+ * wrote ourselves costs nothing next to that.
+ */
+function safeTag(text: string): string {
+  return text.replace(/["\\]/g, '')
+}
+
 /** Positions are keyed by the first four FEN fields, so transpositions collapse. */
 export function fenKey(fen: string): string {
   return fen.split(' ').slice(0, 4).join(' ')
@@ -160,7 +173,7 @@ function childComment(child: RepertoireChild): string | null {
     // the story — including for a trap, whose refutation is crawled and verified
     // there. Saying so beats both alternatives: claiming a punishment this crawl
     // never checked, and warning about one that has in fact been checked.
-    bits.push(`covered in the "${child.delegatedTo}" line`)
+    bits.push(`covered in the "${safeComment(child.delegatedTo)}" line`)
   } else if (child.reason === 'trap' || child.reason === 'mass+trap') {
     // A trap whose refutation does not actually leave us better is worse than
     // no trap at all — you would drill it as a win and reach an equal game.
@@ -207,7 +220,7 @@ function terminalComment(node: RepertoireNode | undefined): string | null {
     case 'no-sound-move':
       return 'no sound continuation found'
     case 'delegated':
-      return `covered in the "${node.delegatedTo ?? '?'}" line`
+      return `covered in the "${safeComment(node.delegatedTo ?? '?')}" line`
     default:
       return null
   }
@@ -325,19 +338,19 @@ export function toPgn(input: PgnInput): string {
   tokens.push(...emitFrom(nodes, rootFen, forcedSans.length, false))
 
   const headers = [
-    `[Event "Repertoire — ${colour}${input.name ? `: ${input.name}` : ''}"]`,
+    `[Event "Repertoire — ${colour}${input.name ? `: ${safeTag(input.name)}` : ''}"]`,
     `[Site "etude-chess repertoire generator"]`,
     `[Date "${date.replace(/-/g, '.')}"]`,
     `[White "${colour === 'White' ? 'Repertoire' : 'Opponent'}"]`,
     `[Black "${colour === 'Black' ? 'Repertoire' : 'Opponent'}"]`,
     `[Result "*"]`,
     `[Annotator "Stockfish + Lichess explorer"]`,
-    ...(forcedSans.length ? [`[Opening "${forcedSans.join(' ')}"]`] : []),
+    ...(forcedSans.length ? [`[Opening "${safeTag(forcedSans.join(' '))}"]`] : []),
     // Provenance is not bookkeeping. Multithreaded Stockfish at a fixed node
     // count is not reproducible, and every number here was silently
     // unrepeatable until that was found — so an evaluation without the
     // conditions that produced it cannot be trusted.
-    ...(input.provenance?.engine ? [`[Engine "${input.provenance.engine}"]`] : []),
+    ...(input.provenance?.engine ? [`[Engine "${safeTag(input.provenance.engine)}"]`] : []),
     ...(input.provenance?.nodes
       ? [`[EngineNodes "${input.provenance.nodes}"]`]
       : []),

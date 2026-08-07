@@ -418,3 +418,56 @@ describe('toPgn — output a real parser will accept', () => {
     expect(loads(pgn)).toEqual(['d4'])
   })
 })
+
+describe('toPgn — untrusted strings from the manifest', () => {
+  const load = (pgn: string) => {
+    const chess = new Chess()
+    chess.loadPgn(pgn)
+    return chess.history()
+  }
+  const simple = () =>
+    new Map([[fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])]])
+
+  it('strips a quote from the branch name, which would end the header early', () => {
+    // Stripped rather than escaped: chess.js rejects the spec's `\"` form, so
+    // escaping correctly would still produce a file it will not read.
+    const pgn = toPgn({ ...base, nodes: simple(), rootFen: START, name: 'Queen"s Gambit' })
+    expect(pgn).toContain('[Event "Repertoire — White: Queens Gambit"]')
+    expect(load(pgn)).toEqual(['d4'])
+  })
+
+  it('strips a backslash, which chess.js also chokes on', () => {
+    const pgn = toPgn({ ...base, nodes: simple(), rootFen: START, name: 'a\\b' })
+    expect(pgn).toContain('[Event "Repertoire — White: ab"]')
+    expect(load(pgn)).toEqual(['d4'])
+  })
+
+  it('leaves an ordinary name alone', () => {
+    const pgn = toPgn({ ...base, nodes: simple(), rootFen: START, name: "QGD Exchange — the Carlsbad" })
+    expect(pgn).toContain('[Event "Repertoire — White: QGD Exchange — the Carlsbad"]')
+  })
+
+  it('strips braces from a branch id used in a move comment', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [
+        fenKey(AFTER_D4),
+        node([{ san: 'd5', fen: AFTER_D5, reason: 'mass' as const, delegatedTo: 'we{ird}' }]),
+      ],
+      [fenKey(AFTER_D5), node([], { terminal: true, terminalReason: 'quiet', quiet: { breadth: 4 } })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('covered in the "weird" line')
+    expect(load(pgn)).toEqual(['d4', 'd5'])
+  })
+
+  it('strips braces from a branch id in a terminal comment', () => {
+    const nodes = new Map([
+      [fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])],
+      [fenKey(AFTER_D4), node([], { terminal: true, terminalReason: 'delegated', delegatedTo: 'x}y' })],
+    ])
+    const pgn = toPgn({ ...base, nodes, rootFen: START })
+    expect(pgn).toContain('covered in the "xy" line')
+    expect(load(pgn)).toEqual(['d4'])
+  })
+})

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-06T23:53:44.882Z",
+  "generated": "2026-08-07T00:10:57.572Z",
   "manifest": "C:\\dev\\etude-chess\\scripts\\repertoire\\manifest.v1.json",
   "nodes": 120000,
   "trapThreshold": 0.01,
@@ -43,13 +43,16 @@
   "branches": 25,
   "failed": [],
   "unparseable": [],
+  "unwritten": [],
   "emptyBranches": [],
   "positions": 361,
   "load": {
     "ourDecisions": 132,
     "preparedReplies": 213,
     "quietTargets": 136,
-    "outOfBook": 1
+    "delegated": 17,
+    "outOfBook": 1,
+    "deepestPly": 10
   },
   "traps": [
     {

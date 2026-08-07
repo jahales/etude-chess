@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
-import { delegationsFor, plies, theoryLoad, validatePlan } from '../../src/domain/repertoirePlan.ts'
+import { delegationsFor, plies, sumLoads, theoryLoad, validatePlan } from '../../src/domain/repertoirePlan.ts'
 import { toPgn } from '../../src/domain/repertoirePgn.ts'
 import { crawl, DEFAULTS } from './crawl.mjs'
 import { createLocalBook } from './localBook.mjs'
@@ -161,11 +161,20 @@ export async function buildAll({
       // away an expensive crawl, but it is a reason for the run to fail loudly.
       result.pgnError = pgnError(result.pgn)
       results.push(result)
-      await onEntry(result)
     } catch (err) {
-      const failed = { entry: resolved, error: err, seconds: (Date.now() - started) / 1000 }
-      results.push(failed)
-      await onEntry(failed)
+      results.push({ entry: resolved, error: err, seconds: (Date.now() - started) / 1000 })
+    }
+
+    // Outside the crawl's error boundary, deliberately. Reporting and writing
+    // are not crawling: with `await onEntry(result)` inside the try, a disk
+    // error was recorded as a failed crawl for a branch that had in fact
+    // succeeded — and the catch block's own `onEntry(failed)` then threw
+    // uncaught, taking every remaining branch with it.
+    const last = results[results.length - 1]
+    try {
+      await onEntry(last)
+    } catch (err) {
+      last.writeError = err?.message ?? String(err)
     }
   }
   return results
@@ -220,6 +229,28 @@ export async function writeBranch(outDir, r) {
   await writeFile(join(outDir, `${r.entry.id}.pgn`), r.pgn, 'utf8')
 }
 
+/** Every list `summarise` reads, so a file missing one cannot crash the roll-up. */
+const EMPTY_REPORT = {
+  traps: [],
+  unpunishedTraps: [],
+  unverifiedTraps: [],
+  tooRareToJudge: [],
+  truncatedNodes: [],
+  outOfBook: [],
+  engineFallbacks: [],
+  delegated: [],
+}
+
+/**
+ * Whether an earlier run finished this branch — **both** files, not just the
+ * JSON. `writeBranch` writes the JSON and then the PGN, so a run killed between
+ * the two leaves precisely the state that made `--resume` die on ENOENT before
+ * it could crawl anything.
+ */
+export function isBuilt(outDir, entry) {
+  return existsSync(join(outDir, `${entry.id}.json`)) && existsSync(join(outDir, `${entry.id}.pgn`))
+}
+
 /**
  * Load a branch built by an earlier run, in the shape `buildAll` returns.
  *
@@ -227,19 +258,27 @@ export async function writeBranch(outDir, r) {
  * back the merged PGN would hold only what today's run happened to crawl — a
  * repertoire missing most of itself, written without complaint.
  */
-export async function readBranch(outDir, entry) {
+export async function readBranch(outDir, entry, defaults = {}) {
   const saved = JSON.parse(await readFile(join(outDir, `${entry.id}.json`), 'utf8'))
   const pgn = await readFile(join(outDir, `${entry.id}.pgn`), 'utf8')
+  const nodes = new Map(Object.entries(saved.nodes ?? {}))
   return {
-    entry: resolveEntry(entry),
+    // With the run's defaults, so a resumed branch is described by the flags
+    // this invocation was given rather than by the built-in constants.
+    entry: resolveEntry(entry, defaults),
     crawled: {
-      nodes: new Map(Object.entries(saved.nodes ?? {})),
+      nodes,
       rootFen: saved.rootFen,
-      report: saved.report,
+      // Filled in field by field. A file written by any earlier version of this
+      // script is exactly what --resume exists to read, and taking `report` raw
+      // handed `summarise` an undefined it then dereferenced.
+      report: { ...EMPTY_REPORT, ...saved.report },
       options: saved.meta?.settings ?? {},
     },
     delegations: new Map(Object.entries(saved.delegations ?? {})),
-    load: saved.load,
+    // Recomputed rather than defaulted to zero: the positions are right there,
+    // and a load of zero would quietly shrink the repertoire's reported cost.
+    load: saved.load ?? theoryLoad(nodes.values()),
     pgn,
     // Checked on the way back in, not assumed. A reused branch was written by a
     // different version of the renderer as often as not, and reporting "no
@@ -258,21 +297,13 @@ export function summarise(results) {
     .flatMap((r) => r.crawled.report.traps.map((t) => ({ ...t, entry: r.entry.id })))
     .sort((a, b) => b.trapValue - a.trapValue)
 
-  const load = ok.reduce(
-    (acc, r) => ({
-      ourDecisions: acc.ourDecisions + r.load.ourDecisions,
-      preparedReplies: acc.preparedReplies + r.load.preparedReplies,
-      quietTargets: acc.quietTargets + r.load.quietTargets,
-      outOfBook: acc.outOfBook + r.load.outOfBook,
-    }),
-    { ourDecisions: 0, preparedReplies: 0, quietTargets: 0, outOfBook: 0 },
-  )
-
   return {
     branches: results.length,
     failed: results.filter((r) => r.error).map((r) => ({ id: r.entry.id, error: String(r.error?.message ?? r.error) })),
     /** Branches whose PGN a real parser refused. Always empty, or the run failed. */
     unparseable: ok.filter((r) => r.pgnError).map((r) => ({ id: r.entry.id, error: r.pgnError })),
+    /** Branches that crawled fine but never reached disk. Also fails the run. */
+    unwritten: results.filter((r) => r.writeError).map((r) => ({ id: r.entry.id, error: r.writeError })),
     /**
      * Branches that produced nothing of their own. Normally a sweeper whose
      * whole coverage target was consumed by moves other branches own — so the
@@ -284,7 +315,7 @@ export function summarise(results) {
       .filter((r) => r.load.ourDecisions === 0 && r.load.quietTargets === 0)
       .map((r) => ({ id: r.entry.id, positions: r.crawled.nodes.size, delegated: r.load.delegated })),
     positions: ok.reduce((n, r) => n + r.crawled.nodes.size, 0),
-    load,
+    load: sumLoads(ok.map((r) => r.load)),
     traps,
     unpunished: ok.flatMap((r) => r.crawled.report.unpunishedTraps.map((t) => ({ ...t, entry: r.entry.id }))),
     unverified: ok.flatMap((r) => r.crawled.report.unverifiedTraps.map((t) => ({ ...t, entry: r.entry.id }))),
@@ -343,6 +374,88 @@ export function parseArgs(argv, known = FLAGS) {
   return out
 }
 
+/**
+ * A flag that takes a number, or nothing at all.
+ *
+ * `parseArgs` marks a valueless flag `true`, and `Number(true)` is 1 — so
+ * `--trap --nodes 120000` silently ran the whole build at a trap threshold of
+ * 1, found nothing, and reported success. `Number('abc')` is NaN, which reached
+ * Stockfish as `go nodes NaN`. Rejecting flags it does not know was only half
+ * the job; this is the other half.
+ */
+export function numberFlag(args, key) {
+  const raw = args[key]
+  if (raw === undefined) return undefined
+  const value = Number(raw)
+  if (raw === true || !Number.isFinite(value)) {
+    throw new Error(`--${key} needs a number${raw === true ? ' — its value is missing' : `, got "${raw}"`}`)
+  }
+  return value
+}
+
+/** Spread a crawl option only when the flag was given, so defaults still apply. */
+const maybe = (key, value) => (value === undefined ? {} : { [key]: value })
+
+/** A flag that takes a string. A bare `--out` made a directory called "true". */
+export function stringFlag(args, key) {
+  const raw = args[key]
+  if (raw === undefined) return undefined
+  if (raw === true) throw new Error(`--${key} needs a value`)
+  return String(raw)
+}
+
+/**
+ * The branches `--only` names, or null for all of them.
+ *
+ * Ids are matched, not counted: comparing list lengths tripped on a repeated id
+ * and then reported an empty set of unknown branches.
+ */
+export function resolveOnly(all, raw) {
+  if (raw === undefined) return null
+  if (raw === true) throw new Error('--only needs a value')
+  const wanted = String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const missing = wanted.filter((id) => !all.some((e) => e.id === id))
+  if (missing.length) throw new Error(`--only names unknown branch(es): ${missing.join(', ')}`)
+  return all.filter((e) => wanted.includes(e.id))
+}
+
+/**
+ * Curated prefixes that are not legal chess.
+ *
+ * `--check` exists so a manifest is validated before an hour of engine time is
+ * spent on it, and it happily reported "manifest ok" for a line the crawler
+ * cannot play — the run then failed twenty minutes in. Lives here rather than
+ * in `validatePlan` because it needs a board, and repertoirePlan.ts stays
+ * runtime-import-free.
+ */
+export function illegalLines(entries) {
+  const problems = []
+  for (const entry of entries) {
+    const board = new Chess()
+    const played = []
+    for (const san of plies(entry.line)) {
+      let move
+      try {
+        move = board.move(san)
+      } catch {
+        move = null
+      }
+      if (!move) {
+        problems.push({
+          entryId: entry.id,
+          message: `illegal move "${san}" after ${played.join(' ') || 'the start'} — check the line`,
+        })
+        break
+      }
+      played.push(move.san)
+    }
+  }
+  return problems
+}
+
 const HELP = `
 Build the whole repertoire from a manifest (issue #88, ADR 0021)
 
@@ -372,46 +485,56 @@ async function main() {
     return
   }
 
-  const manifestPath = String(args.manifest ?? DEFAULT_MANIFEST)
+  const manifestPath = stringFlag(args, 'manifest') ?? DEFAULT_MANIFEST
   const all = parseManifest(await readFile(manifestPath, 'utf8'))
 
   // Validate the *whole* manifest even under --only: the boundaries a branch
   // stops at are a property of the manifest, not of what we chose to run today.
-  const problems = validatePlan(all)
-  for (const p of problems) console.error(`${p.severity}: [${p.entryId}] ${p.message}`)
-  if (problems.some((p) => p.severity === 'error')) {
+  // Both checks run — a structural one that needs no board, and a legality one
+  // that does.
+  const problems = [...validatePlan(all), ...illegalLines(all)]
+  for (const p of problems) console.error(`error: [${p.entryId}] ${p.message}`)
+  if (problems.length) {
     console.error(`\n${problems.length} problem(s) in ${manifestPath} — nothing was crawled.`)
     process.exit(1)
   }
-  console.log(`manifest ok: ${all.length} branches, no coverage gaps`)
+  console.log(`manifest ok: ${all.length} branches, every line legal, no coverage gaps`)
   if (args.check) return
 
-  const outDir = String(args.out ?? join('out', 'repertoire'))
+  const outDir = stringFlag(args, 'out') ?? join('out', 'repertoire')
   await mkdir(outDir, { recursive: true })
 
-  const only = args.only === true ? null : args.only ? String(args.only).split(',').map((s) => s.trim()) : null
-  let entries = only ? all.filter((e) => only.includes(e.id)) : all
-  if (only && entries.length !== only.length) {
-    const missing = only.filter((id) => !all.some((e) => e.id === id))
-    throw new Error(`--only names unknown branch(es): ${missing.join(', ')}`)
+  let entries = resolveOnly(all, args.only) ?? all
+
+  const deepNodes = numberFlag(args, 'nodes') ?? DEFAULTS.deepNodes
+  const crawlDefaults = {
+    deepNodes,
+    ...maybe('trapThreshold', numberFlag(args, 'trap')),
+    ...maybe('massTarget', numberFlag(args, 'mass')),
+    ...maybe('maxEvalPerNode', numberFlag(args, 'max-eval')),
+    ...maybe('minNodeGames', numberFlag(args, 'min-node-games')),
+    ...maybe('maxOpponentMoves', numberFlag(args, 'max-replies')),
+    ...maybe('crawlPlies', numberFlag(args, 'crawl-plies')),
   }
+
   // Branches an earlier run already built. Read back rather than skipped, so
   // the merged PGN and the summary still describe the whole repertoire.
   const reused = []
   if (args.resume) {
-    const done = entries.filter((e) => existsSync(join(outDir, `${e.id}.json`)))
-    for (const e of done) reused.push(await readBranch(outDir, e))
+    const done = entries.filter((e) => isBuilt(outDir, e))
+    for (const e of done) reused.push(await readBranch(outDir, e, crawlDefaults))
     if (done.length) console.log(`resuming: reusing ${done.length} branch(es) already built`)
     entries = entries.filter((e) => !done.includes(e))
   }
 
-  const explorer = args.book
-    ? await createLocalBook({ path: String(args.book) })
+  const bookPath = stringFlag(args, 'book')
+  const canonPath = stringFlag(args, 'canon-book')
+  const enginePath = stringFlag(args, 'engine')
+  const explorer = bookPath
+    ? await createLocalBook({ path: bookPath })
     : createExplorer({ cacheDir: join(outDir, '.explorer-cache') })
-  const canon = args['canon-book'] ? await createLocalBook({ path: String(args['canon-book']) }) : null
-  const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
-
-  const deepNodes = args.nodes ? Number(args.nodes) : DEFAULTS.deepNodes
+  const canon = canonPath ? await createLocalBook({ path: canonPath }) : null
+  const engine = createEngine({ path: enginePath })
   const date = new Date().toISOString().slice(0, 10)
   const started = Date.now()
   console.log(`building ${entries.length} branch(es) at ${deepNodes.toLocaleString()} nodes → ${outDir}\n`)
@@ -425,18 +548,10 @@ async function main() {
       engine,
       explorer,
       canon,
-      defaults: {
-        deepNodes,
-        ...(args.trap ? { trapThreshold: Number(args.trap) } : {}),
-        ...(args.mass ? { massTarget: Number(args.mass) } : {}),
-        ...(args['max-eval'] ? { maxEvalPerNode: Number(args['max-eval']) } : {}),
-        ...(args['min-node-games'] ? { minNodeGames: Number(args['min-node-games']) } : {}),
-        ...(args['max-replies'] ? { maxOpponentMoves: Number(args['max-replies']) } : {}),
-        ...(args['crawl-plies'] ? { crawlPlies: Number(args['crawl-plies']) } : {}),
-      },
+      defaults: crawlDefaults,
       date,
       provenance: {
-        engine: basename(args.engine ? String(args.engine) : DEFAULT_ENGINE_PATH),
+        engine: basename(enginePath ?? DEFAULT_ENGINE_PATH),
         nodes: deepNodes,
         threads: 1,
       },
@@ -475,7 +590,7 @@ async function main() {
           generated: new Date().toISOString(),
           manifest: manifestPath,
           nodes: deepNodes,
-          trapThreshold: args.trap ? Number(args.trap) : DEFAULTS.trapThreshold,
+          trapThreshold: crawlDefaults.trapThreshold ?? DEFAULTS.trapThreshold,
           band: explorer.stats(),
           canon: canon?.stats() ?? null,
           ...summary,
@@ -533,7 +648,7 @@ engine searches ${engine.searchCount()}`)
         `${complete.length - summary.failed.length} branch(es)` +
         `${reused.length ? ` (${reused.length} reused from an earlier run)` : ''}`,
     )
-    if (summary.failed.length || summary.unparseable.length) process.exitCode = 1
+    if (summary.failed.length || summary.unparseable.length || summary.unwritten.length) process.exitCode = 1
   } finally {
     await engine.quit()
   }

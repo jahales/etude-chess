@@ -50,8 +50,8 @@ scratch/
 # ...but the built repertoire itself IS tracked. It is our own prose plus
 # engine-computed facts (ADR 0018 §2-3), it is the artefact the generator exists
 # to produce, and an hour of engine time is a poor thing to ask of a reader who
-# just wants to import it. Needed because *.pgn is excluded above.
-!/repertoire/
+# just wants to import it. Only the global *.pgn rule reaches into that
+# directory, so that is the only thing to counter.
 !/repertoire/*.pgn
 
 # Downloaded game databases (Lumbra's Gigabase, Caissabase, Lichess dumps…).

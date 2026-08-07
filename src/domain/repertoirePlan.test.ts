@@ -4,6 +4,7 @@ import {
   delegationsFor,
   isOurPly,
   plies,
+  sumLoads,
   theoryLoad,
   validatePlan,
   type PlanEntry,
@@ -92,7 +93,7 @@ describe('validatePlan — coverage gaps', () => {
       entry('caro-advance', 'e4 c6 d4 d5 e5 Bf5', 'b'),
     ])
     expect(problems).toHaveLength(1)
-    expect(problems[0]).toMatchObject({ entryId: 'caro', severity: 'error' })
+    expect(problems[0]).toMatchObject({ entryId: 'caro' })
     expect(problems[0]!.message).toContain('e5')
     // and it names the entry that would close the hole
     expect(problems[0]!.message).toContain('"e4 c6 d4 d5"')
@@ -178,5 +179,28 @@ describe('theoryLoad', () => {
 
   it('handles an empty crawl', () => {
     expect(theoryLoad([])).toMatchObject({ ourDecisions: 0, deepestPly: 0 })
+  })
+})
+
+describe('theoryLoad — the aggregate keeps every field', () => {
+  it('sums all six, so summary.load is the same shape as a branch load', () => {
+    const a = theoryLoad([{ ours: true, ply: 3, children: [{}], terminalReason: 'delegated' }])
+    const b = theoryLoad([{ ours: false, ply: 7, children: [{}, {}], terminalReason: 'out-of-book' }])
+    expect(sumLoads([a, b])).toEqual({
+      ourDecisions: 1,
+      preparedReplies: 2,
+      quietTargets: 0,
+      delegated: 1,
+      outOfBook: 1,
+      deepestPly: 7,
+    })
+  })
+
+  it('takes the deepest ply rather than adding them', () => {
+    expect(sumLoads([theoryLoad([{ ply: 4 }]), theoryLoad([{ ply: 9 }])]).deepestPly).toBe(9)
+  })
+
+  it('sums nothing to a zero load', () => {
+    expect(sumLoads([])).toEqual(theoryLoad([]))
   })
 })

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, afterAll, beforeEach } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Chess } from 'chess.js'
@@ -11,10 +12,16 @@ import {
   parseManifest,
   resolveEntry,
   summarise,
+  illegalLines,
+  isBuilt,
+  numberFlag,
   pgnError,
   readBranch,
+  resolveOnly,
+  stringFlag,
   writeBranch,
   CRAWL_PLIES,
+  DEFAULT_MANIFEST,
   MIN_OWN_PLIES,
 } from './build.mjs'
 
@@ -108,6 +115,19 @@ function fenKeyOf(path) {
 }
 
 const byId = (results, id) => results.find((r) => r.entry.id === id)
+
+// Scratch directories, removed together at the end. Left behind, they
+// accumulate full branch dumps across runs and make it impossible to tell a
+// leftover from a live fixture when debugging.
+const scratchDirs = []
+const scratch = (prefix) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  scratchDirs.push(dir)
+  return dir
+}
+afterAll(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true })
+})
 
 describe('parseManifest', () => {
   const valid = JSON.stringify({ entries: [{ id: 'a', name: 'A', color: 'w', line: 'd4' }] })
@@ -338,7 +358,7 @@ describe('parseArgs', () => {
 describe('readBranch — resuming without losing the rest of the repertoire', () => {
   let dir
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'rep-build-'))
+    dir = scratch('rep-build-')
   })
 
   it('round-trips a written branch back into the shape buildAll returns', async () => {
@@ -433,7 +453,7 @@ describe('pgnError — the artefact check', () => {
 
 describe('readBranch — a reused branch is checked, not assumed', () => {
   it('parses the PGN it reads back', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'rep-reuse-'))
+    const dir = scratch('rep-reuse-')
     const [written] = await build(ENTRIES.slice(1))
     await writeBranch(dir, written)
     expect((await readBranch(dir, ENTRIES[1])).pgnError).toBeNull()
@@ -443,12 +463,210 @@ describe('readBranch — a reused branch is checked, not assumed', () => {
     // The case that matters: the renderer changed between runs, so what is on
     // disk was produced by code that no longer exists. Trusting it would report
     // a clean repertoire built mostly from files nobody looked at.
-    const dir = mkdtempSync(join(tmpdir(), 'rep-reuse-'))
+    const dir = scratch('rep-reuse-')
     const [written] = await build(ENTRIES.slice(1))
     await writeBranch(dir, written)
     writeFileSync(join(dir, 'exchange.pgn'), '[Event "t"]\n\n1. d4 d5 { a } { b } *\n')
     const read = await readBranch(dir, ENTRIES[1])
     expect(read.pgnError).toBeTruthy()
     expect(summarise([read]).unparseable).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Regression tests from the #93 review. Written first, red, then fixed.
+// ---------------------------------------------------------------------------
+
+describe('buildAll — reporting failures must not be crawl failures', () => {
+  it('does not lose the run when writing a branch fails', async () => {
+    // `await onEntry(...)` sat inside the per-branch try, so a disk error was
+    // recorded as a failed crawl — and the catch block's own onEntry(failed)
+    // then threw uncaught, taking the remaining branches with it.
+    const results = await build(ENTRIES, {
+      onEntry: async () => {
+        throw new Error('disk full')
+      },
+    })
+    expect(results).toHaveLength(2)
+    expect(results.every((r) => !r.error)).toBe(true)
+    expect(results.every((r) => r.pgn)).toBe(true)
+  })
+
+  it('reports a write failure rather than swallowing it', async () => {
+    const results = await build(ENTRIES.slice(0, 1), {
+      plan: ENTRIES,
+      onEntry: async () => {
+        throw new Error('disk full')
+      },
+    })
+    expect(results[0].writeError).toMatch(/disk full/)
+    expect(summarise(results).unwritten).toEqual([{ id: 'sweeper', error: 'disk full' }])
+  })
+
+  it('still reports a genuine crawl failure as one', async () => {
+    const results = await build([{ id: 'broken', name: 'B', color: 'w', line: 'd4 d4' }])
+    expect(results[0].error).toBeInstanceOf(Error)
+    expect(results[0].writeError).toBeUndefined()
+  })
+})
+
+describe('readBranch — output written by an older version', () => {
+  let dir
+  beforeEach(() => {
+    dir = scratch('rep-old-')
+  })
+
+  it('survives a branch file with no report or load', async () => {
+    // Exactly the cross-version case --resume exists for: summarise used to die
+    // with "Cannot read properties of undefined (reading 'traps')".
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const saved = JSON.parse(readFileSync(join(dir, 'exchange.json'), 'utf8'))
+    delete saved.report
+    delete saved.load
+    writeFileSync(join(dir, 'exchange.json'), JSON.stringify(saved))
+
+    const read = await readBranch(dir, ENTRIES[1])
+    expect(read.load).toMatchObject({ ourDecisions: expect.any(Number) })
+    expect(read.crawled.report.traps).toEqual([])
+    expect(() => summarise([read])).not.toThrow()
+  })
+
+  it('rebuilds the theory load from the positions rather than reporting zero', async () => {
+    const [r] = await build(ENTRIES.slice(0, 1), { plan: ENTRIES })
+    await writeBranch(dir, r)
+    const saved = JSON.parse(readFileSync(join(dir, 'sweeper.json'), 'utf8'))
+    delete saved.load
+    writeFileSync(join(dir, 'sweeper.json'), JSON.stringify(saved))
+    expect((await readBranch(dir, ENTRIES[0])).load).toEqual(r.load)
+  })
+
+  it('carries the run defaults into a reused branch', async () => {
+    // Otherwise a resumed run reports depths that describe neither the file on
+    // disk nor the flags it was given.
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const uncapped = { ...ENTRIES[1], maxPly: undefined }
+    const read = await readBranch(dir, uncapped, { crawlPlies: 9 })
+    expect(read.entry.maxPly).toBe(resolveEntry(uncapped, { crawlPlies: 9 }).maxPly)
+    // and without the defaults it would report the built-in depth instead
+    expect(read.entry.maxPly).not.toBe(resolveEntry(uncapped).maxPly)
+  })
+})
+
+describe('--resume — a half-written branch', () => {
+  it('does not count a branch whose PGN never made it to disk', async () => {
+    // writeBranch writes the JSON then the PGN, so a kill between the two
+    // leaves precisely this state — and resume died on ENOENT before crawling
+    // anything, with no way forward but deleting the file by hand.
+    const dir = scratch('rep-half-')
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    rmSync(join(dir, 'exchange.pgn'))
+    expect(isBuilt(dir, ENTRIES[1])).toBe(false)
+  })
+
+  it('counts a branch with both files', async () => {
+    const dir = scratch('rep-whole-')
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    expect(isBuilt(dir, ENTRIES[1])).toBe(true)
+  })
+
+  it('is false for a branch never built', () => {
+    expect(isBuilt(scratch('rep-none-'), ENTRIES[0])).toBe(false)
+  })
+})
+
+describe('numberFlag — a value flag given no value', () => {
+  it('reads a number', () => {
+    expect(numberFlag({ nodes: '120000' }, 'nodes')).toBe(120000)
+    expect(numberFlag({ trap: '0' }, 'trap')).toBe(0)
+  })
+
+  it('is undefined when the flag is absent, so the default stands', () => {
+    expect(numberFlag({}, 'nodes')).toBeUndefined()
+  })
+
+  it('rejects a flag with its value missing rather than reading it as 1', () => {
+    // `--trap --nodes 120000` set trapThreshold to Number(true) === 1, so no
+    // move was ever a trap and the build reported success.
+    expect(() => numberFlag({ trap: true }, 'trap')).toThrow(/--trap needs a number/)
+  })
+
+  it('rejects a value that is not a number', () => {
+    expect(() => numberFlag({ nodes: 'abc' }, 'nodes')).toThrow(/--nodes needs a number/)
+  })
+})
+
+describe('stringFlag', () => {
+  it('reads a value', () => {
+    expect(stringFlag({ out: 'out/x' }, 'out')).toBe('out/x')
+  })
+
+  it('rejects a bare flag rather than creating a directory called "true"', () => {
+    expect(() => stringFlag({ out: true }, 'out')).toThrow(/--out needs a value/)
+  })
+
+  it('is undefined when absent', () => {
+    expect(stringFlag({}, 'out')).toBeUndefined()
+  })
+})
+
+describe('resolveOnly', () => {
+  const all = [{ id: 'a' }, { id: 'b' }]
+
+  it('selects the named branches', () => {
+    expect(resolveOnly(all, 'a,b').map((e) => e.id)).toEqual(['a', 'b'])
+  })
+
+  it('names the branch it could not find', () => {
+    expect(() => resolveOnly(all, 'a,zzz')).toThrow(/zzz/)
+  })
+
+  it('accepts a repeated id instead of blaming a branch that exists', () => {
+    // The length comparison tripped on duplicates and then reported an empty
+    // list of unknown branches.
+    expect(resolveOnly(all, 'a,a').map((e) => e.id)).toEqual(['a'])
+  })
+
+  it('is null when the flag is absent, meaning everything', () => {
+    expect(resolveOnly(all, undefined)).toBeNull()
+  })
+
+  it('rejects a bare --only', () => {
+    expect(() => resolveOnly(all, true)).toThrow(/--only needs a value/)
+  })
+})
+
+describe('illegalLines — a curated prefix that is not legal chess', () => {
+  // `--check` exists so a manifest is validated before an hour of engine time.
+  // It reported "manifest ok" for a line the crawler cannot play, and the run
+  // only failed twenty minutes in. Lives here rather than in the domain because
+  // it needs a board, and repertoirePlan.ts stays runtime-import-free.
+  it('rejects a line whose moves cannot be played', () => {
+    const problems = illegalLines([{ id: 'typo', name: 'T', color: 'w', line: 'd4 d5 c5' }])
+    expect(problems).toHaveLength(1)
+    expect(problems[0].entryId).toBe('typo')
+    expect(problems[0].message).toContain('c5')
+  })
+
+  it('names the moves that were legal, so the typo is obvious', () => {
+    expect(illegalLines([{ id: 'typo', name: 'T', color: 'w', line: 'd4 d5 c5' }])[0].message).toContain(
+      'd4 d5',
+    )
+  })
+
+  it('rejects a move that is not notation at all', () => {
+    expect(illegalLines([{ id: 'junk', name: 'J', color: 'w', line: 'd4 zzz' }])[0].message).toContain('zzz')
+  })
+
+  it('accepts an empty line — that is the initial position', () => {
+    expect(illegalLines([{ id: 'root', name: 'R', color: 'w', line: '' }])).toEqual([])
+  })
+
+  it('accepts every line in the shipped manifest', async () => {
+    const entries = parseManifest(await readFile(DEFAULT_MANIFEST, 'utf8'))
+    expect(illegalLines(entries)).toEqual([])
   })
 })
