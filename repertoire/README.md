@@ -8,7 +8,7 @@ rebuild instead.
 | File | What it is |
 |---|---|
 | `etude-repertoire-v1-white.pgn` | The White repertoire — 14 branches, one game each, named in its `[Event]` header. |
-| `etude-repertoire-v1-black.pgn` | The Black repertoire — 11 branches. |
+| `etude-repertoire-v1-black.pgn` | The Black repertoire — 12 branches. |
 | `summary.json` | What it cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
 
 ## Importing into En Croissant
@@ -41,10 +41,52 @@ at quiet positions instead of teaching lines: ADR
 [0021](../docs/decisions/0021-opening-repertoire-generator.md). Why branches own subtrees: ADR
 [0022](../docs/decisions/0022-repertoire-branch-ownership.md).
 
-## v1 — 2026-08-06
+## v1 — 2026-08-06, retargeted 2026-08-07
 
-**25 branches · 662 positions · 269 decisions of yours, answering 386 of theirs · 132 quiet
+**26 branches · 830 positions · 341 decisions of yours, answering 494 of theirs · 157 quiet
 positions to train.** Curated lines run to move 5–6 for both sides.
+
+The 2026-08-07 pass was driven by **the owner's own 248 chess.com games** replayed against the
+shipped PGN, rather than by anything the generator could see about itself. What that found, and
+what changed:
+
+| | before | after |
+|---|---|---|
+| decisions to learn | 269 | 341 |
+| quiet positions to train | 132 | 157 |
+| `beyond master theory` | 141 | **126** |
+| `out of book` | 27 | **54** |
+| opponent book | Lichess 1500–1900, 300k games | **1300–1800, 367k** |
+| master book | 800k OTB games, 52k positions | **2M games, 174k positions** |
+
+The band moved because **not one of 232 blitz opponents fell inside 1500–1900** (median 886).
+1300–1800 spans the climb from there to the ~1400 chess.com / USCF target. The master book was
+capped at 800k games out of an archive holding roughly ten times that — reading more of it is
+what took `beyond master theory` *below* the old figure while covering far more ground. It is
+also why `1.d4 d6` is now `2.Nc3 {→ Philidor Defense: Lion Variation}` instead of a club-play
+guess that ended out of book two moves later.
+
+`out of book` doubling is the honest cost, and the cause is measured: a richer master book lets
+lines run two plies deeper (`deepestPly` 11 → 13), and the opponent book — only 22% larger — cannot
+follow them there. **The fix is more Lichess data, not a smarter build.**
+
+### Where to start
+
+Ranked by how often each branch actually arises in the owner's games, which is not how the
+files are ordered:
+
+| | share of games | learn | decisions |
+|---|---|---|---|
+| 1 | 70% of your Black games | Caro-Kann group (5 branches) | 69 |
+| 2 | 57% of your White games | Queen's Gambit group (7 branches) | 62 |
+| 3 | 23% of your Black games | Slav group (4 branches) | 68 |
+| 4 | 14% of your White games | Indian group (4 branches) | 31 |
+| 5 | 3% of your White games | `dutch` — two decisions, essentially free | 2 |
+| last | 2% | `black-irregular`, the 1.b3/1.f4/1.g3 tail | 25 |
+
+The Caro-Kann group is the best value in the repertoire: three times the Slav group's frequency
+for the same price. `black-irregular` is deliberately last — 25 decisions for one board in a
+five-round tournament is a real cost, and it is safe to leave unlearned until the rest is solid.
 
 ### Which variation am I learning?
 
@@ -110,8 +152,11 @@ is the same shape: demote a branch's role, do not shorten a curated line.
 
 ### What it does not cover, stated rather than discovered across the board
 
-- **1.e4 as White.** Deliberate: one first move at a time. The planned expansion.
-- **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch.
+- **1.e4 as White.** Deliberate: one first move at a time. The planned expansion — and the
+  owner plays it in 17% of their White games, scoring 39% with no preparation at all, so this
+  is the largest remaining hole by game count.
+- **1.d4 Nc6, 1.d4 b6, and 1.Nc3 as Black.** One game each in 248, which puts them under the
+  frequency floor even with the sweepers widened. 1.b3, 1.f4 and 1.g3 *are* now covered.
 - **27 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
   the sweepers and collapsing the transpositions removed most of them, which is what you would
   expect if the depth was reaching past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
@@ -169,8 +214,15 @@ Other comments you will see, all load-bearing:
 ## Regenerating
 
 ```bash
-node scripts/repertoire/build.mjs --book out/band.json --canon-book out/otb.json \
+node scripts/repertoire/build.mjs --book out/band-1300-1800.json --canon-book out/otb-big.json \
      --nodes 120000 --trap 0.01 --min-node-games 20 --out out/repertoire
+```
+
+Verify the cached dumps before trusting a rebuild — zstd reports a torn frame as success, so a
+truncated cache silently produces a smaller book that looks fine:
+
+```bash
+node scripts/repertoire/verifyCache.mjs
 ```
 
 Then copy `out/repertoire/repertoire-white.pgn`, `repertoire-black.pgn` and `summary.json` here.
