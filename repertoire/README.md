@@ -43,19 +43,39 @@ at quiet positions instead of teaching lines: ADR
 
 ## v1 — 2026-08-06
 
-**25 branches · 361 positions · 132 decisions of yours, answering 213 of theirs · 136 quiet
-positions to train.**
+**25 branches · 1,057 positions · 467 decisions of yours, answering 617 of theirs · 193 quiet
+positions to train.** Lines run to move 5–6 for both sides.
 
-`ourDecisions` — 132 — is the honest price: positions where you must know which move you play.
-Everything else is coverage bought with it. This is the number
-[repertoire-v1.md](../docs/repertoire-v1.md) promised rather than guessed when it cut the
-London; if it ever climbs past what one person can hold, cut branches from the manifest rather
-than crawling shallower, because a shallower crawl buys the same repertoire with the trainable
-positions chopped off.
+### Read `ourDecisions` first, and read it sceptically
+
+**467** is the honest price: positions where you must know which move you play. It was **132**
+when lines stopped around move 3, and going deeper tripled it. That is the trade the depth
+buys, and it is a real question rather than a detail — 467 positions is a large deck for one
+person, and this file's own rule is that when the number climbs past what you can hold you
+**cut branches from the manifest**, not depth, because a shallower crawl buys the same
+repertoire with the trainable positions chopped off.
+
+Two honest ways down if it is too much:
+
+- **Drop branches.** The 1.c4 and 1.Nf3 move-order branches (`english`, `reti`) cost 60
+  decisions between them and mostly transpose into lines you already know. The `d4-sidelines`
+  and `d4-black` sweepers are another 100+ and cover replies you meet rarely.
+- **Lower the floor for the sweepers only**, with a per-entry `minPly`. The curated branches
+  stay deep; the "don't be surprised" ones do not need to.
+
+### The other number that moved
+
+**64 lines ran out of book**, against 1 before. The extra depth is reaching past what a
+300,000-game band book supports — at move 5–6 in a sideline there are simply not 20 games to
+count. Those lines are marked `out of book (N games)` in the PGN and listed in `summary.json`.
+Treat a line that ends that way as *unfinished*, not as a quiet position worth training. A
+bigger book is the fix; see the note on `--min-node-games` below.
 
 | | |
 |---|---|
-| Deviations to prepare | **18** ranked traps, **3** of which we cannot actually punish (marked in the PGN) |
+| Deviations to prepare | **29** ranked traps, **11** of which we cannot actually punish (marked in the PGN) |
+| Move glyphs | `?!` from 5 win% given up, `?` from 15, `??` from 25 — anchored to grade.ts's tiers |
+| Build cost | 44 minutes, 6,090 engine searches |
 | Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
 | Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
 | Engine | Stockfish, 120,000 nodes, **Threads=1** — anything else is not reproducible |
