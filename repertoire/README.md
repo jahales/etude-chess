@@ -11,11 +11,29 @@ rebuild instead.
 | `etude-repertoire-v1-black.pgn` | The Black repertoire — 11 branches. |
 | `summary.json` | What it cost to build and what it costs to learn: theory load, the ranked trap list, and everything the build could *not* cover. |
 
-**Two files, one per side, deliberately.** En Croissant trains a repertoire from
-one colour's point of view, so a file holding both is importable as neither — it
-would try to drill you as White in the Caro-Kann. Import each into
-**Files**, then point the repertoire trainer at the one matching the side you
-are practising.
+## Importing into En Croissant
+
+1. **Copy both `.pgn` files into En Croissant's documents directory.** By default
+   that is `Documents\EnCroissant` — the Files page has an *open folder* button
+   that takes you straight there, and the location is configurable in settings.
+2. **Give each one a `.info` sidecar** with the same basename, so the app files
+   it as a repertoire rather than as `other`:
+
+   ```json
+   { "type": "repertoire", "tags": [] }
+   ```
+
+   i.e. `etude-repertoire-v1-white.info` next to `etude-repertoire-v1-white.pgn`.
+   En Croissant writes one of these itself for any `.pgn` it finds, but it
+   defaults the type to `other`, and only a `repertoire` file offers Practice.
+3. Open the file from the **Files** page and pick a branch — each game is one
+   branch of the repertoire — then use **Practice** to drill it.
+
+Every game carries `[Orientation "white"]` or `[Orientation "black"]`, which is
+what the trainer reads to decide which side it is quizzing you on. Without it
+the practice deck is built as White for everything (`headers.orientation ||
+"white"`), so a Black repertoire hands you the opponent's side of every line.
+That tag matters more than the file split does.
 
 Why these openings and not others: [docs/repertoire-v1.md](../docs/repertoire-v1.md). How the
 thing works: [scripts/repertoire/README.md](../scripts/repertoire/README.md). Why it terminates

@@ -344,6 +344,12 @@ export function toPgn(input: PgnInput): string {
     `[White "${colour === 'White' ? 'Repertoire' : 'Opponent'}"]`,
     `[Black "${colour === 'Black' ? 'Repertoire' : 'Opponent'}"]`,
     `[Result "*"]`,
+    // Not decoration: En Croissant's practice mode builds its deck with
+    // `headers.orientation || "white"`, so without this a Black repertoire
+    // drills you as White — it hands you the opponent's side of every line and
+    // marks our own moves wrong. Splitting the files by colour does not fix
+    // that; this tag is what the trainer actually reads.
+    `[Orientation "${colour.toLowerCase()}"]`,
     `[Annotator "Stockfish + Lichess explorer"]`,
     ...(forcedSans.length ? [`[Opening "${safeTag(forcedSans.join(' '))}"]`] : []),
     // Provenance is not bookkeeping. Multithreaded Stockfish at a fixed node

@@ -471,3 +471,38 @@ describe('toPgn — untrusted strings from the manifest', () => {
     expect(load(pgn)).toEqual(['d4'])
   })
 })
+
+describe('toPgn — the header the trainer actually reads', () => {
+  // En Croissant's practice mode builds its deck with
+  // `headers.orientation || "white"`, from the PGN tag [Orientation]. Without
+  // it, a Black repertoire drills you as White — it hands you our opponent's
+  // side of every line and marks our own moves wrong.
+  const simple = () =>
+    new Map([[fenKey(START), node([{ san: 'd4', fen: AFTER_D4, reason: 'ours' as const }])]])
+
+  it('says which side the repertoire is for', () => {
+    expect(toPgn({ ...base, nodes: simple(), rootFen: START })).toContain('[Orientation "white"]')
+  })
+
+  it('says black for a black repertoire', () => {
+    const pgn = toPgn({ ...base, ourColor: 'b', nodes: simple(), rootFen: START })
+    expect(pgn).toContain('[Orientation "black"]')
+  })
+
+  it('agrees with the Event header, so the two cannot drift', () => {
+    for (const [colour, word] of [
+      ['w', 'White'],
+      ['b', 'Black'],
+    ] as const) {
+      const pgn = toPgn({ ...base, ourColor: colour, nodes: simple(), rootFen: START })
+      expect(pgn).toContain(`[Orientation "${word.toLowerCase()}"]`)
+      expect(pgn).toContain(`[Event "Repertoire — ${word}"]`)
+    }
+  })
+
+  it('still loads in a parser with the extra tag', () => {
+    const chess = new Chess()
+    chess.loadPgn(toPgn({ ...base, ourColor: 'b', nodes: simple(), rootFen: START }))
+    expect(chess.history()).toEqual(['d4'])
+  })
+})

@@ -462,17 +462,32 @@ describe('readBranch — a reused branch is checked, not assumed', () => {
     expect((await readBranch(dir, ENTRIES[1])).pgnError).toBeNull()
   })
 
-  it('reports a branch an older renderer left unreadable', async () => {
+  it('re-renders past a stored PGN an older renderer left unreadable', async () => {
     // The case that matters: the renderer changed between runs, so what is on
-    // disk was produced by code that no longer exists. Trusting it would report
-    // a clean repertoire built mostly from files nobody looked at.
+    // disk was produced by code that no longer exists. Rendering afresh from the
+    // stored tree means a fixed renderer reaches every reused branch — and the
+    // check still runs on what it produced, not on what it found.
     const dir = scratch('rep-reuse-')
     const [written] = await build(ENTRIES.slice(1))
     await writeBranch(dir, written)
-    writeFileSync(join(dir, 'exchange.pgn'), '[Event "t"]\n\n1. d4 d5 { a } { b } *\n')
+    writeFileSync(
+      join(dir, 'exchange.pgn'),
+      '[Event "t"]\n[Date "2026.08.06"]\n\n1. d4 d5 { a } { b } *\n',
+    )
     const read = await readBranch(dir, ENTRIES[1])
-    expect(read.pgnError).toBeTruthy()
-    expect(summarise([read]).unparseable).toHaveLength(1)
+    expect(read.pgnError).toBeNull()
+    expect(read.pgn).not.toMatch(/\}\s*\{/)
+    expect(summarise([read]).unparseable).toEqual([])
+  })
+
+  it('keeps the date the branch was crawled rather than restamping it', async () => {
+    // A re-render is not a new crawl. Restamping would churn the committed
+    // artefact's dates every time the renderer changes.
+    const dir = scratch('rep-date-')
+    const [written] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, written)
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2030-01-01' })
+    expect(read.pgn).toContain('[Date "2026.08.06"]')
   })
 })
 
@@ -730,5 +745,51 @@ describe('splitByColour — one file per side', () => {
   it('skips branches that failed to crawl', async () => {
     const results = await build([{ id: 'broken', name: 'B', color: 'w', line: 'd4 d4' }, ...ENTRIES])
     expect(games(splitByColour(results).white)).toHaveLength(2)
+  })
+})
+
+describe('readBranch — resume re-renders rather than replaying an old file', () => {
+  // The crawl is the expensive part and the PGN is a cheap rendering of it, so
+  // resume should reuse the first and redo the second. Reading the stored .pgn
+  // back verbatim meant a change to the renderer never reached a resumed
+  // branch: the [Orientation] tag the trainer needs was added, every test
+  // passed, and the regenerated files did not have it.
+  let dir
+  beforeEach(() => {
+    dir = scratch('rep-render-')
+  })
+
+  it('renders the PGN from the stored tree, not from the stored PGN', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    writeFileSync(join(dir, 'exchange.pgn'), '[Event "stale"]\n\n1. d4 *\n')
+
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })
+    expect(read.pgn).not.toContain('stale')
+    expect(read.pgn).toBe(r.pgn)
+  })
+
+  it('picks up a renderer change without re-crawling', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const read = await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })
+    expect(read.pgn).toContain('[Orientation "white"]')
+  })
+
+  it('carries the run provenance into the re-rendered file', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    const read = await readBranch(dir, ENTRIES[1], {}, {
+      date: '2026-08-06',
+      provenance: { engine: 'sf.exe', nodes: 120000, threads: 1 },
+    })
+    expect(read.pgn).toContain('[EngineNodes "120000"]')
+    expect(read.pgn).toContain('[Reproducible "yes"]')
+  })
+
+  it('still checks that what it rendered will parse', async () => {
+    const [r] = await build(ENTRIES.slice(1))
+    await writeBranch(dir, r)
+    expect((await readBranch(dir, ENTRIES[1], {}, { date: '2026-08-06' })).pgnError).toBeNull()
   })
 })
