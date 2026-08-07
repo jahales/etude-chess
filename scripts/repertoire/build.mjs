@@ -16,8 +16,9 @@ import { dirname, join, basename, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Chess } from 'chess.js'
 import { delegationsFor, plies, sumLoads, theoryLoad, validatePlan } from '../../src/domain/repertoirePlan.ts'
-import { toPgn } from '../../src/domain/repertoirePgn.ts'
+import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { crawl, DEFAULTS } from './crawl.mjs'
+import { labelVariations, prefixVariations, variationFor } from './openings.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createExplorer } from './explorer.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
@@ -192,6 +193,21 @@ export function splitByColour(results) {
 }
 
 /**
+ * The order branches are *crawled* in — owners before the branches that would
+ * transpose into them.
+ *
+ * A position decided by two branches gives the trainer two answers, and the
+ * trainer keeps whichever card it walked first. So the branch you are actually
+ * learning must decide first: a curated line, then the sweepers that catch what
+ * it does not own, then the signposts that only point. Output order is
+ * unaffected — `main` writes in manifest order.
+ */
+export function crawlOrder(entries) {
+  const rank = (e) => ROLES.indexOf(e.role ?? 'curated')
+  return [...entries].sort((a, b) => rank(a) - rank(b))
+}
+
+/**
  * Crawl every branch. Sequential on purpose: they share one engine process, and
  * a single Stockfish at Threads=1 is the only configuration whose numbers
  * reproduce (see engine.mjs).
@@ -209,6 +225,8 @@ export async function buildAll({
    * the two would answer the same move differently.
    */
   plan = entries,
+  /** Positions decided by an earlier run, for --resume. */
+  ownedPositions = new Map(),
   engine,
   explorer,
   canon = null,
@@ -218,7 +236,15 @@ export async function buildAll({
   onEntry = () => {},
 }) {
   const results = []
-  for (const entry of entries) {
+  /**
+   * Positions already decided, and by whom. Fed to each later crawl so a branch
+   * that transposes into an owned line stops rather than answering it again —
+   * `1.d4 e6 2.c4 d5` is `1.d4 d5 2.c4 e6` by another order, and the two crawls
+   * chose different moves.
+   */
+  const owned = new Map(ownedPositions)
+
+  for (const entry of crawlOrder(entries)) {
     const resolved = resolveEntry(entry, defaults)
     const delegations = delegationsFor(entry, plan)
     const started = Date.now()
@@ -233,15 +259,23 @@ export async function buildAll({
         delegations,
         maxPly: resolved.maxPly,
         minPly: resolved.minPly,
+        ownedPositions: owned,
         ...(entry.trapThreshold !== undefined ? { trapThreshold: entry.trapThreshold } : {}),
         ...(entry.maxEvalPerNode !== undefined ? { maxEvalPerNode: entry.maxEvalPerNode } : {}),
         ...(entry.massTarget !== undefined ? { massTarget: entry.massTarget } : {}),
         ...(entry.maxOpponentMoves !== undefined ? { maxOpponentMoves: entry.maxOpponentMoves } : {}),
       })
+      // Before rendering: the label is what tells you which of several sound
+      // moves is the line you are learning.
+      const labelled = labelVariations(crawled.nodes, crawled.rootFen)
+      const heading = variationFor(crawled.nodes, crawled.rootFen)
+
       const result = {
         entry: resolved,
         crawled,
         delegations,
+        labelled,
+        heading,
         load: theoryLoad(crawled.nodes.values()),
         pgn: toPgn({
           nodes: crawled.nodes,
@@ -251,6 +285,9 @@ export async function buildAll({
           date,
           name: entry.name,
           why: entry.why,
+          opening: heading?.name,
+          eco: heading?.eco,
+          prefixNotes: prefixVariations(crawled.nodes, crawled.forcedSans, entry.color),
           provenance: {
             ...provenance,
             minDepth: Number.isFinite(crawled.report.minDepth) ? crawled.report.minDepth : undefined,
@@ -261,6 +298,9 @@ export async function buildAll({
       // The JSON is kept either way: a rendering fault is not a reason to throw
       // away an expensive crawl, but it is a reason for the run to fail loudly.
       result.pgnError = pgnError(result.pgn)
+      for (const key of decidedPositions(crawled).keys()) {
+        if (!owned.has(key)) owned.set(key, entry.id)
+      }
       results.push(result)
     } catch (err) {
       results.push({ entry: resolved, error: err, seconds: (Date.now() - started) / 1000 })
@@ -278,7 +318,12 @@ export async function buildAll({
       last.writeError = err?.message ?? String(err)
     }
   }
-  return results
+
+  // Crawled owners-first, returned in the order the caller gave — the crawl
+  // order is an implementation detail of who decides a shared position, not
+  // something the output should reflect.
+  const given = new Map(entries.map((e, i) => [e.id, i]))
+  return results.sort((a, b) => (given.get(a.entry.id) ?? 0) - (given.get(b.entry.id) ?? 0))
 }
 
 /**
@@ -330,9 +375,36 @@ export async function writeBranch(outDir, r) {
   await writeFile(join(outDir, `${r.entry.id}.pgn`), r.pgn, 'utf8')
 }
 
+/**
+ * Every position this crawl decided a move for, as `fenKey -> san`.
+ *
+ * Includes the **curated prefix**, which is the part that matters. A branch's
+ * prefix is a run of decisions too — the QGD Exchange encodes 3.cxd5 there, not
+ * in its tree, because the tree starts after it. Registering only the tree left
+ * the sweeper free to answer `1.d4 d5 2.c4 e6` with 3.Nc3 while the Exchange
+ * branch's whole point was 3.cxd5.
+ */
+export function decidedPositions(crawled) {
+  const out = new Map()
+  const ourColor = crawled.options?.ourColor
+  const board = new Chess()
+  for (const san of crawled.forcedSans ?? []) {
+    const ourTurn = board.turn() === ourColor
+    const before = fenKey(board.fen())
+    const move = board.move(san)
+    if (!move) break
+    if (ourTurn) out.set(before, move.san)
+  }
+  for (const node of crawled.nodes.values()) {
+    if (node.ours && node.children?.length) out.set(fenKey(node.fen), node.children[0].san)
+  }
+  return out
+}
+
 /** Every list `summarise` reads, so a file missing one cannot crash the roll-up. */
 const EMPTY_REPORT = {
   traps: [],
+  transposed: [],
   unpunishedTraps: [],
   unverifiedTraps: [],
   tooRareToJudge: [],
@@ -379,6 +451,11 @@ export async function readBranch(outDir, entry, defaults = {}, render = {}) {
   // meant a change to the renderer never reached a resumed branch: the
   // [Orientation] tag En Croissant's trainer needs was added, every test
   // passed, and the regenerated repertoire still did not have it.
+  // Labelled here too, or --resume would re-render every reused branch without
+  // the one annotation that says which variation a move commits to.
+  labelVariations(nodes, saved.rootFen)
+  const heading = variationFor(nodes, saved.rootFen)
+
   const pgn = toPgn({
     nodes,
     rootFen: saved.rootFen,
@@ -387,6 +464,9 @@ export async function readBranch(outDir, entry, defaults = {}, render = {}) {
     date,
     name: entry.name,
     why: entry.why,
+    opening: heading?.name,
+    eco: heading?.eco,
+    prefixNotes: prefixVariations(nodes, resolved.forced, entry.color),
     provenance: {
       ...render.provenance,
       minDepth: Number.isFinite(saved.report?.minDepth) ? saved.report.minDepth : undefined,
@@ -447,6 +527,7 @@ export function summarise(results) {
     positions: ok.reduce((n, r) => n + r.crawled.nodes.size, 0),
     load: sumLoads(ok.map((r) => r.load)),
     traps,
+    transposed: ok.flatMap((r) => (r.crawled.report.transposed ?? []).map((t) => ({ ...t, entry: r.entry.id }))),
     unpunished: ok.flatMap((r) => r.crawled.report.unpunishedTraps.map((t) => ({ ...t, entry: r.entry.id }))),
     unverified: ok.flatMap((r) => r.crawled.report.unverifiedTraps.map((t) => ({ ...t, entry: r.entry.id }))),
     tooRareToJudge: ok.flatMap((r) => r.crawled.report.tooRareToJudge.map((t) => ({ ...t, entry: r.entry.id }))),
@@ -694,6 +775,11 @@ async function main() {
       // The full manifest decides the boundaries, so --only still produces
       // branches that agree with the ones it skipped.
       plan: all,
+      // Reused branches decided positions too; without them a rebuilt sweeper
+      // answers a line the curated branch on disk already owns.
+      ownedPositions: new Map(
+        reused.flatMap((r) => [...decidedPositions(r.crawled).keys()].map((k) => [k, r.entry.id])),
+      ),
       engine,
       explorer,
       canon,
@@ -776,6 +862,13 @@ engine searches ${engine.searchCount()}`)
     if (summary.unverified.length) {
       console.log(`\n? ${summary.unverified.length} trap(s) whose punishment was not verified:`)
       for (const t of summary.unverified) console.log(`  ${t.line}   [${t.why}]`)
+    }
+    if (summary.transposed.length) {
+      console.log(
+        `
+${summary.transposed.length} line(s) transposed into a branch that already owns them:`,
+      )
+      for (const t of summary.transposed.slice(0, 8)) console.log(`  ${t.line}  →  "${t.to}"`)
     }
     if (summary.emptyBranches.length) {
       console.log(`\n⚠ ${summary.emptyBranches.length} branch(es) covered nothing of their own:`)

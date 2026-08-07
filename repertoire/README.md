@@ -43,8 +43,42 @@ at quiet positions instead of teaching lines: ADR
 
 ## v1 — 2026-08-06
 
-**25 branches · 796 positions · 336 decisions of yours, answering 465 of theirs · 190 quiet
+**25 branches · 662 positions · 269 decisions of yours, answering 386 of theirs · 132 quiet
 positions to train.** Curated lines run to move 5–6 for both sides.
+
+### Which variation am I learning?
+
+The question a repertoire has to answer, because several moves are usually
+sound and the trainer accepts exactly one. `[ECO]` and `[Opening]` name what
+each branch heads for, and **our move carries the variation it commits to** at
+the point it commits:
+
+```
+1. d4 {→ Queen's Pawn Game} d5 2. c4 {→ Queen's Gambit} e6 3. cxd5
+{→ Queen's Gambit Declined: Exchange Variation, Positional Variation} exd5
+```
+
+Only on a change, so "Queen's Gambit Declined" does not repeat down twelve
+plies and bury the label that matters. Names come from
+[lichess-org/chess-openings](../scripts/repertoire/data/README.md) — CC0.
+
+Found by looking **forward** through the branch's own tree rather than naming
+the position: the table indexes named *lines*, and `1.d4 d5 2.c4 e6 3.cxd5` is
+unnamed at this move order even though the Exchange Variation is named at three
+others. Naming the position would have said nothing at exactly the fork that
+needed it.
+
+### One position, one answer
+
+Ownership used to be keyed on the move order, so a transposition slipped
+through: `1.d4 e6 2.c4 d5` and `1.d4 d5 2.c4 e6` are one board reached two
+ways, and the sidelines sweeper answered 3.Nc3 where the QGD Exchange branch
+forces 3.cxd5. En Croissant keeps whichever card it walked first, so the
+trainer demanded one move while showing the other as a legitimate line.
+
+Branches now crawl owners-first — the role order — and register the positions
+they decide, so a later branch that transposes in stops and points at the
+owner. **27 lines** now defer that way, and no position has two answers.
 
 ### Depth follows what a branch is for
 

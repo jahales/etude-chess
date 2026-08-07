@@ -163,11 +163,26 @@ export async function crawl(config) {
    */
   const delegations = o.delegations instanceof Map ? o.delegations : new Map(Object.entries(o.delegations ?? {}))
 
+  /**
+   * `fenKey → branch id` for positions another branch has already decided.
+   *
+   * `delegations` is keyed on the SAN line and so cannot see a transposition:
+   * `1.d4 e6 2.c4 d5` and `1.d4 d5 2.c4 e6` are the same board reached two
+   * ways. The sweeper answered 3.Nc3 and the QGD Exchange branch 3.cxd5, and
+   * En Croissant's trainer keeps whichever card it walked first — so it
+   * demanded one move while showing the other as a legitimate line. One
+   * position, two answers, which is the single thing a repertoire may not have.
+   */
+  const ownedPositions =
+    o.ownedPositions instanceof Map ? o.ownedPositions : new Map(Object.entries(o.ownedPositions ?? {}))
+
   const nodes = new Map()
   const report = {
     expanded: 0,
     terminal: { quiet: 0, 'depth-cap': 0, 'out-of-book': 0, 'no-sound-move': 0, delegated: 0 },
     delegated: [],
+    /** Positions handed over because another branch reached them first. */
+    transposed: [],
     traps: [],
     truncatedNodes: [],
     outOfBook: [],
@@ -288,6 +303,11 @@ export async function crawl(config) {
       continue
     }
 
+    // A position another branch already decided. Stopping beats answering it
+    // again: two branches that disagree give the trainer two answers, and two
+    // that agree just make you drill the same line twice.
+    const ownedBy = item.ply > basePly ? ownedPositions.get(key) : undefined
+
     const chess = new Chess(item.fen)
     const sideToMove = chess.turn()
     const ours = sideToMove === ourColor
@@ -302,6 +322,16 @@ export async function crawl(config) {
       terminal: false,
     }
     nodes.set(key, node)
+
+    if (ownedBy) {
+      node.terminal = true
+      node.terminalReason = 'delegated'
+      node.delegatedTo = ownedBy
+      report.terminal.delegated++
+      report.transposed.push({ line: item.line.join(' '), to: ownedBy })
+      settlePunishment(key, null, `transposed into the "${ownedBy}" line, which covers it`)
+      continue
+    }
 
     if (item.ply >= o.maxPly) {
       node.terminal = true

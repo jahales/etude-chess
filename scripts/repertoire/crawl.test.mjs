@@ -475,3 +475,62 @@ describe('crawl — the shipped defaults must be usable', () => {
     ).resolves.toBeTruthy()
   })
 })
+
+describe('crawl — positions another branch has already decided', () => {
+  // SAN-keyed ownership cannot see a transposition: `1.d4 e6 2.c4 d5` and
+  // `1.d4 d5 2.c4 e6` are the same board by different orders, so the sweeper
+  // picked 3.Nc3 while the QGD Exchange branch forced 3.cxd5. En Croissant
+  // keeps whichever card it walked first, so the trainer demanded a move the
+  // PGN also showed as an alternative. ADR 0022 called this cheap; it is not.
+  const BOOK = {
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'cxd5', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 e6 cxd5': [{ san: 'exd5', w: 400, d: 100, b: 300 }],
+  }
+  const owned = (path, id) => new Map([[at(path), id]])
+
+  it('stops where another branch already decided the position', async () => {
+    const result = await run({
+      engine: stubEngine(),
+      explorer: stubBook(BOOK),
+      ownedPositions: owned('d4 d5 c4 e6', 'qgd-exchange'),
+    })
+    const node = [...result.nodes.values()].find((n) => (n.line ?? []).join(' ') === 'd4 d5 c4 e6')
+    expect(node).toMatchObject({ terminal: true, terminalReason: 'delegated', delegatedTo: 'qgd-exchange' })
+  })
+
+  it('reports it, so the duplication is visible rather than silent', async () => {
+    const result = await run({
+      engine: stubEngine(),
+      explorer: stubBook(BOOK),
+      ownedPositions: owned('d4 d5 c4 e6', 'qgd-exchange'),
+    })
+    expect(result.report.transposed).toEqual([
+      { line: 'd4 d5 c4 e6', to: 'qgd-exchange' },
+    ])
+  })
+
+  it('never stops on its own root, however it was reached', async () => {
+    const result = await run({
+      engine: stubEngine(),
+      explorer: stubBook(BOOK),
+      ownedPositions: owned('d4 d5 c4', 'someone-else'),
+    })
+    expect(result.report.transposed).toEqual([])
+    expect(result.nodes.size).toBeGreaterThan(1)
+  })
+
+  it('behaves exactly as before when nothing is owned elsewhere', async () => {
+    const plain = await run({ engine: stubEngine(), explorer: stubBook(BOOK) })
+    const owned0 = await run({ engine: stubEngine(), explorer: stubBook(BOOK), ownedPositions: new Map() })
+    expect(owned0.nodes.size).toBe(plain.nodes.size)
+    expect(owned0.report.transposed).toEqual([])
+  })
+
+  it('collapses clock differences, so a transposition is recognised', async () => {
+    // The two orders reach the same board with different move counters; the key
+    // is the first four FEN fields, as everywhere else in the crawler.
+    const viaOtherOrder = at('d4 e6 c4 d5')
+    expect(viaOtherOrder).toBe(at('d4 d5 c4 e6'))
+  })
+})
