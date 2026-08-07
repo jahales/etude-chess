@@ -19,7 +19,9 @@
       "name": "1.d4 — irregular replies",
       "color": "w",
       "line": "d4",
-      "why": "Everything that is not 1...d5, 1...Nf6, 1...f5 or 1...e5. Mostly move-order tries that transpose; the point is not to be surprised."
+      "why": "Everything that is not 1...d5, 1...Nf6, 1...f5 or 1...e5. Mostly move-order tries that transpose; the point is not to be surprised.",
+      "$roleNote": "Covers the replies no curated branch owns. The value is meeting 1...c5 or 1...g6 at all, not five moves of follow-up — at full depth this one branch cost 70 of the repertoire's 467 decisions.",
+      "role": "sweeper"
     },
     {
       "id": "qg-sidelines",
@@ -41,6 +43,7 @@
       "color": "w",
       "line": "d4 d5 c4 dxc4 e3",
       "why": "The priority line. White does not rush to regain c4; develop and let the attempt to HOLD the pawn cost Black the position. The break to know is a4 against ...b5.",
+      "$depthNote": "Set against the depth floor: the punishing line 3.e3 b5 4.a4 c6 5.axb5 cxb5 6.Qf3 lands on ply 11, so the cap must clear it. If minPly ever rises past 11 this branch can no longer reach its own priority line.",
       "maxPly": 13
     },
     {
@@ -119,7 +122,9 @@
       "name": "Caro-Kann — White's 2nd move",
       "color": "b",
       "line": "e4 c6",
-      "why": "Everything except 2.d4: the two-knights, 2.c4, 2.Nf3 and the pass moves. Mostly transpositions back into the main structures."
+      "why": "Everything except 2.d4: the two-knights, 2.c4, 2.Nf3 and the pass moves. Mostly transpositions back into the main structures.",
+      "$roleNote": "White's alternatives to 2.d4. Meeting them is the point; the structures that follow are taught by the curated Caro branches.",
+      "role": "sweeper"
     },
     {
       "id": "caro-2d4",
@@ -156,7 +161,9 @@
       "name": "1.d4 d5 — White's 2nd move",
       "color": "b",
       "line": "d4 d5",
-      "why": "The London, Jobava and Colle setups, which appear constantly at this band and are played almost regardless of what we do. Plans, not theory."
+      "why": "The London, Jobava and Colle setups, which appear constantly at this band and are played almost regardless of what we do. Plans, not theory.",
+      "$roleNote": "The London, Jobava and Colle are plans played almost regardless of what we do, and this file says plans, not theory. At full depth it cost 69 decisions for setups that need one good answer.",
+      "role": "sweeper"
     },
     {
       "id": "slav",
@@ -184,14 +191,18 @@
       "name": "1.c4 — into Slav structures",
       "color": "b",
       "line": "c4 c6",
-      "why": "Steer toward the same c6-d5 chain rather than learning a separate anti-English system."
+      "why": "Steer toward the same c6-d5 chain rather than learning a separate anti-English system.",
+      "$roleNote": "The decision is 1...c6. After it we are in Slav structures the curated branches already cover, so depth here buys the same positions twice.",
+      "role": "signpost"
     },
     {
       "id": "reti",
       "name": "1.Nf3 — into Slav structures",
       "color": "b",
       "line": "Nf3 d5",
-      "why": "Same idea: take the centre and transpose into what we already know."
+      "why": "Same idea: take the centre and transpose into what we already know.",
+      "$roleNote": "The decision is 1...d5. Same reasoning as the English — 48 decisions at full depth for a transposition we already know.",
+      "role": "signpost"
     }
   ]
 }

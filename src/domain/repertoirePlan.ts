@@ -30,6 +30,21 @@ export interface PlanEntry {
   line: string
   /** Why this branch is in the repertoire. Emitted as the PGN's opening comment. */
   why?: string
+  /**
+   * What the branch is *for*, which is what decides how deep it runs.
+   *
+   * `curated` (the default) is a line you are actually learning and gets the
+   * full floor. `sweeper` covers the replies no curated branch owns, so you are
+   * not surprised, and stops two plies earlier. `signpost` says "answer this
+   * and transpose" and stops four earlier — its decision is the first move.
+   *
+   * The depths live in `scripts/repertoire/build.mjs` (`ROLE_DEPTH_OFFSET`),
+   * because they are a property of a crawl rather than of the plan. Demoting a
+   * branch is the first thing to reach for when the repertoire grows past what
+   * one person can hold: at uniform depth the sweepers and signposts carried
+   * 58% of the memorisation load.
+   */
+  role?: 'curated' | 'sweeper' | 'signpost'
   /** Per-entry crawl overrides; everything else comes from the run's defaults. */
   maxPly?: number
   minPly?: number

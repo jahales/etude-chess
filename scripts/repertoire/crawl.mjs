@@ -43,8 +43,21 @@ import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
 
 export const DEFAULTS = {
-  minPly: 6,
-  maxPly: 10,
+  /**
+   * Earliest ply a line may stop at. A line stops the moment it is *allowed*
+   * to — almost every opening position is quiet by move 4 — so this, not
+   * `maxPly`, is what decides how deep the output actually runs. At 6 the first
+   * built repertoire bottomed out at move 5 across all 25 branches.
+   */
+  minPly: 10,
+  /**
+   * Depth cap. Must stay **above** `minPly`: the cap is checked before the
+   * quiet test, so a cap at the floor means no position is ever assessed for
+   * quietness and every line ends on `depth-cap`. That configuration shipped
+   * once — raising `minPly` without raising this — and produced a tree with
+   * zero trainable positions while every test passed.
+   */
+  maxPly: 14,
   deepNodes: 400_000,
   /**
    * The shallow search of constitution §6's filter, as a fraction of the deep
@@ -127,6 +140,21 @@ async function evalAfter(engine, fen, uci, o) {
 export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
   const { engine, explorer, canon = null, ourColor, forcedLine = [] } = o
+
+  // The cap is checked before the quiet test, so a floor at or above it makes
+  // the quiet test unreachable: every line ends on the cap and the tree has no
+  // trainable position in it, reported as a successful crawl.
+  //
+  // Only guarded when the cap was left to the default, which is the shape the
+  // mistake actually takes — raising the floor and not noticing the cap it now
+  // meets. A caller that sets both has said what it wants; the tests use
+  // `minPly: 99, maxPly: 6` to mean "never stop early", and that is legitimate.
+  if (config.maxPly === undefined && o.minPly >= o.maxPly) {
+    throw new Error(
+      `minPly (${o.minPly}) is at or above the default maxPly (${o.maxPly}) — ` +
+        `no line could end quiet. Raise maxPly too, or pass it explicitly.`,
+    )
+  }
 
   /**
    * `SAN line → branch id` for subtrees another manifest entry owns. Empty for a

@@ -1,6 +1,6 @@
 [Event "Repertoire — Black: Caro-Kann — White's 2nd move"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -16,16 +16,18 @@
 {Everything except 2.d4: the two-knights, 2.c4, 2.Nf3 and the pass moves. Mostly transpositions back into the main structures.}
 1. e4 c6 2. Nf3 { [%eval 0.30] }
 (2. d4 { [%eval 0.39] · covered in the "caro-2d4" line})
-(2. Bc4 { [%eval -0.37] } 2... d5 {beyond master theory — chosen from club play} 3. exd5 { [%eval -0.44] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-(2. Nc3 { [%eval 0.24] } 2... d5 3. exd5 { [%eval -0.09] } (3. Nf3 { [%eval 0.36] } 3... Bg4 {quiet: 5 playable moves — judgment from here}) (3. d4 { [%eval 0.24] } 3... dxe4 4. Nxe4 { [%eval 0.25] · quiet: 5 playable moves — judgment from here} (4. f3 { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play · depth cap}) (4. Bc4 { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51 · quiet: 3 playable moves — judgment from here})) 3... cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. Bc4?! { [%eval -0.37] } 2... d5 {beyond master theory — chosen from club play} 3. exd5 { [%eval -0.44] } cxd5 {beyond master theory — chosen from club play} 4. Bb3 { [%eval -0.40] } (4. Bb5+ { [%eval -0.38] } 4... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. Nc3 { [%eval 0.24] } 2... d5 3. exd5 { [%eval -0.09] } (3. Nf3 { [%eval 0.36] } 3... Bg4 4. exd5 { [%eval -0.06] } (4. h3 { [%eval 0.25] } 4... Bxf3 5. Qxf3 { [%eval 0.36] · quiet: 4 playable moves — judgment from here}) (4. Be2 { [%eval 0.33] } 4... e6 {quiet: 5 playable moves — judgment from here}) 4... cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. d4 { [%eval 0.24] } 3... dxe4 4. Nxe4 { [%eval 0.25] } (4. f3?! { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play} 5. Nxf3 { [%eval -0.55] · quiet: 4 playable moves — judgment from here}) (4. Bc4?! { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51} 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Bf5 5. Ng3 { [%eval 0.44] } (5. Ng5?! { [%eval -0.23] · trap · 19% play this · they score 49% where 48% is deserved · n=116 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label · quiet: 4 playable moves — judgment from here}) (5. Bd3?! { [%eval -0.35] · quiet: 3 playable moves — judgment from here}) 5... Bg6 {depth cap}) 3... cxd5 {beyond master theory — chosen from club play} 4. d4 { [%eval -0.11] } (4. Nf3 { [%eval -0.14] } 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
 2... d5 3. exd5 { [%eval 0.25] }
-(3. e5 { [%eval 0.43] } 3... Bg4 {quiet: 4 playable moves — judgment from here})
-(3. Nc3 { [%eval 0.36] } 3... Bg4 {quiet: 5 playable moves — judgment from here})
-3... cxd5 {quiet: 5 playable moves — judgment from here} *
+(3. e5 { [%eval 0.43] } 3... Bg4 4. d4 { [%eval 0.28] } (4. Be2 { [%eval 0.39] } 4... e6 {quiet: 4 playable moves — judgment from here}) 4... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(3. Nc3 { [%eval 0.36] } 3... Bg4 4. exd5 { [%eval -0.06] } (4. h3 { [%eval 0.25] } 4... Bxf3 5. Qxf3 { [%eval 0.36] · quiet: 4 playable moves — judgment from here}) (4. Be2 { [%eval 0.33] } 4... e6 {quiet: 5 playable moves — judgment from here}) 4... cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+3... cxd5 4. d4 { [%eval 0.30] }
+(4. Bb5+ { [%eval 0.12] } 4... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+4... Nc6 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Caro-Kann — 2.d4 d5, White's 3rd move"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -36,20 +38,23 @@
 [EngineNodes "120000"]
 [EngineThreads "1"]
 [Reproducible "yes"]
-[MinDepth "10"]
+[MinDepth "9"]
 
 {The junction of the whole defence. White must now commit: push, take, or defend e4. The three main answers each get their own branch; this covers the rest (3.Nd2, 3.f3, 3.Be3).}
 1. e4 c6 2. d4 d5 3. f3 { [%eval 0.36] }
 (3. e5 { [%eval 0.35] · covered in the "caro-advance" line})
 (3. exd5 { [%eval 0.27] · covered in the "caro-exchange" line})
 (3. Nc3 { [%eval 0.21] · covered in the "caro-classical" line})
-(3. Nd2 { [%eval 0.27] } 3... dxe4 4. Nxe4 { [%eval 0.25] · quiet: 5 playable moves — judgment from here})
+(3. Nd2 { [%eval 0.27] } 3... dxe4 4. Nxe4 { [%eval 0.25] } Bf5 5. Ng3 { [%eval 0.44] } (5. Ng5?! { [%eval -0.23] · trap · 19% play this · they score 49% where 48% is deserved · n=116 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label} 5... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (5. Bd3?! { [%eval -0.35] } 5... Bxe4 {beyond master theory — chosen from club play · out of book (0 games)}) (5. Nc3?! { [%eval 0.06] } 5... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (5. f3?! { [%eval -0.13] · out of book (0 games)}) 5... Bg6 {quiet: 5 playable moves — judgment from here})
 3... dxe4 {beyond master theory — chosen from club play} 4. fxe4
-{ [%eval 0.29] · quiet: 4 playable moves — judgment from here} *
+{ [%eval 0.29] } e5 {beyond master theory — chosen from club play} 5. Nf3
+{ [%eval 0.32] } exd4
+{beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here}
+*
 
 [Event "Repertoire — Black: Caro-Kann Classical — 3.Nc3 dxe4"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -64,16 +69,16 @@
 
 {The Classical, heading for ...Bf5 — the problem bishop gets outside the pawn chain before ...e6 shuts it in. Learning THIS rather than 4...Nd7 also sidesteps 5.Qe2 Ngf6?? 6.Nd6#, which is the one Caro-Kann trap everyone falls for once.}
 1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 { [%eval 0.25] }
-(4. f3 { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play} 5. Nxf3 { [%eval -0.55] · quiet: 4 playable moves — judgment from here})
-(4. Bc4 { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51} 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. f3?! { [%eval -0.58] · trap · 8% play this · they score 50% where 45% is deserved · n=113} 4... exf3 {beyond master theory — chosen from club play} 5. Nxf3 { [%eval -0.55] } Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. Bc4?! { [%eval -0.66] · trap · 4% play this · they score 69% where 44% is deserved · n=51} 4... Nf6 {beyond master theory — chosen from club play} 5. f3 { [%eval -0.67] } exf3 {beyond master theory — chosen from club play} 6. Nxf3 { [%eval -0.41] · quiet: 3 playable moves — judgment from here})
 4... Bf5 5. Ng3 { [%eval 0.44] }
-(5. Ng5 { [%eval -0.23] · trap · 19% play this · they score 49% where 48% is deserved · n=116 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label · quiet: 4 playable moves — judgment from here})
-(5. Bd3?! { [%eval -0.35] · quiet: 3 playable moves — judgment from here})
+(5. Ng5?! { [%eval -0.23] · trap · 19% play this · they score 49% where 48% is deserved · n=116 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label} 5... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. Bd3?! { [%eval -0.35] } 5... Bxe4 {beyond master theory — chosen from club play · out of book (0 games)})
 5... Bg6 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Caro-Kann Advance — 3.e5 Bf5"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -84,20 +89,27 @@
 [EngineNodes "120000"]
 [EngineThreads "1"]
 [Reproducible "yes"]
-[MinDepth "10"]
+[MinDepth "9"]
 
 {A French structure with the good bishop already outside — the entire point of playing 1...c6 rather than 1...e6.}
 1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 { [%eval 0.38] }
-(4. Bd3 { [%eval 0.20] } 4... Bxd3 {beyond master theory — chosen from club play} 5. Qxd3 { [%eval 0.19] · quiet: 5 playable moves — judgment from here})
-(4. h4 { [%eval 0.31] } 4... h5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-(4. f4 { [%eval -0.30] · trap · 9% play this · they score 52% where 47% is deserved · n=180 · WARNING: punishment unconfirmed (only 53% after our reply) — play it out, don't trust the label} 4... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-(4. c3 { [%eval 0.24] } 4... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-(4. g4 { [%eval 0.05] } 4... Bg6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-4... e6 {quiet: 5 playable moves — judgment from here} *
+(4. Bd3 { [%eval 0.20] } 4... Bxd3 {beyond master theory — chosen from club play} 5. Qxd3 { [%eval 0.19] } e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. h4 { [%eval 0.31] } 4... h5 {beyond master theory — chosen from club play} 5. Bd3 { [%eval 0.27] } Bxd3 {beyond master theory — chosen from club play} 6. Qxd3 { [%eval 0.31] · quiet: 3 playable moves — judgment from here})
+(4. f4?! { [%eval -0.30] · trap · 9% play this · they score 52% where 47% is deserved · n=180 · WARNING: punishment unconfirmed (only 53% after our reply) — play it out, don't trust the label} 4... e6 {beyond master theory — chosen from club play} 5. Nf3 { [%eval -0.32] } (5. Bd3 { [%eval -0.57] } 5... Bxd3 {beyond master theory — chosen from club play} 6. Qxd3 { [%eval -0.20] · quiet: 5 playable moves — judgment from here}) 5... c5 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here})
+(4. c3 { [%eval 0.24] } 4... e6 {beyond master theory — chosen from club play} 5. Nf3 { [%eval 0.32] } (5. Bd3 { [%eval 0.21] } 5... Bxd3 {beyond master theory — chosen from club play} 6. Qxd3 { [%eval 0.17] · quiet: 5 playable moves — judgment from here}) 5... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. g4 { [%eval 0.05] } 4... Bg6 {beyond master theory — chosen from club play} 5. h4 { [%eval 0.23] } h5 {beyond master theory — chosen from club play · out of book (0 games)})
+4... e6 5. Bd3 { [%eval 0.28] }
+(5. Nc3 { [%eval 0.24] } 5... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. c3 { [%eval 0.33] } 5... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. c4 { [%eval 0.24] } 5... Bb4+ {beyond master theory — chosen from club play · quiet: 3 playable moves — judgment from here})
+(5. h3 { [%eval 0.08] } 5... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. Be2 { [%eval 0.47] } 5... Nd7 {quiet: 5 playable moves — judgment from here})
+5... Bxd3 {beyond master theory — chosen from club play} 6. Qxd3
+{ [%eval 0.16] · quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Caro-Kann Exchange and Panov — 3.exd5 cxd5"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -112,14 +124,20 @@
 
 {White chooses between the quiet Exchange (4.Bd3) and the Panov (4.c4), which hands us an IQP position — the same structure the Queen's Gambit gives us from the other side.}
 1. e4 c6 2. d4 d5 3. exd5 cxd5 4. Nf3 { [%eval 0.32] }
-(4. Nc3 { [%eval -0.02] } 4... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-(4. Bd3 { [%eval 0.31] } 4... Nc6 {quiet: 4 playable moves — judgment from here})
-(4. c4 { [%eval 0.31] } 4... Nf6 {quiet: 5 playable moves — judgment from here})
-4... Nc6 {quiet: 5 playable moves — judgment from here} *
+(4. Nc3 { [%eval -0.02] } 4... Nc6 {beyond master theory — chosen from club play} 5. Nf3 { [%eval -0.01] } (5. Bb5 { [%eval -0.14] } 5... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (5. Be3 { [%eval -0.22] } 5... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 5... Bg4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(4. Bd3 { [%eval 0.31] } 4... Nc6 5. c3 { [%eval 0.28] } (5. Nf3?! { [%eval -0.25] } 5... Bg4 {quiet: 5 playable moves — judgment from here}) 5... Nf6 {quiet: 5 playable moves — judgment from here})
+(4. c4 { [%eval 0.31] } 4... Nf6 5. Nc3 { [%eval 0.31] } (5. Nf3 { [%eval 0.23] } 5... Nc6 {quiet: 5 playable moves — judgment from here}) (5. cxd5 { [%eval 0.27] } 5... Nxd5 {quiet: 5 playable moves — judgment from here}) 5... e6 {quiet: 5 playable moves — judgment from here})
+4... Nc6 5. Bb5 { [%eval 0.14] }
+(5. Nc3 { [%eval -0.01] } 5... Bg4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. Bd3?! { [%eval -0.25] · trap · 15% play this · they score 58% where 48% is deserved · n=172 · WARNING: punishment unconfirmed (only 49% after our reply) — play it out, don't trust the label} 5... Bg4 {quiet: 5 playable moves — judgment from here})
+(5. c3 { [%eval 0.22] } 5... Bg4 {quiet: 4 playable moves — judgment from here})
+(5. c4 { [%eval 0.40] } 5... Bg4 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here})
+(5. Be2 { [%eval 0.13] } 5... Bg4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+5... Bg4 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: 1.d4 d5 — White's 2nd move"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -135,19 +153,18 @@
 {The London, Jobava and Colle setups, which appear constantly at this band and are played almost regardless of what we do. Plans, not theory.}
 1. d4 d5 2. Bf4 { [%eval 0.21] }
 (2. c4 { [%eval 0.35] · covered in the "slav" line})
-(2. Nf3 { [%eval 0.22] } 2... Nf6 3. e3 { [%eval 0.11] } (3. Bf4 { [%eval 0.20] } 3... c5 {quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.32] } 3... c6 {quiet: 5 playable moves — judgment from here}) (3. Bg5 { [%eval -0.21] } 3... e6 {quiet: 5 playable moves — judgment from here}) (3. g3 { [%eval 0.15] } 3... e6 {quiet: 5 playable moves — judgment from here}) 3... c5 {quiet: 5 playable moves — judgment from here})
-(2. e3 { [%eval 0.18] } 2... Nf6 {beyond master theory — chosen from club play} 3. Nf3 { [%eval 0.16] } (3. Bd3 { [%eval -0.32] } 3... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.10] } 3... dxc4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. f4 { [%eval -0.54] · trap · 8% play this · they score 50% where 45% is deserved · n=114 · WARNING: punishment unconfirmed (only 55% after our reply) — play it out, don't trust the label} 3... e6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. Nc3 { [%eval -0.26] } 3... Bf5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... c5 {quiet: 5 playable moves — judgment from here})
-(2. Nc3 { [%eval -0.01] } 2... Nf6 3. Bf4 { [%eval -0.02] } (3. Bg5 { [%eval -0.16] } 3... Bf5 {quiet: 5 playable moves — judgment from here}) (3. Nf3 { [%eval -0.22] } 3... e6 {quiet: 5 playable moves — judgment from here}) (3. e4 { [%eval -0.70] · trap · 10% play this · they score 51% where 44% is deserved · n=158} 3... dxe4 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... e6 {quiet: 5 playable moves — judgment from here})
-(2. e4 { [%eval -0.68] · trap · 4% play this · they score 55% where 44% is deserved · n=1288} 2... dxe4 3. Nc3 { [%eval -0.71] } (3. f3 { [%eval -0.80] } 3... exf3 {beyond master theory — chosen from club play} 4. Nxf3 { [%eval -0.71] · quiet: 5 playable moves — judgment from here} (4. Qxf3 { [%eval -1.41] · quiet: 5 playable moves — judgment from here})) 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(2. Nf3 { [%eval 0.22] } 2... Nf6 3. e3 { [%eval 0.11] } (3. Bf4 { [%eval 0.20] } 3... c5 4. e3 { [%eval 0.13] } (4. c3 { [%eval 0.08] } 4... Nc6 {quiet: 5 playable moves — judgment from here}) 4... Nc6 {quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.32] } 3... c6 4. Nc3 { [%eval 0.31] } (4. g3 { [%eval 0.30] } 4... Bf5 {quiet: 5 playable moves — judgment from here}) (4. e3 { [%eval 0.38] } 4... e6 {quiet: 5 playable moves — judgment from here}) (4. Bg5?! { [%eval -0.39] } 4... Bf5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... e6 {quiet: 5 playable moves — judgment from here}) (3. Bg5 { [%eval -0.21] } 3... e6 4. e3 { [%eval 0.21] } (4. Nbd2 { [%eval 0.25] } 4... Be7 {quiet: 5 playable moves — judgment from here}) 4... Be7 {quiet: 5 playable moves — judgment from here}) (3. g3 { [%eval 0.15] } 3... e6 4. Bg2 { [%eval 0.35] } Be7 {quiet: 5 playable moves — judgment from here}) 3... c5 4. c3 { [%eval 0.01] } (4. b3 { [%eval -0.30] } 4... Nc6 {quiet: 5 playable moves — judgment from here}) 4... e6 {quiet: 5 playable moves — judgment from here})
+(2. e3 { [%eval 0.18] } 2... Nf6 {beyond master theory — chosen from club play} 3. Nf3 { [%eval 0.16] } (3. Bd3 { [%eval -0.32] } 3... e6 {beyond master theory — chosen from club play} 4. Nd2 { [%eval 0.13] } (4. f4 { [%eval -0.33] } 4... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4. Nf3 { [%eval 0.20] } 4... c5 {quiet: 5 playable moves — judgment from here}) 4... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. c4 { [%eval 0.10] } 3... dxc4 {beyond master theory — chosen from club play} 4. Bxc4 { [%eval 0.32] } e6 {quiet: 5 playable moves — judgment from here}) (3. f4?! { [%eval -0.54] · trap · 8% play this · they score 50% where 45% is deserved · n=114 · WARNING: punishment unconfirmed (only 55% after our reply) — play it out, don't trust the label} 3... e6 {beyond master theory — chosen from club play} 4. Nf3 { [%eval -0.29] } (4. Bd3 { [%eval -0.30] } 4... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. Nc3 { [%eval -0.26] } 3... Bf5 {beyond master theory — chosen from club play}) 3... c5 4. c3 { [%eval 0.01] } (4. b3 { [%eval -0.30] } 4... Nc6 {quiet: 5 playable moves — judgment from here}) 4... e6 {quiet: 5 playable moves — judgment from here})
+(2. Nc3 { [%eval -0.01] } 2... Nf6 3. Bf4 { [%eval -0.02] } (3. Bg5 { [%eval -0.16] } 3... Bf5) (3. Nf3 { [%eval -0.22] } 3... e6 4. Bg5 { [%eval -0.22] } (4. Bf4 { [%eval -0.36] } 4... Bd6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4. e3 { [%eval -0.11] } 4... c5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Be7 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (3. e4?! { [%eval -0.70] · trap · 10% play this · they score 51% where 44% is deserved · n=158} 3... dxe4 {beyond master theory — chosen from club play} 4. f3 { [%eval -0.70] } (4. Bg5 { [%eval -0.61] } 4... Bf5 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here}) 4... exf3 5. Nxf3 { [%eval -0.70] · quiet: 5 playable moves — judgment from here} (5. Qxf3?! { [%eval -1.40] · trap · 25% play this · they score 44% where 37% is deserved · n=99 · quiet: 5 playable moves — judgment from here})) 3... e6 4. e3 { [%eval -0.17] } (4. Nb5 { [%eval 0.09] } 4... Na6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (4. Nf3 { [%eval -0.36] } 4... Bd6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Bd6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. e4?! { [%eval -0.68] · trap · 4% play this · they score 55% where 44% is deserved · n=1288} 2... dxe4 3. Nc3 { [%eval -0.71] } (3. f3 { [%eval -0.80] } 3... exf3 {beyond master theory — chosen from club play} 4. Nxf3 { [%eval -0.71] } (4. Qxf3?! { [%eval -1.41] } 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 4... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 4. f3 { [%eval -0.70] } (4. Bg5 { [%eval -0.61] } 4... Bf5 {beyond master theory — chosen from club play · quiet: 4 playable moves — judgment from here}) 4... exf3 5. Nxf3 { [%eval -0.70] · quiet: 5 playable moves — judgment from here} (5. Qxf3?! { [%eval -1.40] · trap · 25% play this · they score 44% where 37% is deserved · n=99 · quiet: 5 playable moves — judgment from here}))
 2... Nf6 {beyond master theory — chosen from club play} 3. e3 { [%eval 0.14] }
-(3. Nf3 { [%eval 0.20] } 3... c5 {quiet: 5 playable moves — judgment from here})
-3... g6
-{beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}
-*
+(3. Nf3 { [%eval 0.20] } 3... c5 4. e3 { [%eval 0.13] } (4. c3 { [%eval 0.08] } 4... Nc6 {quiet: 5 playable moves — judgment from here}) 4... Nc6 {quiet: 5 playable moves — judgment from here})
+3... g6 {beyond master theory — chosen from club play} 4. Nf3 { [%eval 0.39] }
+Bg7 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Slav — White's 3rd move"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -158,19 +175,27 @@
 [EngineNodes "120000"]
 [EngineThreads "1"]
 [Reproducible "yes"]
-[MinDepth "10"]
+[MinDepth "9"]
 
 {The c6-d5 chain, the same one the Caro-Kann builds. One structural idea covers the entire Black repertoire.}
 1. d4 d5 2. c4 c6 3. Nc3 { [%eval 0.41] }
 (3. Nf3 { [%eval 0.32] · covered in the "slav-main" line})
 (3. cxd5 { [%eval 0.31] · covered in the "slav-exchange" line})
-(3. e3 { [%eval 0.33] } 3... Nf6 {quiet: 5 playable moves — judgment from here})
-(3. c5 { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-3... Nf6 {quiet: 5 playable moves — judgment from here} *
+(3. e3 { [%eval 0.33] } 3... Nf6 4. Nf3 { [%eval 0.29] } (4. Nc3 { [%eval 0.35] } 4... e6 5. Nf3 { [%eval 0.45] } Nbd7 {quiet: 5 playable moves — judgment from here}) (4. cxd5 { [%eval 0.12] } 4... cxd5 {beyond master theory — chosen from club play · out of book (0 games)}) 4... e6 5. Nc3 { [%eval 0.45] } Nbd7 {quiet: 5 playable moves — judgment from here})
+(3. c5?! { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · out of book (0 games)})
+3... Nf6 4. Nf3 { [%eval 0.39] }
+(4. Bg5?! { [%eval -0.36] · trap · 23% play this · they score 53% where 47% is deserved · n=299 · WARNING: punishment unconfirmed (only 54% after our reply) — play it out, don't trust the label} 4... dxc4 {out of book (0 games)})
+(4. e3 { [%eval 0.39] } 4... e6 5. Nf3 { [%eval 0.45] } Nbd7 {quiet: 5 playable moves — judgment from here})
+(4. cxd5 { [%eval 0.43] } 4... cxd5 5. Nf3 { [%eval 0.28] } (5. Bf4 { [%eval 0.32] } 5... Nc6 {quiet: 4 playable moves — judgment from here}) (5. Bg5 { [%eval -0.02] } 5... Ne4 {quiet: 5 playable moves — judgment from here}) (5. g3 { [%eval -0.24] } 5... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) (5. e3 { [%eval 0.13] } 5... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 5... Nc6 {quiet: 5 playable moves — judgment from here})
+(4. Bf4?! { [%eval -0.54] · trap · 10% play this · they score 52% where 45% is deserved · n=132 · WARNING: punishment unconfirmed (only 52% after our reply) — play it out, don't trust the label} 4... dxc4 {beyond master theory — chosen from club play · out of book (0 games)})
+4... e6 5. Bg5 { [%eval 0.30] }
+(5. e3 { [%eval 0.40] } 5... Nbd7 {quiet: 5 playable moves — judgment from here})
+(5. Bf4?! { [%eval -0.51] } 5... dxc4 {quiet: 5 playable moves — judgment from here})
+5... Be7 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Slav main line — 3.Nf3 Nf6"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -185,14 +210,17 @@
 
 {Where ...dxc4 followed by ...Bf5 becomes available: the resource that makes the Slav more than a passive defence.}
 1. d4 d5 2. c4 c6 3. Nf3 Nf6 4. Nc3 { [%eval 0.39] }
-(4. g3 { [%eval 0.30] } 4... Bf5 {quiet: 5 playable moves — judgment from here})
-(4. e3 { [%eval 0.38] } 4... e6 {quiet: 5 playable moves — judgment from here})
-(4. Bg5 { [%eval -0.44] } 4... Bf5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
-4... e6 {quiet: 5 playable moves — judgment from here} *
+(4. g3 { [%eval 0.30] } 4... Bf5 5. Bg2 { [%eval -0.04] } e6 {quiet: 5 playable moves — judgment from here})
+(4. e3 { [%eval 0.38] } 4... e6 5. Nc3 { [%eval 0.45] } Nbd7 {quiet: 5 playable moves — judgment from here})
+(4. Bg5?! { [%eval -0.44] } 4... Bf5 {beyond master theory — chosen from club play · out of book (0 games)})
+4... e6 5. Bg5 { [%eval 0.30] }
+(5. e3 { [%eval 0.40] } 5... Nbd7 {quiet: 5 playable moves — judgment from here})
+(5. Bf4?! { [%eval -0.51] } 5... dxc4 {quiet: 5 playable moves — judgment from here})
+5... Be7 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: Exchange Slav — 3.cxd5 cxd5"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -207,13 +235,17 @@
 
 {Appears constantly and is far less drawish than its reputation below master level. Symmetry is not equality; the half-open c-file is the whole game.}
 1. d4 d5 2. c4 c6 3. cxd5 cxd5 4. Nc3 { [%eval 0.32] }
-(4. Nf3 { [%eval 0.23] } 4... Nf6 {quiet: 5 playable moves — judgment from here})
-(4. Bf4 { [%eval 0.29] } 4... Nc6 {quiet: 4 playable moves — judgment from here})
-4... Nf6 {quiet: 5 playable moves — judgment from here} *
+(4. Nf3 { [%eval 0.23] } 4... Nf6 5. Nc3 { [%eval 0.29] } Nc6 {quiet: 5 playable moves — judgment from here})
+(4. Bf4 { [%eval 0.29] } 4... Nc6) 4... Nf6 5. Nf3 { [%eval 0.29] }
+(5. Bf4 { [%eval 0.36] } 5... Nc6 {quiet: 4 playable moves — judgment from here})
+(5. Bg5 { [%eval -0.11] } 5... Ne4 {quiet: 5 playable moves — judgment from here})
+(5. g3?! { [%eval -0.24] } 5... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(5. e3 { [%eval 0.13] } 5... Nc6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+5... Nc6 {quiet: 5 playable moves — judgment from here} *
 
 [Event "Repertoire — Black: 1.c4 — into Slav structures"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -228,8 +260,8 @@
 
 {Steer toward the same c6-d5 chain rather than learning a separate anti-English system.}
 1. c4 c6 2. Nc3 { [%eval 0.34] }
-(2. d4 { [%eval 0.35] } 2... d5 3. Nc3 { [%eval 0.41] } (3. Nf3 { [%eval 0.32] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. cxd5 { [%eval 0.31] } 3... cxd5 {quiet: 5 playable moves — judgment from here}) (3. e3 { [%eval 0.33] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. c5 { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {quiet: 5 playable moves — judgment from here})
-(2. g3 { [%eval 0.21] } 2... d5 3. cxd5 { [%eval -0.28] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
+(2. d4 { [%eval 0.35] } 2... d5 3. Nc3 { [%eval 0.41] } (3. Nf3 { [%eval 0.32] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. cxd5 { [%eval 0.31] } 3... cxd5 {quiet: 5 playable moves — judgment from here}) (3. e3 { [%eval 0.33] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) (3. c5?! { [%eval -0.62] · trap · 2% play this · they score 59% where 44% is deserved · n=71} 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {quiet: 5 playable moves — judgment from here})
+(2. g3 { [%eval 0.21] } 2... d5 3. cxd5?! { [%eval -0.28] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
 (2. e3 { [%eval 0.20] } 2... d5 {beyond master theory — chosen from club play} 3. cxd5 { [%eval 0.09] } cxd5 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here})
 2... d5 3. cxd5 { [%eval 0.27] }
 (3. d4 { [%eval 0.41] } 3... Nf6 {quiet: 5 playable moves — judgment from here})
@@ -238,7 +270,7 @@
 
 [Event "Repertoire — Black: 1.Nf3 — into Slav structures"]
 [Site "etude-chess repertoire generator"]
-[Date "2026.08.06"]
+[Date "2026.08.07"]
 [White "Opponent"]
 [Black "Repertoire"]
 [Result "*"]
@@ -255,7 +287,7 @@
 2. d4 { [%eval 0.25] }
 (2. g3 { [%eval 0.25] } 2... Nf6 3. Bg2 { [%eval 0.28] } e6 {quiet: 5 playable moves — judgment from here})
 (2. c4 { [%eval -0.03] } 2... c6 3. e3 { [%eval 0.43] } (3. cxd5 { [%eval 0.26] } 3... cxd5 {quiet: 5 playable moves — judgment from here}) (3. d4 { [%eval 0.39] } 3... Nf6 {quiet: 5 playable moves — judgment from here}) 3... Nf6 {quiet: 5 playable moves — judgment from here})
-(2. e4?! { [%eval -1.23] · trap · 12% play this · they score 53% where 39% is deserved · n=352} 2... dxe4 {beyond master theory — chosen from club play} 3. Ng5 { [%eval -1.06] } (3. Ne5 { [%eval -1.21] } 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {beyond master theory — chosen from club play} 4. d3 { [%eval -1.59] · trap · 47% play this · they score 52% where 36% is deserved · n=217 · quiet: 3 playable moves — judgment from here} (4. Nc3 { [%eval -1.16] · trap · 35% play this · they score 47% where 40% is deserved · n=160 · quiet: 4 playable moves — judgment from here}) (4. Bc4 { [%eval -0.34] } 4... e6 {beyond master theory — chosen from club play · depth cap}))
+(2. e4?! { [%eval -1.23] · trap · 12% play this · they score 53% where 39% is deserved · n=352} 2... dxe4 {beyond master theory — chosen from club play} 3. Ng5 { [%eval -1.06] } (3. Ne5 { [%eval -1.21] } 3... Nf6 {beyond master theory — chosen from club play · quiet: 5 playable moves — judgment from here}) 3... Nf6 {beyond master theory — chosen from club play} 4. d3?! { [%eval -1.59] · trap · 47% play this · they score 52% where 36% is deserved · n=217 · quiet: 3 playable moves — judgment from here} (4. Nc3?! { [%eval -1.16] · trap · 35% play this · they score 47% where 40% is deserved · n=160 · quiet: 4 playable moves — judgment from here}) (4. Bc4 { [%eval -0.34] } 4... e6 {beyond master theory — chosen from club play}))
 (2. e3 { [%eval 0.26] } 2... Nc6 {beyond master theory — chosen from club play} 3. d4 { [%eval 0.47] } Bg4 {quiet: 5 playable moves — judgment from here})
 2... Nf6 3. e3 { [%eval 0.11] }
 (3. Bf4 { [%eval 0.21] } 3... c5 {quiet: 5 playable moves — judgment from here})

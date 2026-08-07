@@ -266,15 +266,30 @@ would make this a memorisation deck with extra steps (constitution §1).
 
 `why` becomes the comment before the first move, so a drill says what it is drilling.
 
-**Depth is per-branch.** Every branch crawls the same *distance* past its prefix, not to the
-same *ply*: `maxPly = prefix + 6`, and `minPly = prefix + 2`. Both matter. A flat depth cap
+**Depth is set by a floor and a per-branch minimum.** `minPly = max(10, prefix + 4)` and
+`maxPly = max(minPly + 2, prefix + 8)`. The floor is the one that decides how deep the output
+actually runs — a line stops the moment it is *allowed* to, since almost every opening position
+is quiet by move 4, so `maxPly` is rarely reached. Raise or lower it for a whole run with
+`--min-ply`. Both parts matter. A flat depth cap
 leaves a branch starting at ply 6 two moves to find a quiet position while handing a
 "don't be surprised by 1...c5" sweeper a nine-ply tree. And a flat *floor* is worse: the
 Caro-Kann Advance opens `1.e4 c6 2.d4 d5 3.e5 Bf5`, which is already quiet at ply 6 — so the
 branch terminated on its own root and was one node with no content. The prefix is scaffolding to
 reach the position worth studying; it cannot also be the study. Override either per entry.
 
-Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`.
+**`role` decides depth**, and is the knob to reach for when the repertoire gets too big to hold:
+`curated` (the default, the base floor), `sweeper` (two plies shallower), `signpost` (four).
+Demote a branch rather than shortening a curated line — see `ROLE_DEPTH_OFFSET` in
+[build.mjs](build.mjs) for the measured reason.
+
+They are **offsets**, so `--min-ply` raises all three together rather than flattening them onto
+one number, and the ordering cannot invert when the base moves. A role never makes a branch
+shallower than four plies past its own prefix, so demoting a branch with a deep curated prefix
+buys nothing. An unrecognised role is an error `--check` catches, not a silent fall back to
+full depth.
+
+Other per-entry overrides: `trapThreshold`, `maxEvalPerNode`, `massTarget`, `maxOpponentMoves`,
+and `minPly`/`maxPly` where a specific line needs an exact depth.
 `massTarget` earns its keep on a sweeper whose popular replies all belong to other branches —
 after `1.e4 c6 2.d4 d5`, White's 3.Nc3, 3.e5 and 3.exd5 are *exactly* 85% of the node, so the
 default target is met before a single move that branch owns is reached and it covers nothing.

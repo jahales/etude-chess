@@ -20,11 +20,24 @@ position is the item**. The moves leading to it are scaffolding to get you out o
 with a position you can think in. This is what keeps openings inside constitution §1 (train
 judgment, not memory of lines); see [decisions/0021](decisions/0021-opening-repertoire-generator.md).
 
-Depth is therefore **variable**, and measured from each branch's own starting point rather than
-from move one: a branch crawls two plies before it may stop and six before it must. Lines end as
-soon as they go quiet, so sharp lines run longer because they have to. A flat depth would be
-wrong in both directions — it truncates a branch that starts deep before it can find a quiet
-position, and it pads a "don't be surprised by 1...c5" sweeper with moves that carry no decision.
+Depth is therefore **variable**, and set by what a branch is *for*. A **curated** line — one you
+are actually learning — runs to at least ply 10, five moves each. A **sweeper**, which exists so
+you are not surprised by a reply no curated branch owns, stops at 8. A **signpost** such as the
+answer to 1.c4 stops at 6, because its decision *is* the first move and everything after it is a
+structure the curated branches already teach. On top of that, every branch crawls at least four
+plies past its own prefix, and the cap is eight.
+
+Measured: one number for everything cost 467 decisions to memorise; roles took that to 336 while
+the count of trainable quiet positions fell by three.
+
+The floor is what actually decides depth, and it is worth knowing why: a line stops the moment
+it is *allowed* to, because almost every opening position passes the quiet test by move 4. With
+a floor of six, all 25 branches ended around move 3 — which is not preparation. Lines still end
+as soon as they go quiet past the floor, so sharp lines run longer because they have to.
+
+A flat depth would be wrong in both directions: it truncates a branch that starts deep before it
+can find a quiet position, and it pads a "don't be surprised by 1...c5" sweeper with moves that
+carry no decision. See ADR [0022](decisions/0022-repertoire-branch-ownership.md), amended.
 
 ## White — 1.d4, Queen's Gambit spine
 

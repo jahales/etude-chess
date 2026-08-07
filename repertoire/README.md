@@ -43,19 +43,33 @@ at quiet positions instead of teaching lines: ADR
 
 ## v1 — 2026-08-06
 
-**25 branches · 361 positions · 132 decisions of yours, answering 213 of theirs · 136 quiet
-positions to train.**
+**25 branches · 796 positions · 336 decisions of yours, answering 465 of theirs · 190 quiet
+positions to train.** Curated lines run to move 5–6 for both sides.
 
-`ourDecisions` — 132 — is the honest price: positions where you must know which move you play.
-Everything else is coverage bought with it. This is the number
-[repertoire-v1.md](../docs/repertoire-v1.md) promised rather than guessed when it cut the
-London; if it ever climbs past what one person can hold, cut branches from the manifest rather
-than crawling shallower, because a shallower crawl buys the same repertoire with the trainable
-positions chopped off.
+### Depth follows what a branch is for
+
+Not one number for everything. The first deep build cost **467 decisions**, and the bill made
+the problem obvious: the sweepers and signposts carried 58% of it while every curated line in
+the repertoire came to about a hundred between them.
+
+| role | stops at | branches |
+|---|---|---|
+| `curated` | ply 10 | every line you are actually learning |
+| `sweeper` | ply 8 | `d4-sidelines`, `d4-black`, `caro` — so you are not surprised |
+| `signpost` | ply 6 | `english`, `reti` — the decision *is* the first move |
+
+That took 467 decisions down to **336 while losing three trainable positions** — 193 quiet
+targets became 190. The memorisation fell 28%; the material worth drilling did not move. A
+signpost pays for itself the moment you answer 1.c4 with 1...c6, because everything after it is
+a Slav structure the curated branches already teach.
+
+`ourDecisions` is still the number to read first. If 336 is more than you can hold, the next cut
+is the same shape: demote a branch's role, do not shorten a curated line.
 
 | | |
 |---|---|
-| Deviations to prepare | **18** ranked traps, **3** of which we cannot actually punish (marked in the PGN) |
+| Deviations to prepare | **25** ranked traps, **8** of which we cannot actually punish (marked in the PGN) |
+| Move glyphs | 54 across the repertoire — `?!` from 5 win% given up, `?` from 15, `??` from 25, anchored to grade.ts's tiers |
 | Their moves | Lichess 2026-06, 300k games, both players 1500–1900 blitz/rapid |
 | Our moves | Lumbra's Gigabase OTB, 800k games at 2200–2900 |
 | Engine | Stockfish, 120,000 nodes, **Threads=1** — anything else is not reproducible |
@@ -64,14 +78,14 @@ positions chopped off.
 ### What it does not cover, stated rather than discovered across the board
 
 - **1.e4 as White.** Deliberate: one first move at a time. The planned expansion.
-- **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch. Rare enough at
-  this band that the answer is "develop normally and transpose", which a 300k-game crawl has
-  little to say about.
-- **77 lines that look like traps but have under 50 games.** Listed in `summary.json` under
+- **Irregular White first moves** — 1.b3, 1.f4, 1.g3, 1.Nc3 have no Black branch.
+- **30 lines ran out of book** before going quiet, down from 64 at uniform depth — shallowing
+  the sweepers removed most of them, which is what you would expect if the depth was reaching
+  past what the book supports. They are marked `out of book (N games)` in the PGN. Treat a line
+  that ends that way as **unfinished**, not as a quiet position worth training.
+- **Lines that look like traps but have too few games to judge.** Listed in `summary.json` under
   `tooRareToJudge` rather than dropped — a rare line may be the vicious one, we just cannot yet
-  tell it from a coin flip. A bigger book is the answer, not a lower floor.
-- **One line ran out of book** before going quiet, and one node hit the evaluation cap. Both are
-  in `summary.json`. That is the book being thin, not the position being unplayable.
+  tell it from a coin flip.
 
 ### Two settings that are not the defaults, and why
 
