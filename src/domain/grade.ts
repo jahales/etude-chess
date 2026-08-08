@@ -1,5 +1,9 @@
 import type { Score, Tier } from './types'
-import { winPercent } from './winPercent'
+// Extension deliberate, and load-bearing — do not "tidy" it away. The offline
+// scripts import this module through Node's type stripping, which resolves
+// relative specifiers as plain ESM and so requires one. tsconfig has
+// `allowImportingTsExtensions`, and Vite resolves it unchanged.
+import { winPercent } from './winPercent.ts'
 
 // Tier boundaries in win-percentage points. Tuned so an engine-equal alternative
 // earns full credit (Tier A) — the pillar that separates us from "match the

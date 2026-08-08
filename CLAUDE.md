@@ -61,6 +61,9 @@ Key rules: keep the domain pure; keep the engine behind the `Analyser` port; gra
 ### Commands
 - `npm run dev` (port 5173) · `npm run verify` (typecheck→lint→test) · `npm run build` ·
   `npm run test:e2e` (Playwright).
+- `npm run review -- --me <chess.com user> --last` — engine-review a finished game of the
+  owner's (win% swing per move, phase-vs-clock split, chances the opponent gave). Accepts a
+  game URL/id or `--pgn <file>`.
 
 ## Workflow (see [docs/dev-workflow.md](docs/dev-workflow.md), [RELEASING.md](RELEASING.md))
 - **Trunk-based**: `main` stays green; short-lived `feat/…`·`fix/…`·`chore/…`·`docs/…` branches, one per issue.
