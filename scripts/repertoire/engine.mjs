@@ -12,6 +12,7 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { parseBestMove, parseInfoLine } from '../../src/engine/uci.ts'
+import { parsePieceValues } from '../../src/engine/evalTable.ts'
 
 /** Where En Croissant installs Stockfish on Windows. */
 export const DEFAULT_ENGINE_PATH = `${process.env.APPDATA}\\org.encroissant.app\\engines\\stockfish\\stockfish-windows-x86-64-avx2.exe`
@@ -82,6 +83,10 @@ export function createEngine(opts = {}) {
     await until('uci', (l) => l === 'uciok')
     send(`setoption name Threads value ${threads}`)
     send(`setoption name Hash value ${hashMb}`)
+    // Display-only: it adds `wdl W D L` to the info lines and changes no search
+    // result. Worth having always on — in a decided position win/draw/loss says
+    // what a centipawn score cannot, and callers that ignore it pay nothing.
+    send('setoption name UCI_ShowWDL value true')
     await until('isready', (l) => l === 'readyok')
   })()
 
@@ -151,6 +156,28 @@ export function createEngine(opts = {}) {
           bestMove,
           depth: chosen ?? 0,
         }
+      })
+      chain = run.catch(() => {})
+      return run
+    },
+
+    /**
+     * What each piece is worth in this position, from Stockfish's `eval`.
+     *
+     * Not a search — it is the static evaluation, so it is nearly free, and it
+     * answers the question a score cannot: *which piece* changed. Empty for a
+     * position in check, where Stockfish declines to print the grid.
+     * @param {string} fen
+     * @returns {Promise<import('../../src/engine/evalTable.ts').PieceValue[]>}
+     */
+    pieceValues(fen) {
+      const run = chain.then(async () => {
+        send('ucinewgame')
+        await until('isready', (l) => l === 'readyok')
+        send(`position fen ${fen}`)
+        const out = []
+        await until('eval', (l) => l.startsWith('Final evaluation'), (l) => out.push(l))
+        return parsePieceValues(out.join('\n'))
       })
       chain = run.catch(() => {})
       return run

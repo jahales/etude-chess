@@ -26,12 +26,35 @@ export function parseBestMove(line: string): { move: string | null } | null {
   return { move: m[1] === '(none)' ? null : m[1]! }
 }
 
+/**
+ * Win/draw/loss expectancy in permille, from the side to move, as reported when
+ * `UCI_ShowWDL` is on. The three always sum to 1000.
+ *
+ * This answers a different question from the score, and in a decided position it
+ * is the better one: +4.9 and +4.3 are indistinguishable results, while
+ * `1000/0/0` and `600/400/0` are not the same position at all.
+ */
+export interface Wdl {
+  win: number
+  draw: number
+  loss: number
+}
+
+/** Parse `… wdl W D L …`. Null when the engine was not asked for it. */
+export function parseWdl(line: string): Wdl | null {
+  const m = line.match(/\bwdl (\d+) (\d+) (\d+)/)
+  if (!m) return null
+  return { win: parseInt(m[1]!, 10), draw: parseInt(m[2]!, 10), loss: parseInt(m[3]!, 10) }
+}
+
 export interface InfoLine {
   /** MultiPV rank (1 = best); 1 when the engine omits the field. */
   multipv: number
   score: Score
   /** Principal variation as UCI moves, e.g. ['e2e4','e7e5']. */
   pv: string[]
+  /** Present only when `UCI_ShowWDL` is on. */
+  wdl: Wdl | null
 }
 
 /**
@@ -46,5 +69,5 @@ export function parseInfoLine(line: string): InfoLine | null {
   if (!pvMatch) return null
   const pv = pvMatch[1]!.trim().split(/\s+/)
   const mpv = line.match(/\bmultipv (\d+)/)
-  return { multipv: mpv ? parseInt(mpv[1]!, 10) : 1, score, pv }
+  return { multipv: mpv ? parseInt(mpv[1]!, 10) : 1, score, pv, wdl: parseWdl(line) }
 }
