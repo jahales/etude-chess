@@ -67,7 +67,17 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
     [0022](decisions/0022-repertoire-branch-ownership.md)). **In the domain although only
     `scripts/repertoire/` uses them today** — they are pure rules, and `epic:opening` will want
     them. Deliberately **runtime-import-free** (`import type` only) so the `.mjs` scripts can
-    load them under Node's type stripping; they therefore speak win% and never centipawns.
+    load them under Node's type stripping; they therefore speak win% and never centipawns, and
+    `repertoirePgn.ts` re-declares grade.ts's tiers instead of importing them (its test pins the
+    two together so they cannot drift).
+  - `src/domain/gameReview.ts` — grading a *finished* game rather than a single guess: win%
+    swing per move for both sides, where the win% leaked by phase against the time spent there,
+    and which of the opponent's mistakes went unpunished. Behind `npm run review`.
+    It solves the type-stripping constraint the other way round — an explicit
+    **`./grade.ts` extension** — which makes it Node-loadable while still importing the one
+    shared grading rule. That is the option to reach for in new shared modules:
+    `allowImportingTsExtensions` is on and Vite resolves it unchanged, so nothing has to be
+    duplicated and kept in sync by hand.
   - `src/persist/storage.ts` — durability: requests persistent storage on the first save and
     reports usage. IndexedDB is **not permanent by default** — Safari evicts script-written
     storage after ~7 days without interaction — so the library says whether it was granted
@@ -124,7 +134,9 @@ draw/resign · local-first persistence of attempts and games.
 
 ## Build, test, verify
 `npm run dev` · `npm run verify` (typecheck→lint→test) · `npm run build` · `npm run test:e2e`
-(Playwright) · `node scripts/setup-maia.mjs` (fetch the Maia nets before playing/e2e).
+(Playwright) · `node scripts/setup-maia.mjs` (fetch the Maia nets before playing/e2e) ·
+`npm run review -- --me <chess.com user> --last` (engine-review your own last game; takes a game
+URL/id or `--pgn <file>` instead, and `STOCKFISH_PATH` to point at a different binary).
 CI runs verify + e2e on every PR. See [testing.md](testing.md), [dev-workflow.md](dev-workflow.md).
 
 ## What's next
