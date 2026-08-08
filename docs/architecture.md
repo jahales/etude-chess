@@ -79,6 +79,17 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
     move's category from the position *after* it, so a move leaving the opponent lost is a win.
     `src/engine/evalTable.ts` parses Stockfish's `eval` piece-value grid — the closest a modern
     engine comes to explaining itself, and best read on a trade, where it prices both pieces.
+    `src/domain/mistakeKind.ts` labels a mistake the search already found as tactical (SEE says
+    material hung, or the engine's move wins some) or positional — a label only, never a finding
+    of its own, since SEE cannot see x-rays or pinned defenders.
+  - `scripts/repertoire/enginePool.mjs` — N **single-threaded** engines over one queue of
+    positions. This is how a high node budget is afforded without breaking the reproducibility
+    rule engine.mjs documents: raising `Threads` makes a search unreproducible at fixed nodes,
+    whereas running separate engines on separate positions leaves each search bit-for-bit what
+    one engine would have done. Only for work whose positions are known up front — a crawl that
+    chooses its next position from the last result cannot use it. Measured on a 50-move game:
+    4M nodes/position across six engines finished faster than 800k on one, and 800k was missing
+    a real Tier B mistake, so the review's default budget is 4M.
     It solves the type-stripping constraint the other way round — an explicit
     **`./grade.ts` extension** — which makes it Node-loadable while still importing the one
     shared grading rule. That is the option to reach for in new shared modules:

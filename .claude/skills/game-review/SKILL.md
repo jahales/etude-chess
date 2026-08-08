@@ -28,9 +28,10 @@ The owner's chess.com username is not stored in the repo — ask, or take it fro
 npm run review -- --me <user> --last --deep
 ```
 
-- The main pass grades **every** move by win% swing at 800k nodes/position
-  (~2 min for a 50-move game). Tier A ≤ 5, Tier B ≤ 15, Tier C above — the
-  trainer's own scale, `src/domain/grade.ts`.
+- The main pass grades **every** move by win% swing at 4M nodes/position
+  (~2 min for a 50-move game, spread over a pool of single-threaded engines).
+  Tier A ≤ 5, Tier B ≤ 15, Tier C above — the trainer's own scale,
+  `src/domain/grade.ts`.
 - `--deep` re-examines only the imperfect moves at 6M nodes: four alternatives
   with win/draw/loss, which piece changed value, and the tablebase verdict when
   the position is down to seven pieces.
@@ -53,7 +54,26 @@ actionable finding in the whole review.
 **Then the opponent's chances.** A punished blunder and a let-off look identical
 in a swing table. `chancesGiven` pairs each of their Tier C moves with the reply.
 
-**Then the imperfect moves**, with the deep pass beside them.
+**Then the imperfect moves**, with the deep pass beside them. Each carries two
+labels worth using rather than re-deriving:
+
+- **TACTICAL vs positional** (`src/domain/mistakeKind.ts`, SEE). "Left 3 en prise
+  on g5" and "the engine's move wins 5 more" are different lessons from "the plan
+  was worse", and they point at different training. SEE only ever labels a
+  finding the search already made — never treat it as evidence on its own, and
+  note its blind spots: no x-rays, no pinned defenders.
+- **breadth** — how many of the top five are within 5 win%. Three or more means
+  the position was a choice, not a critical moment, and the owner should not be
+  told they blundered a position where five moves were equal. Fewer than three
+  means only one or two moves held, which is where their clock belongs.
+
+  Breadth is measured in win%, so it **saturates in a decided position**: when
+  everything wins, every move compresses near the top and breadth reads five out
+  of five. That is not wrong — nothing was at stake — but it is not the whole
+  story, and the material label is what still bites. On the reference game's
+  move 34 the two read together as "no single move was critical, *and* you
+  passed up winning a rook", which is the accurate account. Never let a wide
+  breadth talk you out of a material finding.
 
 ## 4. What the numbers will not support
 
@@ -77,9 +97,14 @@ to fall into and each one produces a confident, wrong lesson.
   several moves before drawing a line — a single-move delta will mislead. It is
   at its best on a trade, where it prices both pieces: "the bishop you gave up
   was worth 4.65, the knight you took was worth 1.92" is a real explanation.
-- **Low nodes invent mistakes.** Moves appear and vanish from the imperfect list
-  between 100k and 800k nodes. Do not build a lesson on a finding that has not
-  been seen at the full budget.
+- **Do not lower the node budget to save time.** The failure is the other way
+  round from what you would expect: measured on the reference game, 800k against
+  4M gave *one false negative and zero phantoms* — a real Tier B move looked
+  clean and would never have reached the deep pass — and understated the total
+  win% given away by 10%. A cheap pass misses mistakes rather than inventing
+  them, which is the worse direction for coaching. If a run must be shortened,
+  shorten `--deep-nodes`, not `--nodes`. (Findings *do* also appear and vanish
+  around 100k, so never quote a number from a quick run.)
 - **The engine's top four being within 1–2% means the position was not critical.**
   That is why a site showed "lots of suggestions". The moments worth the owner's
   clock are where the list is tight *and their move is not on it*.

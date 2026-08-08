@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs'
 import { Chess } from 'chess.js'
 import { createEngine } from '../repertoire/engine.mjs'
+import { createEnginePool } from '../repertoire/enginePool.mjs'
 import {
   chancesGiven,
   parseTimeControl,
@@ -23,6 +24,8 @@ import {
   summariseByPhase,
 } from '../../src/domain/gameReview.ts'
 import { comparePieceValues } from '../../src/engine/evalTable.ts'
+import { diagnoseMistake } from '../../src/domain/mistakeKind.ts'
+import { QUIET_BREADTH_WINDOW } from '../../src/domain/repertoire.ts'
 import { judgeTablebase, pieceCount, tablebaseEligible } from '../../src/domain/tablebase.ts'
 import { winPercent, negate } from '../../src/domain/winPercent.ts'
 
@@ -35,7 +38,14 @@ const arg = (name, fallback = null) => {
 const flag = (name) => process.argv.includes(`--${name}`)
 
 const ME = (arg('me') ?? process.env.CHESSCOM_USER ?? '').toLowerCase()
-const NODES = Number(arg('nodes', 800_000))
+// Measured, not guessed. Grading this game at 800k against 4M produced one
+// FALSE NEGATIVE — 44…Nd4+ (−5.9%, Tier B) looked clean at 800k and so would
+// never have reached the deep pass — and zero phantoms, with the total win%
+// given away understated by 10% (53.4 vs 58.9). The cheap pass errs by missing
+// mistakes, which is the worse direction for coaching. The pool is what makes
+// this affordable: 4M across six engines finished the same game faster than
+// 800k did on one.
+const NODES = Number(arg('nodes', 4_000_000))
 const PGN_FILE = arg('pgn')
 
 /** The bare game id out of a chess.com URL, or the argument if it is already one. */
@@ -76,7 +86,8 @@ function usage(message) {
   npm run review -- --me <chess.com user> <game url or id>
   npm run review -- --me <name> --pgn <file.pgn>
 
-  --nodes <n>       engine budget per position (default 800000)
+  --nodes <n>       engine budget per position (default 4000000, run across a
+                    pool of single-threaded engines)
   --deep            re-examine each imperfect move: alternatives with
                     win/draw/loss, which piece changed, and — under eight
                     pieces — the tablebase's exact verdict
@@ -145,36 +156,52 @@ for (const san of sans) {
   fens.push(board.fen())
 }
 
-const engine = createEngine()
-const positions = []
-const best = []
+// Positions are independent — the whole game is known up front — so they go to a
+// pool of single-threaded engines rather than one engine in sequence. Each search
+// is still exactly the search one engine would have done, which is what keeps the
+// numbers reproducible; only the wall clock changes. That is what makes a high
+// node budget affordable.
+const terminal = new Map()
+const toAnalyse = []
+const sourceIndex = []
 for (let i = 0; i < fens.length; i++) {
   const at = new Chess(fens[i])
   if (at.isGameOver()) {
-    positions.push({ kind: 'over', result: at.isCheckmate() ? 'checkmate' : 'draw' })
-    best.push(null)
+    terminal.set(i, { kind: 'over', result: at.isCheckmate() ? 'checkmate' : 'draw' })
     continue
   }
-  const { lines, bestMove } = await engine.analyse(fens[i], { nodes: NODES, multipv: 1 })
+  toAnalyse.push(fens[i])
+  sourceIndex.push(i)
+}
+
+const pool = createEnginePool()
+const analysed = await pool.analyseAll(toAnalyse, { nodes: NODES, multipv: 1 }, (done, total) =>
+  process.stderr.write(`\r  ${done}/${total} positions at ${NODES} nodes · ${pool.size} engines`),
+)
+await pool.quit()
+process.stderr.write('\n')
+
+const positions = new Array(fens.length)
+const best = new Array(fens.length).fill(null)
+for (const [i, value] of terminal) positions[i] = value
+for (let k = 0; k < analysed.length; k++) {
+  const i = sourceIndex[k]
+  const { lines, bestMove } = analysed[k]
   if (!lines[0]) throw new Error(`engine returned nothing for ${fens[i]}`)
-  positions.push({ kind: 'eval', score: lines[0].score })
+  positions[i] = { kind: 'eval', score: lines[0].score }
   const uci = bestMove ?? lines[0].pv?.[0] ?? null
-  let san = null
   if (uci) {
     try {
-      san = new Chess(fens[i]).move({
+      best[i] = new Chess(fens[i]).move({
         from: uci.slice(0, 2),
         to: uci.slice(2, 4),
         promotion: uci[4],
       }).san
     } catch {
-      san = uci
+      best[i] = uci
     }
   }
-  best.push(san)
-  process.stderr.write(`\r  ${i + 1}/${fens.length} positions at ${NODES} nodes`)
 }
-process.stderr.write('\n')
 
 const rows = reviewGame({ sans, positions, myColor, best, seconds })
 const mine = rows.filter((r) => r.mine)
@@ -241,6 +268,16 @@ for (const r of slips) {
       `${r.seconds == null ? '' : `  ${Math.round(r.seconds)}s`}`,
   )
   if (r.best && r.best !== r.san) console.log(`        the engine wanted ${r.best}`)
+  // Why it was worse, not just that it was. SEE only ever labels a finding the
+  // search already made — it never produces one of its own.
+  const why = diagnoseMistake(fens[r.ply], r.san, r.best)
+  if (why.kind === 'hung-material') {
+    console.log(`        TACTICAL — leaves ${why.hangs} en prise on ${why.squares.join(', ')}`)
+  } else if (why.kind === 'missed-material') {
+    console.log(`        TACTICAL — ${r.best} wins ${why.missed} more, on ${why.squares.join(', ')}`)
+  } else {
+    console.log('        positional — no material changed hands either way')
+  }
   // Just enough run-up to recognise the position. The whole game to here is
   // what the move number is for, and at move 40 it is a wall of text.
   const RUN_UP = 8
@@ -294,6 +331,9 @@ async function probeTablebase(fen) {
 
 if (flag('deep') && slips.length) {
   const DEEP_NODES = Number(arg('deep-nodes', 6_000_000))
+  // One engine here, not a pool: this pass is a handful of positions and the
+  // output is a narrative, so the ordering is worth more than the concurrency.
+  const engine = createEngine()
   const pvSan = (fen, pv, max = 10) => {
     const c = new Chess(fen)
     const out = []
@@ -316,7 +356,18 @@ if (flag('deep') && slips.length) {
     console.log(`\n\n### ${moveLabel(r)}   −${num(r.swing, 0)}%${r.seconds == null ? '' : `, ${Math.round(r.seconds)}s`}`)
     console.log(`  ${fens[r.ply]}`)
 
-    const { lines, depth } = await engine.analyse(fens[r.ply], { nodes: DEEP_NODES, multipv: 4 })
+    const { lines, depth } = await engine.analyse(fens[r.ply], { nodes: DEEP_NODES, multipv: 5 })
+
+    // How many of the alternatives are genuinely playable. This is what decides
+    // whether the moment deserved thought: a position where five moves are equal
+    // is not one you can be blamed for choosing among, and it is why an analysis
+    // board shows a pile of near-identical suggestions.
+    const wps = lines.map((l) => winPercent(l.score))
+    const breadth = wps.filter((wp) => wps[0] - wp <= QUIET_BREADTH_WINDOW).length
+    console.log(
+      `\n  ${breadth} of the top ${lines.length} within ${QUIET_BREADTH_WINDOW}% — ` +
+        (breadth >= 3 ? 'a choice, not a critical moment' : 'CRITICAL: few moves hold'),
+    )
     console.log(`\n  alternatives at depth ${depth}   (win% · W/D/L%)`)
     for (const l of lines) {
       const first = l.pv?.[0]
@@ -367,6 +418,5 @@ if (flag('deep') && slips.length) {
       if (v.playedHolds === false) console.log(`    *** your ${r.san} throws it to a ${v.threwAwayTo} ***`)
     }
   }
+  await engine.quit()
 }
-
-await engine.quit()
