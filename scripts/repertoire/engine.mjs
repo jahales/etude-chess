@@ -58,13 +58,28 @@ export function createEngine(opts = {}) {
 
   const send = (cmd) => proc.stdin.write(`${cmd}\n`)
 
+  /**
+   * How long to wait for a search of `nodes` nodes.
+   *
+   * A fixed ceiling does not survive a raised budget: at 4M nodes a search takes
+   * a few seconds on an idle machine and minutes when something else is using
+   * the cores, and the old flat 120s killed a whole review over one position
+   * that was merely queued behind a test run. Budgeted at a deliberately
+   * pessimistic 50k nodes/sec — roughly 30× slower than this machine manages —
+   * with a floor for the handshake commands, which carry no budget at all.
+   */
+  const SLOWEST_ASSUMED_NPS = 50_000
+  const MIN_TIMEOUT_MS = 120_000
+  const timeoutFor = (nodes = 0) =>
+    Math.max(MIN_TIMEOUT_MS, (nodes / SLOWEST_ASSUMED_NPS) * 1000)
+
   /** Run `cmd` and resolve when `done(line)` returns truthy, feeding each line to `sink`. */
-  function until(cmd, done, sink) {
+  function until(cmd, done, sink, timeoutMs = MIN_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         onLine = null
-        reject(new Error(`engine timed out on: ${cmd}`))
-      }, 120_000)
+        reject(new Error(`engine timed out after ${(timeoutMs / 1000).toFixed(0)}s on: ${cmd}`))
+      }, timeoutMs)
       onLine = (line) => {
         sink?.(line)
         if (done(line)) {
@@ -142,6 +157,7 @@ export function createEngine(opts = {}) {
             if (!ranks) byDepth.set(depth, (ranks = new Map()))
             ranks.set(info.multipv, { ...info, depth })
           },
+          timeoutFor(nodes),
         )
         searches++
 

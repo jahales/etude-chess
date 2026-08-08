@@ -1,7 +1,9 @@
 import { Chess, type Move } from 'chess.js'
 import type { Color } from './types'
 import type { MoveGrade } from './grade'
-import { seeCaptureGain } from './see'
+// Extension deliberate — see the note in grade.ts. mistakeKind.ts pulls this in,
+// and the review script loads that under Node's type stripping.
+import { seeCaptureGain } from './see.ts'
 
 // The "fact bundle": everything the coach knows about a move, computed in code.
 // v0.1.0 renders it as a rules-based "why"; later the same bundle is what an LLM

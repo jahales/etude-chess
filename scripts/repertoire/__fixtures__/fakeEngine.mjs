@@ -13,13 +13,19 @@ const script = process.env.FAKE_ENGINE_SCRIPT
   ? JSON.parse(readFileSync(process.env.FAKE_ENGINE_SCRIPT, 'utf8'))
   : {}
 let go = 0
+// `searches` is indexed per process, which several engines sharing one script
+// cannot use — each has its own counter. `byFen` keys on the position instead,
+// so a pool test can tell whose result is whose.
+let lastFen = null
 
 createInterface({ input: process.stdin }).on('line', (line) => {
   if (logPath) appendFileSync(logPath, `${line}\n`)
   if (line === 'uci') return void process.stdout.write('id name FakeEngine\nuciok\n')
   if (line === 'isready') return void process.stdout.write('readyok\n')
+  if (line.startsWith('position fen ')) lastFen = line.slice('position fen '.length)
   if (line.startsWith('go')) {
-    const out = script.searches?.[go] ?? script.default ?? ['bestmove e2e4']
+    const out =
+      script.byFen?.[lastFen] ?? script.searches?.[go] ?? script.default ?? ['bestmove e2e4']
     go++
     return void process.stdout.write(`${out.join('\n')}\n`)
   }
