@@ -43,7 +43,18 @@ describe('parseBestMove', () => {
 describe('parseInfoLine', () => {
   it('parses multipv rank, score, and the pv moves', () => {
     const r = parseInfoLine('info depth 18 seldepth 24 multipv 2 score cp 21 nodes 5 pv d2d4 d7d5 c2c4')
-    expect(r).toEqual({ multipv: 2, score: { type: 'cp', value: 21 }, pv: ['d2d4', 'd7d5', 'c2c4'] })
+    expect(r).toEqual({
+      multipv: 2,
+      score: { type: 'cp', value: 21 },
+      pv: ['d2d4', 'd7d5', 'c2c4'],
+      wdl: null,
+    })
+  })
+  it('carries win/draw/loss through when the engine was asked for it', () => {
+    // In a decided endgame this is the number that means something: +4.9 and
+    // +4.3 are the same result, 1000/0/0 and 600/400/0 are not.
+    const r = parseInfoLine('info depth 22 multipv 1 score cp 494 wdl 1000 0 0 nodes 5 pv a7a5')
+    expect(r!.wdl).toEqual({ win: 1000, draw: 0, loss: 0 })
   })
   it('defaults multipv to 1 when the field is absent', () => {
     expect(parseInfoLine('info depth 10 score cp 34 pv e2e4')!.multipv).toBe(1)

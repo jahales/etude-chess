@@ -73,6 +73,12 @@ See [vision.md](vision.md) for *why*, [v0.1.0-plan.md](v0.1.0-plan.md) and ADRs
   - `src/domain/gameReview.ts` — grading a *finished* game rather than a single guess: win%
     swing per move for both sides, where the win% leaked by phase against the time spent there,
     and which of the opponent's mistakes went unpunished. Behind `npm run review`.
+    `src/domain/tablebase.ts` turns a Syzygy probe into a verdict for `--deep` — under eight
+    pieces the result is a solved fact, not an evaluation, which matters most in exactly the
+    phase the owner is weakest. Its one real trap is the perspective flip: the API reports each
+    move's category from the position *after* it, so a move leaving the opponent lost is a win.
+    `src/engine/evalTable.ts` parses Stockfish's `eval` piece-value grid — the closest a modern
+    engine comes to explaining itself, and best read on a trade, where it prices both pieces.
     It solves the type-stripping constraint the other way round — an explicit
     **`./grade.ts` extension** — which makes it Node-loadable while still importing the one
     shared grading rule. That is the option to reach for in new shared modules:

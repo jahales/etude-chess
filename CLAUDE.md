@@ -63,7 +63,11 @@ Key rules: keep the domain pure; keep the engine behind the `Analyser` port; gra
   `npm run test:e2e` (Playwright).
 - `npm run review -- --me <chess.com user> --last` — engine-review a finished game of the
   owner's (win% swing per move, phase-vs-clock split, chances the opponent gave). Accepts a
-  game URL/id or `--pgn <file>`.
+  game URL/id or `--pgn <file>`. Add `--deep` to re-examine each imperfect move with
+  alternatives + win/draw/loss, per-piece values, and the tablebase under 8 pieces.
+  **The process for coaching off this — including what the numbers do not support saying —
+  is the `game-review` skill (`.claude/skills/game-review/`); follow it rather than
+  improvising.**
 
 ## Workflow (see [docs/dev-workflow.md](docs/dev-workflow.md), [RELEASING.md](RELEASING.md))
 - **Trunk-based**: `main` stays green; short-lived `feat/…`·`fix/…`·`chore/…`·`docs/…` branches, one per issue.

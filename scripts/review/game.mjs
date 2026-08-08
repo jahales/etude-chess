@@ -22,6 +22,9 @@ import {
   secondsPerMove,
   summariseByPhase,
 } from '../../src/domain/gameReview.ts'
+import { comparePieceValues } from '../../src/engine/evalTable.ts'
+import { judgeTablebase, pieceCount, tablebaseEligible } from '../../src/domain/tablebase.ts'
+import { winPercent, negate } from '../../src/domain/winPercent.ts'
 
 const USER_AGENT = 'etude-chess game review (https://github.com/jahales/etude-chess)'
 
@@ -73,7 +76,11 @@ function usage(message) {
   npm run review -- --me <chess.com user> <game url or id>
   npm run review -- --me <name> --pgn <file.pgn>
 
-  --nodes <n>   engine budget per position (default 800000)
+  --nodes <n>       engine budget per position (default 800000)
+  --deep            re-examine each imperfect move: alternatives with
+                    win/draw/loss, which piece changed, and — under eight
+                    pieces — the tablebase's exact verdict
+  --deep-nodes <n>  budget for that pass (default 6000000)
 
   --me defaults to $CHESSCOM_USER.`)
   process.exit(2)
@@ -85,7 +92,7 @@ if (!ME) usage('Which player is being reviewed? Pass --me or set CHESSCOM_USER.'
 // A flag's *value* is not a positional. Without this, `--nodes 800000` reads as
 // a game id — it is six digits — and the archive scan hunts for a game that
 // does not exist.
-const VALUED = new Set(['--me', '--nodes', '--pgn'])
+const VALUED = new Set(['--me', '--nodes', '--pgn', '--deep-nodes'])
 const positionals = []
 for (let i = 0, argv = process.argv.slice(2); i < argv.length; i++) {
   if (VALUED.has(argv[i])) i++
@@ -167,7 +174,6 @@ for (let i = 0; i < fens.length; i++) {
   best.push(san)
   process.stderr.write(`\r  ${i + 1}/${fens.length} positions at ${NODES} nodes`)
 }
-await engine.quit()
 process.stderr.write('\n')
 
 const rows = reviewGame({ sans, positions, myColor, best, seconds })
@@ -252,3 +258,115 @@ for (const { blunder, reply } of chances) {
   )
 }
 if (!chances.length) console.log('  none — they made no Tier C mistake.')
+
+// --- the deep pass ----------------------------------------------------------
+/**
+ * Ask Lichess's public tablebase for the exact result. Below eight pieces this
+ * is not an evaluation — it is the answer. Returns null when the position is too
+ * big or the service is unreachable, because a review that dies on a network
+ * blip is worse than one that says nothing here.
+ */
+async function probeTablebase(fen) {
+  if (!tablebaseEligible(fen)) return null
+  try {
+    const res = await fetch(
+      `https://tablebase.lichess.ovh/standard?fen=${encodeURIComponent(fen)}`,
+      { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } },
+    )
+    if (!res.ok) return null
+    const body = await res.json()
+    return {
+      category: body.category ?? 'unknown',
+      dtz: body.dtz ?? null,
+      dtm: body.dtm ?? null,
+      moves: (body.moves ?? []).map((m) => ({
+        uci: m.uci,
+        san: m.san,
+        category: m.category ?? 'unknown',
+        dtz: m.dtz ?? null,
+        dtm: m.dtm ?? null,
+      })),
+    }
+  } catch {
+    return null
+  }
+}
+
+if (flag('deep') && slips.length) {
+  const DEEP_NODES = Number(arg('deep-nodes', 6_000_000))
+  const pvSan = (fen, pv, max = 10) => {
+    const c = new Chess(fen)
+    const out = []
+    for (const uci of pv.slice(0, max)) {
+      try {
+        out.push(c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }).san)
+      } catch {
+        break
+      }
+    }
+    return out.join(' ')
+  }
+  const wdlText = (w) => (w ? `${(w.win / 10).toFixed(0)}/${(w.draw / 10).toFixed(0)}/${(w.loss / 10).toFixed(0)}` : '  —  ')
+  /** WDL is reported from the side to move; after your move that is the opponent. */
+  const flipWdl = (w) => (w ? { win: w.loss, draw: w.draw, loss: w.win } : null)
+
+  console.log(`\n\n${'='.repeat(72)}\n  DEEP PASS — ${slips.length} moment(s) at ${DEEP_NODES} nodes\n${'='.repeat(72)}`)
+
+  for (const r of slips) {
+    console.log(`\n\n### ${moveLabel(r)}   −${num(r.swing, 0)}%${r.seconds == null ? '' : `, ${Math.round(r.seconds)}s`}`)
+    console.log(`  ${fens[r.ply]}`)
+
+    const { lines, depth } = await engine.analyse(fens[r.ply], { nodes: DEEP_NODES, multipv: 4 })
+    console.log(`\n  alternatives at depth ${depth}   (win% · W/D/L%)`)
+    for (const l of lines) {
+      const first = l.pv?.[0]
+      const san = first ? pvSan(fens[r.ply], [first]) : '?'
+      console.log(
+        `   ${String(l.multipv).padStart(2)}. ${san.padEnd(7)} ${winPercent(l.score).toFixed(0).padStart(3)}%  ` +
+          `${wdlText(l.wdl).padStart(11)}   ${pvSan(fens[r.ply], l.pv)}${san === r.san ? '   ← you' : ''}`,
+      )
+    }
+    if (!lines.some((l) => pvSan(fens[r.ply], [l.pv?.[0]]) === r.san)) {
+      const after = new Chess(fens[r.ply + 1])
+      if (!after.isGameOver()) {
+        const played = await engine.analyse(fens[r.ply + 1], { nodes: DEEP_NODES, multipv: 1 })
+        console.log(
+          `\n   your ${r.san}: ${winPercent(negate(played.lines[0].score)).toFixed(0)}%  ` +
+            `${wdlText(flipWdl(played.lines[0].wdl))}  ` +
+            `→ ${pvSan(fens[r.ply + 1], played.lines[0].pv)}`,
+        )
+      }
+    }
+
+    // Which piece actually changed. Read as evidence, not verdict: the number is
+    // "how much worse without this piece", so it moves for reasons elsewhere too.
+    const [pvBefore, pvAfter] = [
+      await engine.pieceValues(fens[r.ply]),
+      await engine.pieceValues(fens[r.ply + 1]),
+    ]
+    const changes = comparePieceValues(pvBefore, pvAfter).filter((c) => Math.abs(c.delta) >= 0.15)
+    if (changes.length) {
+      console.log('\n  what each piece became worth')
+      for (const c of changes.slice(0, 5)) {
+        console.log(
+          `   ${c.piece} ${(c.from ?? '--')}→${(c.to ?? 'captured').padEnd(8)} ` +
+            `${num(c.before, 2).padStart(5)} → ${num(c.after, 2).padStart(5)}  ` +
+            `${c.delta >= 0 ? '+' : ''}${c.delta.toFixed(2)}`,
+        )
+      }
+    }
+
+    const tb = await probeTablebase(fens[r.ply])
+    if (!tb) {
+      console.log(`\n  tablebase: ${pieceCount(fens[r.ply])} pieces — solved only at 7 or fewer`)
+    } else {
+      const v = judgeTablebase(tb, r.san)
+      console.log(`\n  tablebase: this position is a ${v.category.toUpperCase()}${tb.dtz == null ? '' : ` (DTZ ${tb.dtz})`}`)
+      if (v.best.length) console.log(`    keeps it: ${v.best.slice(0, 4).map((m) => m.san).join(', ')}`)
+      if (v.playedHolds === true) console.log(`    your ${r.san} holds the ${v.category}`)
+      if (v.playedHolds === false) console.log(`    *** your ${r.san} throws it to a ${v.threwAwayTo} ***`)
+    }
+  }
+}
+
+await engine.quit()
