@@ -15,6 +15,16 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
   [docs/architecture.md](docs/architecture.md). Next: **v0.3.0 — complete the core loops**;
   the design is decision-complete in [docs/v0.3.0-plan.md](docs/v0.3.0-plan.md) (work = the
   GitHub **v0.3.0 milestone**, one branch per issue).
+- **Since the release, off-app tooling has run ahead of the app** (2026-08-06→09): the v1
+  repertoire was retargeted to the owner's real rating band and a second 1.e4 deck added
+  (ADR [0023](docs/decisions/0023-second-white-repertoire-1-e4.md)), and `npm run review`
+  now engine-reviews a finished game end to end. That is a **CLI tool serving the P1 own-game
+  review loop in [docs/development-focus.md](docs/development-focus.md), not the in-app loop
+  itself** — v0.3.0 is still the target and is still unbuilt.
+- **Live thread, and the most interesting open question**: repertoire moves are gated on a
+  local 400k-node search, which is likely too shallow — Lichess's cloud evaluations cover 100%
+  of the shipped repertoire at median depth 50. Diagnosis, evidence and method are in
+  **issue #106**; how many lines actually fail is not yet measured.
 - The design is still **living**; every doc except the constitution is revisable.
 
 ## Read these before proposing anything
@@ -79,3 +89,9 @@ Key rules: keep the domain pure; keep the engine behind the `Analyser` port; gra
 
 ## Environment notes
 - Windows / PowerShell primary shell; a POSIX Bash tool is also available.
+- **`CHESSCOM_USER`** — the owner's chess.com handle, which `npm run review` needs (or pass
+  `--me`). Deliberately not committed: this repo is public, and the handle is the owner's to
+  publish or not. Set it in the shell profile on each machine. Ask rather than guess it.
+- **`STOCKFISH_PATH`** — overrides the En Croissant install the engine driver defaults to.
+- `db/` (game dumps) and `out/` are gitignored and **must stay that way** — hundreds of MB of
+  third-party data. They do not travel with the repo; re-fetch before any crawl or book build.
