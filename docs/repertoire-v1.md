@@ -39,6 +39,30 @@ A flat depth would be wrong in both directions: it truncates a branch that start
 can find a quiet position, and it pads a "don't be surprised by 1...c5" sweeper with moves that
 carry no decision. See ADR [0022](decisions/0022-repertoire-branch-ownership.md), amended.
 
+### Does it hold up in the owner's real games? (measured 2026-08-07)
+
+Every opening move of the owner's chess.com games was engine-graded and joined back to this
+book — the one check that says whether any of the above is worth memorising.
+
+**Where the book reaches, it works.** In positions it covers, playing its move produced **0
+outright mistakes in 302 moves** (average win% swing 0.71); deviating produced 0.9% Tier C over
+215 moves at more than twice the swing. Only **two** real mistakes in the whole corpus landed in
+a position this repertoire already answers — one Albin (5.Nxd4 for 5.a3, −38%), one Caro-Kann
+(5...g6 for 5...e6, −17%). Both are recall failures, not gaps, and both are exactly what the
+trainer exists to drill.
+
+**Its reach is the limit, and adherence is the other half.** In-book moves average move number
+2.1; coverage thins from 97 in-book moves at move 3 to 43 at move 4 and 29 at move 5, which is
+simply what a ply-10 curated depth *means* in practice rather than independent evidence for it.
+Past that boundary sit 1,280 moves at 4.7% Tier C — most errors happen where the book has
+stopped. And in covered positions the owner played the book move 302 times against 215
+deviations, so **roughly two in five in-book positions were still answered from scratch**.
+
+Two honest consequences: depth is the lever with the most headroom (see
+[backlog.md](backlog.md)), and the coverage numbers say nothing about the *middlegame*, where a
+separate whole-game review found the errors actually concentrate — the repertoire is not
+claimed to help there.
+
 ## White — 1.d4, Queen's Gambit spine
 
 ~~We play **one** first move. 1.e4 is the planned expansion, not part of v1.~~
