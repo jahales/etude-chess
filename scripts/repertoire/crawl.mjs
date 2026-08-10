@@ -41,6 +41,7 @@ import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
+import { createEnginePool } from './enginePool.mjs'
 import { createSoundnessGate } from './soundness.mjs'
 import { createEvalDb } from './evalDb.mjs'
 
@@ -50,8 +51,15 @@ export const DEFAULTS = {
    * to — almost every opening position is quiet by move 4 — so this, not
    * `maxPly`, is what decides how deep the output actually runs. At 6 the first
    * built repertoire bottomed out at move 5 across all 25 branches.
+   *
+   * Raised from 10 to 16 by ADR 0025. At 10 the repertoire stopped on the first
+   * quiet position, which is before the middlegame structure exists: v1's
+   * deepest line was ply 13, and a Carlsbad or a French chain does not form
+   * until roughly ply 16-25. The quiet position is still the trainable item;
+   * this says keep going until the *structural* one is reached. Curated
+   * branches only — see ROLE_DEPTH_OFFSET in build.mjs.
    */
-  minPly: 10,
+  minPly: 16,
   /**
    * Depth cap. Must stay **above** `minPly`: the cap is checked before the
    * quiet test, so a cap at the floor means no position is ever assessed for
@@ -59,7 +67,7 @@ export const DEFAULTS = {
    * once — raising `minPly` without raising this — and produced a tree with
    * zero trainable positions while every test passed.
    */
-  maxPly: 14,
+  maxPly: 24,
   deepNodes: 400_000,
   /**
    * The shallow search of constitution §6's filter, as a fraction of the deep
@@ -123,25 +131,75 @@ async function assess(engine, fen, o) {
   }
 }
 
-/** Win% of a move, from the perspective of whoever plays it. */
-async function evalAfter(engine, fen, uci, o) {
-  const applied = applyUci(fen, uci)
-  if (!applied) return null
-  const r = await engine.analyse(applied.fen, { nodes: o.deepNodes, multipv: 1 })
-  const line = r.lines[0]
-  if (!line) return null
-  // The child's score is from the *replier's* view; negate for the mover's.
+/**
+ * Evaluate every candidate move at one node, in one batch.
+ *
+ * This is where nearly all of a crawl's engine time goes — up to
+ * `maxEvalPerNode` searches per expanded node — and it is the one part that
+ * parallelises. The tree walk cannot: it picks its next position from the last
+ * result, which is the caveat enginePool.mjs documents. The candidates at a
+ * *single* node have no such dependency on each other.
+ *
+ * Each search is still single-threaded whichever analyser runs it, so
+ * engine.mjs's reproducibility rule holds: the same position at the same node
+ * budget returns the same score, and only the wall clock changes.
+ *
+ * @param {{analyseAll: (fens: string[], o: object) => Promise<object[]>}} analyser
+ * @returns {Promise<{stats: object, san: string, fen: string, moverWp: number,
+ *                    score: object, depth: number}[]>} candidates that produced a line
+ */
+async function evalCandidates(analyser, fen, candidates, o) {
+  const applied = []
+  for (const m of candidates) {
+    const a = applyUci(fen, m.uci)
+    if (a) applied.push({ stats: m, ...a })
+  }
+  if (!applied.length) return []
+
+  const results = await analyser.analyseAll(
+    applied.map((a) => a.fen),
+    { nodes: o.deepNodes, multipv: 1 },
+  )
+
+  const out = []
+  for (const [i, a] of applied.entries()) {
+    const line = results[i]?.lines?.[0]
+    if (!line) continue
+    // The child's score is from the *replier's* view; negate for the mover's.
+    out.push({
+      ...a,
+      moverWp: winPercent(negate(line.score)),
+      score: line.score,
+      depth: results[i].depth ?? 0,
+    })
+  }
+  return out
+}
+
+/**
+ * One analyser interface whichever the caller supplied.
+ *
+ * With a pool the candidates go out together; without one they run in sequence
+ * exactly as before, so a crawl with no pool is unchanged.
+ */
+function asAnalyser(engine, pool) {
+  if (pool) return { analyseAll: (fens, o) => pool.analyseAll(fens, o) }
   return {
-    ...applied,
-    moverWp: winPercent(negate(line.score)),
-    score: line.score,
-    depth: r.depth ?? 0,
+    async analyseAll(fens, o) {
+      const out = []
+      for (const fen of fens) out.push(await engine.analyse(fen, o))
+      return out
+    },
   }
 }
 
 export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
-  const { engine, explorer, canon = null, evalDb = null, ourColor, forcedLine = [] } = o
+  const { engine, explorer, canon = null, evalDb = null, pool = null, ourColor, forcedLine = [] } = o
+
+  // Candidate evaluations go out as a batch when a pool was supplied; without
+  // one they run in sequence exactly as before.
+  const analyser = asAnalyser(engine, pool)
 
   // Deep evaluations in front of this crawl's own search, for the soundness
   // gate only — see soundness.mjs for why trap scoring and the quiet test are
@@ -426,9 +484,8 @@ export async function crawl(config) {
     }
 
     const scored = []
-    for (const m of candidates) {
-      const after = await evalAfter(engine, item.fen, m.uci, o)
-      if (!after) continue
+    for (const after of await evalCandidates(analyser, item.fen, candidates, o)) {
+      const m = after.stats
       scored.push({
         stats: m,
         san: after.san,
@@ -689,6 +746,11 @@ Repertoire crawler (issue #88, ADR 0021)
                                    evaluation index (median depth 50) instead
                                    of --nodes, falling back to the engine where
                                    a position is absent. See issue #106.
+  --pool    10                     engines evaluating candidates in parallel.
+                                   Each stays single-threaded, so results are
+                                   identical to a serial run and only the wall
+                                   clock changes. Defaults to a size derived
+                                   from cores and RAM; 1 disables it.
   --engine  <path>                 Stockfish binary
                                    (default: ${DEFAULT_ENGINE_PATH})
 `
@@ -727,6 +789,15 @@ async function main() {
   // to this crawl's own search for every decision.
   const evalDb = args['eval-index'] ? createEvalDb({ dir: String(args['eval-index']) }) : null
 
+  // The candidate fan-out at each node is the only parallelisable part of a
+  // crawl, and it is most of the engine time. `--pool 1` falls back to the
+  // serial path for a like-for-like comparison.
+  const poolSize = args.pool ? Number(args.pool) : undefined
+  const pool =
+    poolSize === 1
+      ? null
+      : createEnginePool({ size: poolSize, path: args.engine ? String(args.engine) : undefined })
+
   const started = Date.now()
   console.log(`crawling ${ourColor === 'w' ? 'White' : 'Black'} from: ${forcedLine.join(' ') || '(start)'}`)
 
@@ -736,6 +807,7 @@ async function main() {
       explorer,
       canon,
       evalDb,
+      pool,
       ourColor,
       forcedLine,
       maxPly: args['max-ply'] ? Number(args['max-ply']) : undefined,
@@ -754,7 +826,7 @@ async function main() {
         color: ourColor,
         line: forcedLine.join(' '),
         generated: new Date().toISOString(),
-        options: { ...result.options, engine: undefined, explorer: undefined, evalDb: undefined },
+        options: { ...result.options, engine: undefined, explorer: undefined, evalDb: undefined, pool: undefined },
       },
       report: {
         ...result.report,
@@ -793,7 +865,7 @@ positions       ${result.nodes.size}   (expanded ${r.expanded})
 terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}${r.terminal.delegated ? ` · delegated ${r.terminal.delegated}` : ''}
 decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.band}` : `band only (no canonical source)`}
 gated by        ${evalDb ? `index ${r.gateSource.cloud} · local search ${r.gateSource.local}` : `local search only (no --eval-index)`}
-engine searches ${engine.searchCount()}
+engine searches ${engine.searchCount() + (pool?.searchCount() ?? 0)}${pool ? ` (${pool.size} engines in parallel)` : ''}
 explorer        ${JSON.stringify(explorer.stats())}
 traps found     ${r.traps.length}`)
 
@@ -837,6 +909,7 @@ ${r.tooRareToJudge.length} line(s) look like traps but have under ${TRAP_MIN_GAM
     console.log(`\nwrote ${outBase}.json and ${outBase}.pgn`)
   } finally {
     await engine.quit()
+    await pool?.quit()
   }
 }
 

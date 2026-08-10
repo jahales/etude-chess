@@ -453,9 +453,28 @@ describe('crawl — the shipped defaults must be usable', () => {
     expect(DEFAULTS.minPly).toBeLessThan(DEFAULTS.maxPly)
   })
 
+  // A QGD to ply 20, so a line can actually reach the floor. A ladder shorter
+  // than `maxPly` runs out of book first and every terminal is `out-of-book`,
+  // which reports as "no quiet positions" and looks exactly like the bug this
+  // block exists to catch.
+  const QGD_20 = [
+    'd4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O',
+    'e3', 'h6', 'Bh4', 'b6', 'cxd5', 'Nxd5', 'Bxe7', 'Qxe7', 'Nxd5', 'exd5',
+  ]
+
+  it('has a fixture deep enough to reach the shipped floor', () => {
+    // Fails loudly if the defaults outgrow the ladder, rather than letting the
+    // next test report zero quiet terminals for a reason that is not the bug.
+    expect(QGD_20.length).toBeGreaterThanOrEqual(DEFAULTS.minPly + 4)
+  })
+
   it('produces quiet terminals with no ply options at all', async () => {
-    const deep = ladder(['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O', 'e3', 'h6'])
-    const result = await crawl({ engine: stubEngine(), explorer: deep, ourColor: 'w', forcedLine: [] })
+    const result = await crawl({
+      engine: stubEngine(),
+      explorer: ladder(QGD_20),
+      ourColor: 'w',
+      forcedLine: [],
+    })
     expect(result.report.terminal.quiet).toBeGreaterThan(0)
   })
 

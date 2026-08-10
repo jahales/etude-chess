@@ -22,6 +22,7 @@ import { labelVariations, prefixVariations, variationFor } from './openings.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createExplorer } from './explorer.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
+import { createEnginePool } from './enginePool.mjs'
 import { createEvalDb } from './evalDb.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -78,20 +79,28 @@ export const GLOBAL_MIN_PLY = DEFAULTS.minPly
  * - `curated` — a line you are actually learning. The base floor.
  * - `sweeper` — covers the replies no curated branch owns, so you are not
  *   surprised. The value is in meeting the move at all, not in five moves of
- *   follow-up. Two plies shallower.
+ *   follow-up.
  * - `signpost` — says "answer this and transpose". The decision *is* the first
  *   move; after it you are in structures the curated branches already teach.
- *   Four plies shallower.
  *
  * Expressed as offsets from the base floor rather than as absolute plies, so
  * the order survives the base moving and `--min-ply` raises all three together.
  * A shallow role never overrides `MIN_OWN_PLIES`, so a branch still cannot stop
  * on its own root.
+ *
+ * **The spread widened when the base rose from 10 to 16 (ADR 0025.)** The point
+ * of the deeper base is to carry curated lines past the quiet position and into
+ * the middlegame *structure* — the Carlsbad, the French chain — which do not
+ * form until roughly ply 16. None of that reasoning applies to a sweeper, whose
+ * job is to meet 1...c5 at all. Since the offsets are relative, leaving them at
+ * -2/-4 would have dragged sweepers from 8 plies to 14 and re-created the
+ * 467-decision build these roles exist to prevent. -8 and -10 hold sweepers and
+ * signposts at exactly the 8 and 6 they had at the old base.
  */
 export const ROLE_DEPTH_OFFSET = {
   curated: 0,
-  sweeper: -2,
-  signpost: -4,
+  sweeper: -8,
+  signpost: -10,
 }
 
 /** Roles, in the order their depths must stay. */
@@ -131,6 +140,48 @@ export function badRoles(entries) {
   return problems
 }
 
+/**
+ * Branches whose depth cap sits at or below their floor. Checked by `--check`.
+ *
+ * The cap is tested *before* the quiet test, so a branch capped at its floor
+ * never assesses a single position for quietness: every line ends on
+ * `depth-cap` and the branch ships with no trainable content while every unit
+ * test passes. That exact configuration has shipped once already — see
+ * `DEFAULTS.maxPly` in crawl.mjs — and it is a silent failure, which is why it
+ * belongs in the check that runs before any engine time is spent.
+ *
+ * It bites hardest when the base floor moves: raising it to 16 (ADR 0025) puts
+ * every hand-pinned `maxPly` from the old base underneath the new floor.
+ */
+export function badDepths(entries, defaults = {}) {
+  const problems = []
+  for (const entry of entries) {
+    const { minPly, maxPly } = resolveEntry(entry, defaults)
+    if (maxPly > minPly) continue
+    problems.push({
+      entryId: entry.id,
+      message:
+        `depth cap ${maxPly} is not above the floor ${minPly}, so no position is ever ` +
+        `tested for quietness and every line ends on the cap. ` +
+        `Raise this entry's "maxPly" above ${minPly}, or drop the override.`,
+    })
+  }
+  return problems
+}
+
+/**
+ * Plies of room the quiet test gets above the floor.
+ *
+ * The cap is tested *before* the quiet test, so this is how many chances a
+ * branch has to find a quiet position once it is allowed to stop. It used to be
+ * 2, which was ample when the floor was 10 and `forced.length + CRAWL_PLIES`
+ * set the cap for most branches. Raising the base floor to 16 (ADR 0025)
+ * inverted that — the floor now dominates for every prefix shorter than 14 — so
+ * 2 became the entire search window, and a line that did not go quiet in two
+ * plies ended on the cap with nothing trainable in it.
+ */
+export const QUIET_HEADROOM = 6
+
 export function resolveEntry(entry, defaults = {}) {
   const forced = plies(entry.line)
   const floor = floorForRole(entry.role ?? 'curated', defaults.minPly ?? GLOBAL_MIN_PLY)
@@ -140,7 +191,9 @@ export function resolveEntry(entry, defaults = {}) {
     forced,
     // The floor keeps a shallow branch from capping out before `minPly`, which
     // would leave it unable to end on a quiet position at all.
-    maxPly: entry.maxPly ?? Math.max(minPly + 2, forced.length + (defaults.crawlPlies ?? CRAWL_PLIES)),
+    maxPly:
+      entry.maxPly ??
+      Math.max(minPly + QUIET_HEADROOM, forced.length + (defaults.crawlPlies ?? CRAWL_PLIES)),
     minPly,
   }
 }
@@ -232,6 +285,7 @@ export async function buildAll({
   explorer,
   canon = null,
   evalDb = null,
+  pool = null,
   defaults = {},
   date,
   provenance = {},
@@ -257,6 +311,7 @@ export async function buildAll({
         explorer,
         canon,
         evalDb,
+        pool,
         ourColor: entry.color,
         forcedLine: resolved.forced,
         delegations,
@@ -267,6 +322,15 @@ export async function buildAll({
         ...(entry.maxEvalPerNode !== undefined ? { maxEvalPerNode: entry.maxEvalPerNode } : {}),
         ...(entry.massTarget !== undefined ? { massTarget: entry.massTarget } : {}),
         ...(entry.maxOpponentMoves !== undefined ? { maxOpponentMoves: entry.maxOpponentMoves } : {}),
+        // A branch that exists to cover a rare trap needs a lower floor than one
+        // covering a main line. The 2.Ne2 Caro is the case that forced this: it
+        // is 0.21% of replies to 1...c6, and by the time the e6 sacrifice
+        // appears the position has 11 games behind it — so at the default floor
+        // of 50 the crawl stopped four plies short of the only move the branch
+        // exists to prepare. Thinner statistics are the explicit price, and the
+        // trap ranking guards its own sample size separately via TRAP_MIN_GAMES.
+        ...(entry.minNodeGames !== undefined ? { minNodeGames: entry.minNodeGames } : {}),
+        ...(entry.minCanonGames !== undefined ? { minCanonGames: entry.minCanonGames } : {}),
       })
       // Before rendering: the label is what tells you which of several sound
       // moves is the line you are learning.
@@ -353,7 +417,7 @@ export async function writeBranch(outDir, r) {
   // evaluation without the settings that produced it cannot be audited.
   const settings = Object.fromEntries(
     Object.entries(r.crawled.options).filter(
-      ([k]) => !['engine', 'explorer', 'canon', 'evalDb', 'delegations'].includes(k),
+      ([k]) => !['engine', 'explorer', 'canon', 'evalDb', 'pool', 'delegations'].includes(k),
     ),
   )
   await writeFile(
@@ -561,6 +625,7 @@ export const FLAGS = [
   'book',
   'canon-book',
   'eval-index',
+  'pool',
   'only',
   'nodes',
   'trap',
@@ -710,6 +775,10 @@ Build the whole repertoire from a manifest (issue #88, ADR 0021)
   --crawl-plies 8        plies each branch crawls past its curated prefix
   --resume               skip branches whose output already exists
   --check                validate the manifest and exit — no engine, no crawling
+  --pool     10          engines evaluating candidates in parallel. Each stays
+                         single-threaded, so the results are identical to a
+                         serial run and only the wall clock changes. Defaults to
+                         a size derived from cores and RAM; 1 disables it.
   --engine   <path>      Stockfish binary
 `
 
@@ -727,7 +796,18 @@ async function main() {
   // stops at are a property of the manifest, not of what we chose to run today.
   // Both checks run — a structural one that needs no board, and a legality one
   // that does.
-  const problems = [...validatePlan(all), ...illegalLines(all), ...badRoles(all)]
+  const problems = [
+    ...validatePlan(all),
+    ...illegalLines(all),
+    ...badRoles(all),
+    // Only the two depth flags matter here, and they are read directly because
+    // the check has to run before `crawlDefaults` — the whole point is to fail
+    // before any engine is started.
+    ...badDepths(all, {
+      minPly: numberFlag(args, 'min-ply'),
+      crawlPlies: numberFlag(args, 'crawl-plies'),
+    }),
+  ]
   for (const p of problems) console.error(`error: [${p.entryId}] ${p.message}`)
   if (problems.length) {
     console.error(`\n${problems.length} problem(s) in ${manifestPath} — nothing was crawled.`)
@@ -789,6 +869,10 @@ async function main() {
   const evalIndexPath = stringFlag(args, 'eval-index')
   const evalDb = evalIndexPath ? createEvalDb({ dir: evalIndexPath }) : null
   const engine = createEngine({ path: enginePath })
+  // The candidate fan-out at each node is the only parallelisable part of a
+  // crawl, and it is most of the engine time. `--pool 1` keeps the serial path.
+  const poolSize = numberFlag(args, 'pool')
+  const pool = poolSize === 1 ? null : createEnginePool({ size: poolSize, path: enginePath })
   const started = Date.now()
   console.log(`building ${entries.length} branch(es) at ${deepNodes.toLocaleString()} nodes → ${outDir}\n`)
 
@@ -807,6 +891,7 @@ async function main() {
       explorer,
       canon,
       evalDb,
+      pool,
       defaults: crawlDefaults,
       date,
       provenance,
@@ -925,6 +1010,7 @@ ${summary.transposed.length} line(s) transposed into a branch that already owns 
     if (summary.failed.length || summary.unparseable.length || summary.unwritten.length) process.exitCode = 1
   } finally {
     await engine.quit()
+    await pool?.quit()
   }
 }
 

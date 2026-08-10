@@ -23,6 +23,8 @@ import {
   stringFlag,
   writeBranch,
   CRAWL_PLIES,
+  QUIET_HEADROOM,
+  badDepths,
   DEFAULT_MANIFEST,
   ROLE_DEPTH_OFFSET,
   GLOBAL_MIN_PLY,
@@ -172,17 +174,33 @@ describe('resolveEntry — how deep each branch crawls', () => {
     // Asserted as a relationship, not arithmetic — the constants are tuning.
     const shallow = resolveEntry({ line: 'd4 d5 c4' })
     const deep = resolveEntry({ line: 'e4 c6 d4 d5 exd5 cxd5' })
-    // A deep branch is capped by its own prefix plus the crawl length...
-    expect(deep.maxPly).toBe(6 + CRAWL_PLIES)
-    expect(deep.maxPly).toBeGreaterThan(shallow.maxPly)
-    // ...and every branch gets at least that much crawl of its own. A shallow
-    // one gets more, because the global floor lifts it past prefix + crawl.
+    // The cap is whichever binds: the room the quiet test needs above the
+    // floor, or the branch's own prefix plus a crawl. Since ADR 0025 raised the
+    // floor to 16 the first dominates for any prefix under 14 plies, so this is
+    // asserted against the rule rather than against one side of it.
     for (const r of [shallow, deep]) {
+      expect(r.maxPly).toBe(Math.max(r.minPly + QUIET_HEADROOM, r.forced.length + CRAWL_PLIES))
+      // Every branch still gets at least a crawl of its own past its prefix.
       expect(r.maxPly - r.forced.length).toBeGreaterThanOrEqual(CRAWL_PLIES)
+      // And always room to actually stop, which is the failure this guards.
+      expect(r.maxPly).toBeGreaterThan(r.minPly)
+    }
+  })
+
+  it('is the floor, not the prefix, that sets the cap on the shipped constants', () => {
+    // Worth pinning, because it was the other way round before ADR 0025 and the
+    // reasoning in several manifest notes assumes the old behaviour. Once
+    // MIN_OWN_PLIES + QUIET_HEADROOM exceeds CRAWL_PLIES the prefix term can no
+    // longer win at any depth, so only an explicit --crawl-plies moves the cap.
+    expect(MIN_OWN_PLIES + QUIET_HEADROOM).toBeGreaterThan(CRAWL_PLIES)
+    for (const line of ['d4', 'd4 d5 c4', 'd4 d5 c4 e6 Nc3 Nf6 Nf3 Be7 Bg5 O-O e3 h6 Bh4 b6']) {
+      const r = resolveEntry({ line })
+      expect(r.maxPly).toBe(r.minPly + QUIET_HEADROOM)
     }
   })
 
   it('never caps a branch before it is allowed to stop', () => {
+    // See badDepths below for the check that enforces this across a manifest.
     // maxPly at or below minPly means the quiet test can never fire and the
     // branch ends on a depth cap — a line with no trainable position in it.
     const shallow = resolveEntry({ line: 'd4' }, { crawlPlies: 2 })
@@ -194,7 +212,11 @@ describe('resolveEntry — how deep each branch crawls', () => {
   })
 
   it('takes the crawl length from the run when it is given one', () => {
-    expect(resolveEntry({ line: 'd4 d5 c4' }, { crawlPlies: 9 }).maxPly).toBe(12)
+    // Needs a prefix long enough that prefix + crawl outruns the floor, or the
+    // floor sets the cap and --crawl-plies looks ignored when it is not.
+    const line = 'd4 d5 c4 e6 Nc3 Nf6 Nf3 Be7 Bg5 O-O e3 h6'
+    expect(resolveEntry({ line }, { crawlPlies: 12 }).maxPly).toBe(12 + 12)
+    expect(resolveEntry({ line }, { crawlPlies: 14 }).maxPly).toBe(12 + 14)
   })
 
   it('never lets a branch stop on its own root', () => {
@@ -202,10 +224,15 @@ describe('resolveEntry — how deep each branch crawls', () => {
     // quiet position at ply 6 — the global floor. Left alone the branch was one
     // node and no content: the prefix is scaffolding to reach the position worth
     // studying, and cannot also be the study.
-    expect(resolveEntry({ line: 'e4 c6 d4 d5 e5 Bf5' }).minPly).toBe(6 + MIN_OWN_PLIES)
-    expect(resolveEntry({ line: 'd4 d5 c4 c6 Nf3 Nf6' }).minPly).toBe(6 + MIN_OWN_PLIES)
-    // ...and that is past the global floor, so the prefix is what decided it
-    expect(6 + MIN_OWN_PLIES).toBeGreaterThan(GLOBAL_MIN_PLY - 1)
+    // The invariant, whichever term binds: a branch always gets plies of its own.
+    for (const line of ['e4 c6 d4 d5 e5 Bf5', 'd4 d5 c4 c6 Nf3 Nf6']) {
+      const r = resolveEntry({ line })
+      expect(r.minPly - r.forced.length).toBeGreaterThanOrEqual(MIN_OWN_PLIES)
+    }
+    // And where the prefix outruns the floor, the prefix is what decides.
+    const long = resolveEntry({ line: 'd4 d5 c4 e6 Nc3 Nf6 Nf3 Be7 Bg5 O-O e3 h6 Bh4' })
+    expect(long.forced.length + MIN_OWN_PLIES).toBeGreaterThan(GLOBAL_MIN_PLY)
+    expect(long.minPly).toBe(long.forced.length + MIN_OWN_PLIES)
   })
 
   it('keeps the global floor for a branch that starts shallower', () => {
@@ -581,8 +608,10 @@ describe('readBranch — output written by an older version', () => {
     const [r] = await build(ENTRIES.slice(1))
     await writeBranch(dir, r)
     const uncapped = { ...ENTRIES[1], maxPly: undefined }
-    const read = await readBranch(dir, uncapped, { crawlPlies: 9 })
-    expect(read.entry.maxPly).toBe(resolveEntry(uncapped, { crawlPlies: 9 }).maxPly)
+    // Large enough that the prefix term beats the floor, or both readings agree
+    // and the test proves nothing — see the resolveEntry block above.
+    const read = await readBranch(dir, uncapped, { crawlPlies: 20 })
+    expect(read.entry.maxPly).toBe(resolveEntry(uncapped, { crawlPlies: 20 }).maxPly)
     // and without the defaults it would report the built-in depth instead
     expect(read.entry.maxPly).not.toBe(resolveEntry(uncapped).maxPly)
   })
@@ -1005,6 +1034,40 @@ describe('the shipped manifest’s roles', () => {
   })
 })
 
+describe('badDepths — a cap at or below the floor', () => {
+  // The silent failure: the cap is tested before the quiet test, so a branch
+  // capped at its floor ends every line on the cap with nothing trainable in
+  // it, and every unit test still passes. It bites when the base floor moves —
+  // ADR 0025 put every hand-pinned maxPly from the old base underneath it.
+  const entry = (over) => ({ id: 'x', name: 'X', color: 'w', line: 'd4 d5 c4 dxc4 e3', ...over })
+
+  it('accepts a manifest whose caps clear their floors', () => {
+    expect(badDepths([entry({}), entry({ id: 'y', maxPly: 40 })])).toEqual([])
+  })
+
+  it('rejects a pinned cap that the raised floor now sits above', () => {
+    const [problem] = badDepths([entry({ maxPly: 13 })])
+    expect(problem.entryId).toBe('x')
+    expect(problem.message).toMatch(/depth cap 13 is not above the floor 16/)
+    expect(problem.message).toMatch(/every line ends on the cap/)
+  })
+
+  it('rejects a cap exactly equal to the floor', () => {
+    // Equal is not enough: the cap fires first, so the quiet test never runs.
+    expect(badDepths([entry({ minPly: 12, maxPly: 12 })])).toHaveLength(1)
+  })
+
+  it('follows the run\'s --min-ply rather than only the shipped default', () => {
+    expect(badDepths([entry({ maxPly: 20 })])).toEqual([])
+    expect(badDepths([entry({ maxPly: 20 })], { minPly: 30 })).toHaveLength(1)
+  })
+
+  it('passes the shipped manifest, which is what gates a real build', async () => {
+    const text = await readFile(DEFAULT_MANIFEST, 'utf8')
+    expect(badDepths(parseManifest(text))).toEqual([])
+  })
+})
+
 describe('roles keep their order and their meaning', () => {
   it('cannot invert, however the base floor moves', () => {
     // The absolute form tied `curated` to DEFAULTS.minPly and left the other
@@ -1022,15 +1085,22 @@ describe('roles keep their order and their meaning', () => {
   it('moves every role together when the run raises the floor', () => {
     // --min-ply used to replace the role's floor outright, flattening the
     // distinction the manifest spends five notes establishing.
+    // Bases chosen above the role offsets, so every role is live: below them
+    // `floorForRole` clamps at zero and MIN_OWN_PLIES takes over, which is the
+    // next test's subject rather than this one's.
     const at = (role, base) => resolveEntry({ line: 'd4', role }, { minPly: base }).minPly
-    expect(at('sweeper', 14)).toBeGreaterThan(at('sweeper', 10))
-    expect(at('signpost', 14)).toBeGreaterThan(at('signpost', 10))
-    expect(at('curated', 14) - at('sweeper', 14)).toBe(at('curated', 10) - at('sweeper', 10))
+    expect(at('sweeper', 20)).toBeGreaterThan(at('sweeper', 16))
+    expect(at('signpost', 20)).toBeGreaterThan(at('signpost', 16))
+    expect(at('curated', 20) - at('sweeper', 20)).toBe(at('curated', 16) - at('sweeper', 16))
   })
 
   it('keeps the shipped depths at the shipped default', () => {
+    // ADR 0025 raised the base to 16 to carry curated lines into the middlegame
+    // structure, and widened the offsets so that reasoning did not leak into
+    // roles it does not apply to: sweepers and signposts sit exactly where they
+    // did at the old base of 10.
     const at = (role) => resolveEntry({ line: 'd4', role }).minPly
-    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([10, 8, 6])
+    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([16, 8, 6])
   })
 
   it('lets the per-branch minimum win where the prefix is already deep', () => {
@@ -1040,7 +1110,7 @@ describe('roles keep their order and their meaning', () => {
     // branch would buy nothing.
     const at = (role) => resolveEntry({ line: 'd4 d5 c4 e6 cxd5', role }).minPly
     expect(at('sweeper')).toBe(5 + MIN_OWN_PLIES)
-    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([10, 9, 9])
+    expect([at('curated'), at('sweeper'), at('signpost')]).toEqual([16, 9, 9])
   })
 
   it('rejects a prototype member masquerading as a role', () => {
