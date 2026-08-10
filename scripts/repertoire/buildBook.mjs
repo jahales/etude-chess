@@ -46,6 +46,14 @@ const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Vari
 const MAX_TRANSITIONS = 1_500_000
 
 /**
+ * Positions one book may hold — V8's own per-Map ceiling, 2^24.
+ *
+ * Checked rather than discovered: past it `Map.set` throws a `RangeError` that
+ * names neither the book nor the flag responsible.
+ */
+export const MAX_BOOK_POSITIONS = 2 ** 24
+
+/**
  * Turn the byte source into a stream readline can consume.
  *
  * The no-op error listener is load-bearing. When we stop at `--max-games` the
@@ -488,7 +496,22 @@ export async function buildBook(opts) {
         }
 
         let node = book.get(key)
-        if (!node) book.set(key, (node = new Map()))
+        if (!node) {
+          // V8 caps a Map at 2^24 entries and throws a bare `RangeError: Map
+          // maximum size exceeded` — after however long the scan has been
+          // running, with nothing naming the knob that caused it. Distinct
+          // positions grow with both depth and games, and depth is much the
+          // stronger term: a 4M-game book hit this at --max-ply 20 and sat
+          // comfortably under it at 18.
+          if (book.size >= MAX_BOOK_POSITIONS) {
+            throw new Error(
+              `book reached ${book.size.toLocaleString()} positions, V8's per-Map limit. ` +
+                `Lower --max-ply (the stronger lever) or --max-games and run again — ` +
+                `positions past the crawl's depth cap are pruned anyway.`,
+            )
+          }
+          book.set(key, (node = new Map()))
+        }
         let tally = node.get(step.san)
         if (!tally) node.set(step.san, (tally = [0, 0, 0]))
         tally[outcome]++
