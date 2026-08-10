@@ -51,14 +51,44 @@ const KNOWN = [
 ]
 
 /**
- * Blunders whose sign is not a matter of taste. If the index reports the mover
- * as *better* after any of these, the White-relative to side-to-move conversion
- * is inverted — the one error that would silently flip every audit verdict.
+ * Positions whose evaluation is not a matter of taste, with the direction
+ * stated per position rather than assumed.
+ *
+ * Both directions are represented deliberately. An earlier version of this
+ * check asserted "the mover is worse" across the board and failed on three
+ * correct answers, because in each of them the side to move was the side
+ * *winning* — the check was wrong, not the index. Testing only one direction
+ * would also pass a build that clamped every score to the same sign.
  */
-const LOSING = [
-  { name: '1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 4.Ba4 b5 5.Bb3 Na5 (grabby)', sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'b5', 'Bb3', 'Na5'] },
-  { name: 'Fried Liver accepted', sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'Ng5', 'd5', 'exd5', 'Nxd5', 'Nxf7', 'Kxf7'] },
-  { name: "Scholar's mate setup", sans: ['e4', 'e5', 'Bc4', 'Nc6', 'Qh5', 'Nf6'] },
+const DECIDED = [
+  {
+    name: "Scholar's mate, White mates next",
+    sans: ['e4', 'e5', 'Bc4', 'Nc6', 'Qh5', 'Nf6'],
+    min: 90,
+  },
+  {
+    name: 'Damiano, Black to move and lost',
+    sans: ['e4', 'e5', 'Nf3', 'f6', 'Nxe5', 'fxe5', 'Qh5+'],
+    max: 30,
+  },
+  {
+    name: 'Fried Liver accepted, White to move and better',
+    sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'Ng5', 'd5', 'exd5', 'Nxd5', 'Nxf7', 'Kxf7'],
+    min: 55,
+  },
+  {
+    name: 'Englund Gambit, Black to move and worse',
+    sans: ['d4', 'e5', 'dxe5'],
+    max: 45,
+  },
+  {
+    // Six plies, so it is *White* to move — a queen down for a pawn. Mind the
+    // parity: naming the wrong side is how the first two versions of this list
+    // "failed" against a perfectly correct index.
+    name: 'Queen thrown away, White to move and lost',
+    sans: ['e4', 'e5', 'Qh5', 'Nc6', 'Qxf7+', 'Kxf7'],
+    max: 15,
+  },
 ]
 
 const fail = []
@@ -160,7 +190,7 @@ function checkKnownPositions(db) {
 
 function checkSignConvention(db) {
   process.stdout.write('\nsign convention (a flip here inverts every audit verdict)\n')
-  for (const p of LOSING) {
+  for (const p of DECIDED) {
     const fen = fenAfter(p.sans)
     const r = db.query(fen)
     if (!r) {
@@ -168,10 +198,13 @@ function checkSignConvention(db) {
       process.stdout.write(`  · ${p.name} — not in the index, skipped\n`)
       continue
     }
-    // The side to move in each of these is the side that has just been damaged
-    // or is objectively worse, so a correct index reports them below even.
     const wp = winPercent(r.lines[0].score)
-    note(wp < 50, `${p.name.padEnd(46)} mover at ${wp.toFixed(1)} win%`)
+    const ok = wp >= (p.min ?? 0) && wp <= (p.max ?? 100)
+    note(
+      ok,
+      `${p.name.padEnd(52)} mover at ${wp.toFixed(1)} win%` +
+        (ok ? '' : ` — expected ${p.min ?? 0}..${p.max ?? 100}`),
+    )
   }
 }
 
