@@ -553,3 +553,56 @@ describe('crawl — positions another branch has already decided', () => {
     expect(viaOtherOrder).toBe(at('d4 d5 c4 e6'))
   })
 })
+
+describe('crawl — candidate evaluations come from the index first', () => {
+  // Measured over a partial v2 build: 96.7% of candidate positions are already
+  // in the index at median depth 34, against the ~26 a 4M-node search reaches.
+  // The engine was re-deriving a worse answer than the one on disk.
+  const BOOK = stubBook({
+    'd4 d5 c4': [
+      { san: 'e6', w: 300, d: 100, b: 300 },
+      { san: 'c6', w: 200, d: 50, b: 200 },
+    ],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 c6': [{ san: 'Nf3', w: 400, d: 100, b: 300 }],
+  })
+
+  /** Every position the crawl reaches from this book, so "all indexed" means all. */
+  const ALL = new Set([
+    at('d4 d5 c4 e6'), at('d4 d5 c4 c6'),
+    at('d4 d5 c4 e6 Nc3'), at('d4 d5 c4 c6 Nf3'),
+  ])
+
+  const indexed = (fens, depth = 40) => ({
+    query: (fen) =>
+      fens.has(fenKey(fen))
+        ? { lines: [{ multipv: 1, score: cp(20), pv: ['a2a3'] }], bestMove: 'a2a3', depth, knodes: 1 }
+        : null,
+  })
+
+  it('does not search a position the index already holds', async () => {
+    const engine = stubEngine()
+    const withIndex = await run({ engine, explorer: BOOK, evalDb: indexed(ALL) })
+    expect(withIndex.report.candidateSource).toEqual({ cloud: 4, local: 0 })
+
+    const bare = stubEngine()
+    const without = await run({ engine: bare, explorer: BOOK })
+    expect(without.report.candidateSource).toEqual({ cloud: 0, local: 4 })
+    // The index run must have done strictly less engine work for the same tree.
+    expect(engine.searchCount()).toBeLessThan(bare.searchCount())
+  })
+
+  it('searches the ones it does not hold', async () => {
+    const r = await run({
+      engine: stubEngine(),
+      explorer: BOOK,
+      evalDb: indexed(new Set([at('d4 d5 c4 e6')])),
+    })
+    expect(r.report.candidateSource).toEqual({ cloud: 1, local: 3 })
+  })
+
+  it('searches rather than trusting an entry shallower than the gate accepts', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: indexed(ALL, 5) })
+    expect(r.report.candidateSource).toEqual({ cloud: 0, local: 4 })
+  })
+})
