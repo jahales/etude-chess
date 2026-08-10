@@ -28,6 +28,7 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
+import { createPositionFilter } from './positionFilter.mjs'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
 import { sniffAndDecompress } from './decompress.mjs'
@@ -369,6 +370,30 @@ function outcomeIndex(result) {
   return -1
 }
 
+/**
+ * Count first, then build only what can survive the prune.
+ *
+ * Two passes over the input for a fraction of the memory of one. The counting
+ * pass is constant-memory by construction, so the depth a book can reach stops
+ * being a memory question — which it very much was: a 4M-game ply-20 book
+ * reached 16,731,809 positions and died on V8's per-Map ceiling, having spent
+ * all of that on rows the final prune would have deleted.
+ *
+ * **Local sources only.** A second pass over `--month` would re-read the
+ * network stream, so the caller decides; `main` uses it for `--file`.
+ */
+export async function buildBookFiltered(opts) {
+  const { onProgress, minGames = 5, filterBits } = opts
+
+  onProgress?.({ phase: 'counting' })
+  const filter = createPositionFilter({ minGames, ...(filterBits ? { bits: filterBits } : {}) })
+  await buildBook({ ...opts, out: null, countOnly: true, filter })
+
+  const stats = filter.stats()
+  onProgress?.({ phase: 'counted', ...stats })
+  return buildBook({ ...opts, filter })
+}
+
 export async function buildBook(opts) {
   const {
     month,
@@ -382,6 +407,18 @@ export async function buildBook(opts) {
     minGames = 5,
     cache = null,
     onProgress,
+    /**
+     * Count sightings into `filter` and build nothing. The first half of
+     * {@link buildBookFiltered}; on its own it is a way to size a book without
+     * paying for it.
+     */
+    countOnly = false,
+    /**
+     * A {@link createPositionFilter} from a counting pass. Positions it rejects
+     * are never stored, which is what keeps a deep book inside memory — and
+     * inside V8's per-Map ceiling, which a 4M-game ply-20 book hit outright.
+     */
+    filter = null,
   } = opts
 
   /** @type {Map<string, Map<string, [number,number,number]>>} fenKey → san → [w,d,b] */
@@ -495,6 +532,21 @@ export async function buildBook(opts) {
           if (transitions.size < MAX_TRANSITIONS) transitions.set(memo, step)
         }
 
+        // Counting pass: record the sighting and store nothing. Constant
+        // memory, so this pass cannot hit any ceiling however deep it runs.
+        if (countOnly) {
+          filter.count(key)
+          key = step.next
+          continue
+        }
+        // Real pass: a position the counting pass never saw `minGames` times
+        // cannot have a move played `minGames` times, so it would be pruned at
+        // the end anyway. Not building it is the whole saving.
+        if (filter && !filter.keeps(key)) {
+          key = step.next
+          continue
+        }
+
         let node = book.get(key)
         if (!node) {
           // V8 caps a Map at 2^24 entries and throws a bare `RangeError: Map
@@ -554,6 +606,9 @@ export async function buildBook(opts) {
     if (node.size === 0) book.delete(key)
   }
 
+  // A counting pass has nothing to serialise; the filter is the whole output.
+  if (countOnly) return { counting: true, filter, gamesScanned: seen, gamesUsed: kept }
+
   const serialised = {
     meta: {
       source: file ?? DUMP(month),
@@ -569,6 +624,9 @@ export async function buildBook(opts) {
       gamesUsed: kept,
       positions: book.size,
       minGames,
+      // What the counting pass spared us building, so a thin book cannot be
+      // mistaken for a filter that discarded too much.
+      ...(filter ? { prefiltered: filter.stats() } : {}),
     },
     positions: Object.fromEntries([...book].map(([k, v]) => [k, Object.fromEntries(v)])),
   }
@@ -615,6 +673,8 @@ Build a local opening book from the Lichess database dumps (issue #88).
   --max-ply   16                plies recorded per game
   --max-games 200000            stop (and abort the download) after this many
   --min-games 5                 drop moves seen fewer times than this
+--one-pass              skip the counting pass (uses far more memory)
+--filter-bits 26        counting-table width; memory is 2^bits bytes
   --cache     db/cache          keep downloaded dump bytes here and reuse them
                                 next run (only what --max-games actually reads)
   --no-cache                    stream without keeping anything on disk
@@ -632,7 +692,13 @@ async function main() {
   const [minRating, maxRating] = String(a.ratings ?? '1600-2000').split('-').map(Number)
   const started = Date.now()
 
-  const { meta, pruned } = await buildBook({
+  // Two passes for a local file: counting first costs a second read and saves
+  // most of the memory, which is what lets --max-ply go deep. A network month
+  // is single-pass — re-reading it means re-downloading it.
+  const twoPass = Boolean(a.file) && !a['one-pass']
+  const build = twoPass ? buildBookFiltered : buildBook
+
+  const { meta, pruned } = await build({
     month: a.month ? String(a.month) : undefined,
     file: a.file ? String(a.file) : undefined,
     out: String(a.out),
@@ -642,11 +708,22 @@ async function main() {
     maxPly: a['max-ply'] ? Number(a['max-ply']) : undefined,
     maxGames: a['max-games'] ? Number(a['max-games']) : undefined,
     minGames: a['min-games'] ? Number(a['min-games']) : undefined,
+    filterBits: a['filter-bits'] ? Number(a['filter-bits']) : undefined,
     cache: a['no-cache'] ? null : String(a.cache ?? 'db/cache'),
-    onProgress: ({ seen, kept, positions, transitions, heapMb }) =>
+    onProgress: ({ phase, seen, kept, positions, transitions, heapMb, live, load }) => {
+      if (phase === 'counting') return process.stdout.write('  pass 1: counting positions\n')
+      if (phase === 'counted') {
+        return process.stdout.write(
+          `\n  pass 1 done: ${live.toLocaleString()} slots used, ` +
+            `table ${(100 * load).toFixed(1)}% loaded` +
+            `${load > 0.5 ? ' — collisions are common at this load; raise --filter-bits' : ''}\n` +
+            `  pass 2: building only what can survive the prune\n`,
+        )
+      }
       process.stdout.write(
         `\r  scanned ${seen} · kept ${kept} · positions ${positions} · transitions ${transitions} · heap ${heapMb} MB   `,
-      ),
+      )
+    },
   })
 
   console.log(
