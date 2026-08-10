@@ -32,10 +32,24 @@
 // double pawn push misses, and openings are full of them.
 
 import { createHash } from 'node:crypto'
+import { join } from 'node:path'
 import { Chess } from 'chess.js'
 
 /** Bytes per packed record: 16 key + 1 depth + 3 knodes + 5 × 4 pv. */
 export const RECORD_BYTES = 40
+
+/**
+ * How many bucket files the index is split across — one per value of the key's
+ * first byte.
+ *
+ * The layout lives here, in the module with no dependencies, rather than beside
+ * the builder: the reader needs it too, and having the reader import the
+ * builder put `build.mjs -> evalDb -> buildEvalIndex -> build.mjs` in a cycle
+ * that left `DEFAULTS` undefined at import time.
+ */
+export const BUCKETS = 256
+
+export const bucketPath = (dir, i, ext) => join(dir, `b${String(i).padStart(3, '0')}.${ext}`)
 export const KEY_BYTES = 16
 export const MAX_PVS = 5
 

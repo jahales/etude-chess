@@ -22,6 +22,7 @@ import { labelVariations, prefixVariations, variationFor } from './openings.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createExplorer } from './explorer.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
+import { createEvalDb } from './evalDb.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 export const DEFAULT_MANIFEST = join(here, 'manifest.v1.json')
@@ -230,6 +231,7 @@ export async function buildAll({
   engine,
   explorer,
   canon = null,
+  evalDb = null,
   defaults = {},
   date,
   provenance = {},
@@ -254,6 +256,7 @@ export async function buildAll({
         engine,
         explorer,
         canon,
+        evalDb,
         ourColor: entry.color,
         forcedLine: resolved.forced,
         delegations,
@@ -350,7 +353,7 @@ export async function writeBranch(outDir, r) {
   // evaluation without the settings that produced it cannot be audited.
   const settings = Object.fromEntries(
     Object.entries(r.crawled.options).filter(
-      ([k]) => !['engine', 'explorer', 'canon', 'delegations'].includes(k),
+      ([k]) => !['engine', 'explorer', 'canon', 'evalDb', 'delegations'].includes(k),
     ),
   )
   await writeFile(
@@ -545,6 +548,7 @@ export const FLAGS = [
   'out',
   'book',
   'canon-book',
+  'eval-index',
   'only',
   'nodes',
   'trap',
@@ -677,6 +681,9 @@ Build the whole repertoire from a manifest (issue #88, ADR 0021)
   --out      <dir>       output directory     (default: out/repertoire)
   --book       <path>    OUR BAND: what opponents actually play. Decides theirs.
   --canon-book <path>    MASTERS: what is principled. Decides ours.
+  --eval-index <path>    gate our moves on the local Lichess evaluation index
+                         (median depth 50) rather than --nodes, falling back to
+                         the engine where a position is absent. See issue #106.
   --only     a,b,c       build these branch ids only
   --nodes    400000      engine budget per position
   --trap     0.05        trapValue threshold
@@ -765,6 +772,10 @@ async function main() {
     ? await createLocalBook({ path: bookPath })
     : createExplorer({ cacheDir: join(outDir, '.explorer-cache') })
   const canon = canonPath ? await createLocalBook({ path: canonPath }) : null
+  // Optional. Absent means the old behaviour exactly — every decision gated by
+  // this build's own --nodes budget.
+  const evalIndexPath = stringFlag(args, 'eval-index')
+  const evalDb = evalIndexPath ? createEvalDb({ dir: evalIndexPath }) : null
   const engine = createEngine({ path: enginePath })
   const started = Date.now()
   console.log(`building ${entries.length} branch(es) at ${deepNodes.toLocaleString()} nodes → ${outDir}\n`)
@@ -783,6 +794,7 @@ async function main() {
       engine,
       explorer,
       canon,
+      evalDb,
       defaults: crawlDefaults,
       date,
       provenance,

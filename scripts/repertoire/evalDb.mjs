@@ -12,8 +12,15 @@
 
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { RECORD_BYTES, bucketOf, compareKeys, evalFen, keyFor, unpackRecord } from './evalKey.mjs'
-import { bucketPath } from './buildEvalIndex.mjs'
+import {
+  RECORD_BYTES,
+  bucketOf,
+  bucketPath,
+  compareKeys,
+  evalFen,
+  keyFor,
+  unpackRecord,
+} from './evalKey.mjs'
 
 /** Flip a score to the other side's point of view. */
 const negate = (s) => ({ type: s.type, value: -s.value })

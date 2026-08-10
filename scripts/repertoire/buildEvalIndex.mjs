@@ -38,15 +38,24 @@ import {
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { decompressZstd } from './decompress.mjs'
-import { RECORD_BYTES, bucketOf, compareKeys, keyFor, packRecord } from './evalKey.mjs'
+import {
+  BUCKETS,
+  RECORD_BYTES,
+  bucketOf,
+  bucketPath,
+  compareKeys,
+  keyFor,
+  packRecord,
+} from './evalKey.mjs'
 import { parseArgs, numberFlag, stringFlag } from './build.mjs'
 
-export const BUCKETS = 256
+// Re-exported so callers can keep treating the builder as the home of the
+// layout, without the reader having to import it.
+export { BUCKETS, bucketPath }
+
 /** Per-bucket write buffer. 256 × 1 MB = 256 MB resident, 16k writes for 16 GB. */
 const BUCKET_BUF = 1 << 20
 const NEWLINE = 0x0a
-
-export const bucketPath = (dir, i, ext) => join(dir, `b${String(i).padStart(3, '0')}.${ext}`)
 
 /**
  * Pick the entry to keep when a position was analysed more than once.

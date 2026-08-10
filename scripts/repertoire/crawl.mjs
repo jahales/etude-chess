@@ -41,6 +41,8 @@ import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
+import { createSoundnessGate } from './soundness.mjs'
+import { createEvalDb } from './evalDb.mjs'
 
 export const DEFAULTS = {
   /**
@@ -139,7 +141,12 @@ async function evalAfter(engine, fen, uci, o) {
 
 export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
-  const { engine, explorer, canon = null, ourColor, forcedLine = [] } = o
+  const { engine, explorer, canon = null, evalDb = null, ourColor, forcedLine = [] } = o
+
+  // Deep evaluations in front of this crawl's own search, for the soundness
+  // gate only — see soundness.mjs for why trap scoring and the quiet test are
+  // deliberately left alone.
+  const gate = createSoundnessGate({ evalDb })
 
   // The cap is checked before the quiet test, so a floor at or above it makes
   // the quiet test unreachable: every line ends on the cap and the tree has no
@@ -190,6 +197,8 @@ export async function crawl(config) {
     tooRareToJudge: [],
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
+    /** Which source gated each of our decisions — the evaluation index vs this search. */
+    gateSource: { cloud: 0, local: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
     minDepth: Infinity,
@@ -419,6 +428,7 @@ export async function crawl(config) {
         san: after.san,
         fen: after.fen,
         swing: Math.max(0, bestWp - after.moverWp),
+        depth: after.depth ?? 0,
         expected: after.moverWp / 100,
         frequency: frequency(m, total),
         practical: practicalScore(m, sideToMove),
@@ -437,9 +447,15 @@ export async function crawl(config) {
       // One move. Branching cost needs a lookahead into each child's replies.
       const ranked = []
       for (const c of scored) {
-        // Same gate rankOurMoves applies internally; read it from the domain so
-        // the two cannot drift apart when the constant is retuned.
-        if (c.swing > SOUNDNESS_MAX_SWING) continue
+        // The evaluation index decides this where it can, and this crawl's own
+        // search where it cannot. `rankOurMoves` applies the same gate
+        // internally — read from the domain so the two cannot drift apart when
+        // the constant is retuned — so it must be handed the *gated* swing
+        // rather than the local one, or the two would disagree about which
+        // moves are even eligible.
+        const gated = gate.swingFor(item.fen, c.stats.uci, { swing: c.swing, depth: c.depth })
+        report.gateSource[gated.source]++
+        if (gated.swing > SOUNDNESS_MAX_SWING) continue
         const replies = await explorer.query(c.fen)
         const cover = coverByMass(replies.moves, {
           massTarget: o.massTarget,
@@ -448,7 +464,9 @@ export async function crawl(config) {
         })
         ranked.push({
           move: c.stats,
-          swing: c.swing,
+          swing: gated.swing,
+          gateSource: gated.source,
+          gateDepth: gated.depth,
           replyBranching: cover.covered.length,
           // How much data that count rests on — a narrow-looking position that
           // nobody has played is not narrow.
@@ -496,7 +514,15 @@ export async function crawl(config) {
         // Only meaningful when a canonical source was configured; then 'band'
         // means we have left master theory behind.
         ...(canon ? { source: bookSource } : {}),
-        swing: Number(c.swing.toFixed(2)),
+        // The gated swing, not the local one — this is the number the move was
+        // actually admitted on, and recording the other would misreport the
+        // basis for the decision.
+        swing: Number(best.swing.toFixed(2)),
+        // Which evaluation admitted it, the way `source` records where the
+        // candidates came from. A move gated locally rests on this crawl's node
+        // budget; one gated by the index rests on a depth-50 search.
+        gatedBy: best.gateSource,
+        gateDepth: best.gateDepth,
         frequency: Number(c.frequency.toFixed(4)),
         replyBranching: best.replyBranching,
         score: Number(ourMoveScore(best).toFixed(3)),
@@ -643,6 +669,10 @@ Repertoire crawler (issue #88, ADR 0021)
                                    tail — where traps live. Raise it to hunt.
   --min-node-games 50              stop expanding below this many games
   --max-replies    6               most opponent moves covered at one node
+  --eval-index db/eval-index       gate our moves on the local Lichess
+                                   evaluation index (median depth 50) instead
+                                   of --nodes, falling back to the engine where
+                                   a position is absent. See issue #106.
   --engine  <path>                 Stockfish binary
                                    (default: ${DEFAULT_ENGINE_PATH})
 `
@@ -677,6 +707,10 @@ async function main() {
       : null
   const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
 
+  // Optional, and absent means the old behaviour exactly: the gate falls back
+  // to this crawl's own search for every decision.
+  const evalDb = args['eval-index'] ? createEvalDb({ dir: String(args['eval-index']) }) : null
+
   const started = Date.now()
   console.log(`crawling ${ourColor === 'w' ? 'White' : 'Black'} from: ${forcedLine.join(' ') || '(start)'}`)
 
@@ -685,6 +719,7 @@ async function main() {
       engine,
       explorer,
       canon,
+      evalDb,
       ourColor,
       forcedLine,
       maxPly: args['max-ply'] ? Number(args['max-ply']) : undefined,
@@ -703,7 +738,7 @@ async function main() {
         color: ourColor,
         line: forcedLine.join(' '),
         generated: new Date().toISOString(),
-        options: { ...result.options, engine: undefined, explorer: undefined },
+        options: { ...result.options, engine: undefined, explorer: undefined, evalDb: undefined },
       },
       report: {
         ...result.report,
