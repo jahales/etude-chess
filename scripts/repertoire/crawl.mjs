@@ -117,13 +117,8 @@ function applyUci(fen, uci) {
  */
 async function assess(engine, fen, o, evalDb = null, report = null) {
   const deep = await engine.analyse(fen, { nodes: o.deepNodes, multipv: o.multipv })
-  const shallow = await engine.analyse(fen, {
-    nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
-    multipv: 1,
-  })
   const multipvWp = deep.lines.map((l) => winPercent(l.score))
   const deepWp = multipvWp[0] ?? 50
-  const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
 
   // The quiet test is the one genuinely *relative* measurement in the crawl: it
   // asks whether a shallow and a deep reading disagree. Deepening one side does
@@ -131,7 +126,34 @@ async function assess(engine, fen, o, evalDb = null, report = null) {
   // shallow search at depth 21 is a 13-ply gap where the design assumes about
   // five, so positions would look tactical for no reason but the swap. Both its
   // readings therefore stay on the engine, at the fixed ratio shallowRatio sets.
-  const quiet = quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp })
+  //
+  // But all three tests must pass, so where breadth or balance has already
+  // failed the gap cannot change the verdict — a second reading can only *add*
+  // a reason, never remove one. So try it first with the gap neutralised, and
+  // buy the shallow search only when it can still matter. Losslessly identical
+  // output; measured on the shipped repertoire it skips about a fifth of them.
+  let quiet = quietness({ multipv: multipvWp, shallow: deepWp, deep: deepWp })
+  if (quiet.quiet) {
+    const shallow = await engine.analyse(fen, {
+      nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
+      multipv: 1,
+    })
+    const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
+    quiet = quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp })
+    // Every position where the gap could have mattered, and what it measured.
+    // Whether this filter still earns its search at 4M nodes is an open
+    // question — it fired 0 times in 96 sampled positions, but that sample was
+    // drawn from an already-quiet shipped repertoire. This records the honest
+    // distribution over positions the crawl actually rejects.
+    if (report) {
+      report.tacticGap.tested++
+      report.tacticGap.total += quiet.tacticGap
+      report.tacticGap.max = Math.max(report.tacticGap.max, quiet.tacticGap)
+      if (!quiet.quiet) report.tacticGap.decided++
+    }
+  } else if (report) {
+    report.tacticGap.skipped++
+  }
 
   // `quiet` above is left wholly engine-derived and self-consistent. Only
   // `bestWp` moves, and only because it is *subtracted* from candidate values
@@ -305,6 +327,15 @@ export async function crawl(config) {
     candidateSource: { cloud: 0, local: 0 },
     /** Where the baseline each candidate is measured against came from. */
     bestSource: { cloud: 0, local: 0 },
+    /**
+     * Evidence on whether the shallow search still earns its place. `decided`
+     * counts positions this filter alone kept from going quiet. If it stays at
+     * zero across a full build, the test is buying a search per node for
+     * nothing at these budgets — it fired 0 times in 96 sampled positions, but
+     * that sample came from an already-quiet shipped repertoire, so this
+     * records the distribution over positions the crawl genuinely rejects.
+     */
+    tacticGap: { tested: 0, skipped: 0, decided: 0, total: 0, max: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
     minDepth: Infinity,

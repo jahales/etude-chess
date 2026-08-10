@@ -652,3 +652,41 @@ describe('crawl — the baseline candidates are measured against', () => {
     expect(withIndex.report.terminal.quiet).toBe(engineOnly.report.terminal.quiet)
   })
 })
+
+describe('crawl — the shallow search is bought only when it can matter', () => {
+  // quietness needs all three tests to pass, so where breadth or balance has
+  // already failed a second reading can only add a reason, never remove one.
+  // Skipping it there is lossless; the verdict must be identical either way.
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+
+  it('skips it where the position is already decided', async () => {
+    // Wildly imbalanced: balance fails on the deep reading alone.
+    const r = await run({
+      engine: stubEngine({ scores: { [at('d4 d5 c4 e6')]: 2000 } }),
+      explorer: BOOK,
+      minPly: 4,
+      maxPly: 8,
+    })
+    expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
+  })
+
+  it('buys it where breadth and balance both pass', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    expect(r.report.tacticGap.tested).toBeGreaterThan(0)
+  })
+
+  it('does fewer searches for the same tree', async () => {
+    // The saving, stated as the thing that matters: identical crawl, fewer
+    // engine calls. Losslessness itself rests on `quietness` needing all three
+    // tests to pass, which the domain suite pins directly.
+    const decided = stubEngine({ scores: { [at('d4 d5 c4 e6')]: 2000 } })
+    const r = await run({ engine: decided, explorer: BOOK, minPly: 4, maxPly: 8 })
+    const assessed = r.report.tacticGap.tested + r.report.tacticGap.skipped
+    expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
+    // Two searches per assessed position would be the old cost; we did fewer.
+    expect(decided.searchCount()).toBeLessThan(2 * assessed + r.report.expanded)
+  })
+})
