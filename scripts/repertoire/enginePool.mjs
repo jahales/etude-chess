@@ -47,7 +47,10 @@ export function createEnginePool(opts = {}) {
     ...engineOpts
   } = opts
 
-  const engines = Array.from({ length: size }, () => createEngine(engineOpts))
+  // Every engine is told how many it is sharing the machine with, so its search
+  // timeout is budgeted against the rate it will actually achieve rather than
+  // the rate a lone engine would.
+  const engines = Array.from({ length: size }, () => createEngine({ ...engineOpts, share: size }))
 
   return {
     size,
