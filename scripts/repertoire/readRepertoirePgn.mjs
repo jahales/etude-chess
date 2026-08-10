@@ -70,12 +70,15 @@ export function* walkRepertoire(text) {
     // the move the repertoire actually prescribes at our nodes.
     const start = new Chess().fen()
     /** @type {{node: object, fen: string, line: string[], mainline: boolean}[]} */
-    const stack = game.moves.children.map((node, i) => ({
-      node,
-      fen: start,
-      line: [],
-      mainline: i === 0,
-    }))
+    const stack = game.moves.children
+      .map((node, i) => ({ node, fen: start, line: [], mainline: i === 0 }))
+      // Reversed for the same reason the recursive push below is: the stack is
+      // popped from the end, so the mainline has to go on last to come off
+      // first. Without this the root's own variations are walked *before* its
+      // mainline — the opposite of every deeper level — and `ourDecisions`,
+      // which keeps the first occurrence of a position, would attribute a
+      // shared position to a variation.
+      .reverse()
 
     while (stack.length) {
       const { node, fen, line, mainline } = stack.pop()

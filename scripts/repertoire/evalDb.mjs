@@ -14,11 +14,13 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } fro
 import { join } from 'node:path'
 import {
   RECORD_BYTES,
+  boardArray,
   bucketOf,
   bucketPath,
   compareKeys,
   evalFen,
   keyFor,
+  standardiseCastling,
   unpackRecord,
 } from './evalKey.mjs'
 
@@ -26,13 +28,18 @@ import {
 const negate = (s) => ({ type: s.type, value: -s.value })
 
 /**
- * Binary-search one sorted bucket for a key.
+ * Binary-search one sorted bucket for a key, leaving the record in `probe`.
+ *
+ * The found record is left in the caller's buffer rather than re-read from the
+ * offset: the last comparison already had those 40 bytes in hand, so fetching
+ * them again is a wasted syscall on every successful lookup.
+ *
+ * @param {Buffer} probe  scratch of RECORD_BYTES; holds the record on a hit
  * @returns {number|null} byte offset of the record, or null
  */
-export function findInBucket(fd, size, key) {
+export function findInBucket(fd, size, key, probe = Buffer.allocUnsafe(RECORD_BYTES)) {
   let lo = 0
   let hi = Math.floor(size / RECORD_BYTES) - 1
-  const probe = Buffer.allocUnsafe(RECORD_BYTES)
 
   while (lo <= hi) {
     const mid = (lo + hi) >> 1
@@ -63,6 +70,9 @@ export function createEvalDb({ dir }) {
   const fds = new Array(256).fill(null)
   const sizes = new Array(256).fill(0)
   const counters = { hits: 0, misses: 0 }
+  // One scratch record per reader, refilled by each search. Everything is read
+  // out of it before the next query, so there is nothing to alias.
+  const probe = Buffer.allocUnsafe(RECORD_BYTES)
 
   const openBucket = (i) => {
     if (fds[i] === null) {
@@ -89,28 +99,29 @@ export function createEvalDb({ dir }) {
       const normalised = evalFen(fen)
       const key = keyFor(normalised)
       const i = bucketOf(key)
-      const at = findInBucket(openBucket(i), sizes[i], key)
-      if (at === null) {
+      if (findInBucket(openBucket(i), sizes[i], key, probe) === null) {
         counters.misses++
         return null
       }
       counters.hits++
-
-      const buf = Buffer.allocUnsafe(RECORD_BYTES)
-      readSync(fds[i], buf, 0, RECORD_BYTES, at)
-      const rec = unpackRecord(buf, 0)
+      const rec = unpackRecord(probe, 0)
 
       // Stored White-relative (see evalKey.mjs); callers want the mover's view.
-      const whiteToMove = normalised.split(' ')[1] === 'w'
+      // Castling is rewritten out of the dump's Chess960 form here, in the one
+      // place that has the board, so no caller has to know the dump says
+      // `e1h1` where chess.js and Stockfish both say `e1g1`.
+      const [boardField, side] = normalised.split(' ')
+      const board = boardArray(boardField)
+      const whiteToMove = side === 'w'
       const lines = rec.pvs.map((pv, n) => ({
         multipv: n + 1,
         score: whiteToMove ? pv.score : negate(pv.score),
-        pv: [pv.uci],
+        pv: pv.uci ? [standardiseCastling(board, pv.uci)] : [],
       }))
 
       return {
         lines,
-        bestMove: lines[0]?.pv[0] ?? null,
+        bestMove: lines[0]?.pv?.[0] ?? null,
         depth: rec.depth,
         knodes: rec.knodes,
         source: 'cloud',

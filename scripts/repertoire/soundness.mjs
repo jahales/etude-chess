@@ -53,6 +53,23 @@ function applyUci(fen, uci) {
 export function createSoundnessGate({ evalDb = null, minDepth = MIN_INDEX_DEPTH } = {}) {
   const counters = { cloud: 0, local: 0, multipv: 0, after: 0 }
 
+  // The caller loops over every candidate at a node, so the *decision* position
+  // is looked up once per candidate — up to `maxEvalPerNode` identical
+  // normalise + hash + binary-search rounds for one answer. One slot is enough
+  // to collapse them, because the repeats are consecutive.
+  let lastFen = null
+  let lastResult
+  const before = (fen) => {
+    if (fen !== lastFen) {
+      lastFen = fen
+      lastResult = evalDb.query(fen)
+    }
+    return lastResult
+  }
+
+  /** Usable only when it is present *and* deep enough to beat the local search. */
+  const usable = (r) => (r?.lines?.length && r.depth >= minDepth ? r : null)
+
   return {
     /**
      * Win% our move gives up against the best available.
@@ -71,36 +88,53 @@ export function createSoundnessGate({ evalDb = null, minDepth = MIN_INDEX_DEPTH 
       }
       if (!evalDb) return local()
 
-      const before = evalDb.query(fen)
-      if (!before?.lines?.length || before.depth < minDepth) return local()
-      const bestWp = winPercent(before.lines[0].score)
+      const here = usable(before(fen))
+      if (!here) return local()
+      const bestWp = winPercent(here.lines[0].score)
 
       // Same search, same depth — directly comparable.
-      const mine = before.lines.find((l) => l.pv[0] === uci)
+      const mine = here.lines.find((l) => l.pv[0] === uci)
       if (mine) {
         counters.cloud++
         counters.multipv++
         return {
           swing: Math.max(0, bestWp - winPercent(mine.score)),
           source: 'cloud',
-          depth: before.depth,
+          depth: here.depth,
           method: 'multipv',
         }
       }
 
       // Outside the stored pvs: score the position after our move and negate.
       const afterFen = applyUci(fen, uci)
-      const after = afterFen && evalDb.query(afterFen)
-      if (!after?.lines?.length || after.depth < minDepth) return local()
+      const after = afterFen && usable(evalDb.query(afterFen))
+      if (!after) return local()
 
       counters.cloud++
       counters.after++
       return {
         swing: Math.max(0, bestWp - winPercent(negate(after.lines[0].score))),
         source: 'cloud',
-        depth: Math.min(before.depth, after.depth),
+        depth: Math.min(here.depth, after.depth),
         method: 'after',
       }
+    },
+
+    /**
+     * The index's own best move here, or `null`.
+     *
+     * For the case where no move humans play survives the gate. Falling back to
+     * a search shallower than the one that just vetoed every candidate is the
+     * wrong way round — and a deeper gate reaches that branch *more* often, not
+     * less.
+     *
+     * @returns {{uci: string, depth: number}|null}
+     */
+    bestMove(fen) {
+      if (!evalDb) return null
+      const here = usable(before(fen))
+      const uci = here?.lines[0]?.pv?.[0]
+      return uci ? { uci, depth: here.depth } : null
     },
 
     stats: () => ({ ...counters }),

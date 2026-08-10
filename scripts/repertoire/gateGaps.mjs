@@ -28,9 +28,23 @@ import {
   MIN_GAMES_TO_TRUST_BRANCHING,
   SOUNDNESS_MAX_SWING,
   coverByMass,
+  gamesFor,
   rankOurMoves,
   totalGames,
 } from '../../src/domain/repertoire.ts'
+import { DEFAULTS } from './crawl.mjs'
+
+/**
+ * How much better a candidate's swing must be before a ranking change counts
+ * as substantive rather than a tie-break.
+ *
+ * Every candidate here has already passed the soundness gate, which is the
+ * project's own definition of "as good as best" (ADR 0021), so a fraction of a
+ * win% between two survivors is not a finding — it is the popularity term
+ * breaking a tie on a bigger book. Kept well under SOUNDNESS_MAX_SWING so it
+ * can never reclassify a move the gate itself would separate.
+ */
+export const TIE_BREAK_WIN_PERCENT = 0.5
 import { createEvalDb } from './evalDb.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createSoundnessGate } from './soundness.mjs'
@@ -106,7 +120,7 @@ export async function replayDecision(decision, { gate, canon, band, opts }) {
         maxMoves: opts.maxReplies,
       }).covered.length,
       replyGames,
-      frequency: canonGames ? (m.white + m.draws + m.black) / canonGames : 0,
+      frequency: canonGames ? gamesFor(m) / canonGames : 0,
       gateDepth: g.depth,
     })
   }
@@ -144,7 +158,7 @@ export async function replayDecision(decision, { gate, canon, band, opts }) {
     // breaking a tie differently on a bigger book — not something depth caused.
     tieBreak:
       changes &&
-      best.swing >= oursNow.swing - 0.5 &&
+      best.swing >= oursNow.swing - TIE_BREAK_WIN_PERCENT &&
       best.replyBranching >= oursNow.replyBranching,
     changes,
   }
@@ -158,13 +172,16 @@ async function main() {
     'max-eval',
     'mass',
     'max-replies',
+    'min-canon-games',
     'out',
   ])
   const opts = {
     maxEval: numberFlag(args, 'max-eval') ?? 20,
     massTarget: numberFlag(args, 'mass') ?? 0.85,
     maxReplies: numberFlag(args, 'max-replies') ?? 6,
-    minCanonGames: numberFlag(args, 'min-canon-games') ?? 50,
+    // The crawler's own floor for expanding a node, so the replay declares a
+    // position unreplayable on exactly the evidence the crawl would have.
+    minCanonGames: numberFlag(args, 'min-canon-games') ?? DEFAULTS.minNodeGames,
   }
 
   const db = createEvalDb({ dir: stringFlag(args, 'index') ?? join(repoRoot, 'db', 'eval-index') })

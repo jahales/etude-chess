@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Chess } from 'chess.js'
 import {
   RECORD_BYTES,
+  boardArray,
   bucketOf,
   compareKeys,
   evalFen,
@@ -10,6 +11,7 @@ import {
   packMove,
   packRecord,
   packScore,
+  standardiseCastling,
   unpackMove,
   unpackRecord,
   unpackScore,
@@ -181,6 +183,21 @@ describe('packRecord / unpackRecord', () => {
     expect(out.pvs).toEqual([])
   })
 
+  it('keeps a pv that has a score but no packable move', () => {
+    // Dropping it would silently promote the second-best move into lines[0]
+    // and understate every swing measured at that position.
+    const buf = Buffer.alloc(RECORD_BYTES)
+    packRecord(buf, 0, keyFor('8/8/8/8/8/8/8/K6k w - -'), {
+      depth: 40,
+      knodes: 1,
+      pvs: [{ cp: 120 }, { cp: 90, line: 'e2e4' }],
+    })
+    const out = unpackRecord(buf, 0)
+    expect(out.pvs).toHaveLength(2)
+    expect(out.pvs[0]).toEqual({ score: { type: 'cp', value: 120 }, uci: null })
+    expect(out.pvs[1].uci).toBe('e2e4')
+  })
+
   it('drops pvs beyond the fifth rather than writing past the record', () => {
     const buf = Buffer.alloc(RECORD_BYTES)
     packRecord(buf, 0, keyFor('8/8/8/8/8/8/8/K6k w - -'), {
@@ -189,6 +206,59 @@ describe('packRecord / unpackRecord', () => {
       pvs: Array.from({ length: 9 }, (_, i) => ({ cp: i, line: 'e2e4' })),
     })
     expect(unpackRecord(buf, 0).pvs).toHaveLength(5)
+  })
+})
+
+describe('standardiseCastling — the dump speaks Chess960', () => {
+  const board = (fen) => boardArray(fen.split(' ')[0])
+
+  it('rewrites White kingside king-takes-rook into e1g1', () => {
+    const b = board('r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq -')
+    expect(standardiseCastling(b, 'e1h1')).toBe('e1g1')
+  })
+
+  it('rewrites White queenside into e1c1', () => {
+    const b = board('r3kbnr/pppqpppp/2n5/3p4/3P4/2N5/PPPQPPPP/R3KBNR w KQkq -')
+    expect(standardiseCastling(b, 'e1a1')).toBe('e1c1')
+  })
+
+  it('rewrites Black castling on both sides', () => {
+    const b = board('r3k2r/pppq1ppp/2n2n2/3pp3/3PP3/2N2N2/PPPQ1PPP/R3K2R b KQkq -')
+    expect(standardiseCastling(b, 'e8h8')).toBe('e8g8')
+    expect(standardiseCastling(b, 'e8a8')).toBe('e8c8')
+  })
+
+  it('leaves a move already in standard form alone', () => {
+    const b = board('r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq -')
+    expect(standardiseCastling(b, 'e1g1')).toBe('e1g1')
+  })
+
+  it('leaves ordinary moves alone, including a king capturing an enemy rook', () => {
+    const b = board('8/8/8/8/8/8/4K3/4r3 w - -')
+    expect(standardiseCastling(b, 'e2e1')).toBe('e2e1')
+    expect(standardiseCastling(b, 'e2d3')).toBe('e2d3')
+  })
+
+  it('leaves a rook move alone even when it lands on the king', () => {
+    const b = board('8/8/8/8/8/8/8/R3K3 w Q -')
+    expect(standardiseCastling(b, 'a1e1')).toBe('a1e1')
+  })
+
+  it('tolerates a short or empty move', () => {
+    const b = board('8/8/8/8/8/8/8/R3K3 w Q -')
+    expect(standardiseCastling(b, '')).toBe('')
+    expect(standardiseCastling(b, 'e1')).toBe('e1')
+  })
+})
+
+describe('boardArray', () => {
+  it('places the start position on the right squares', () => {
+    const b = boardArray('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR')
+    expect(b[0]).toBe('R') // a1
+    expect(b[4]).toBe('K') // e1
+    expect(b[60]).toBe('k') // e8
+    expect(b[63]).toBe('r') // h8
+    expect(b[32]).toBe('') // a5
   })
 })
 

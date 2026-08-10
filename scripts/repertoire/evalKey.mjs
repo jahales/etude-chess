@@ -112,6 +112,14 @@ export function keyForFen(fen) {
   return keyFor(evalFen(fen))
 }
 
+/** Square index from a name, a1 = 0 … h8 = 63. */
+export const squareIndex = (name) =>
+  name.charCodeAt(0) - 97 + (name.charCodeAt(1) - 49) * 8
+
+/** Inverse of {@link squareIndex}. */
+export const squareName = (s) =>
+  String.fromCharCode(97 + (s % 8)) + String.fromCharCode(49 + Math.floor(s / 8))
+
 /**
  * Pack a UCI move into 16 bits: from | to << 6 | promo << 12.
  * `0` is the sentinel for "no move" — a1a1 is never legal.
@@ -119,9 +127,8 @@ export function keyForFen(fen) {
  */
 export function packMove(uci) {
   if (!uci || uci.length < 4) return 0
-  const sq = (f, r) => (f.charCodeAt(0) - 97) + (r.charCodeAt(0) - 49) * 8
-  const from = sq(uci[0], uci[1])
-  const to = sq(uci[2], uci[3])
+  const from = squareIndex(uci.slice(0, 2))
+  const to = squareIndex(uci.slice(2, 4))
   if (from < 0 || from > 63 || to < 0 || to > 63) return 0
   const promo = PROMO_CODES[uci[4]] ?? 0
   return from | (to << 6) | (promo << 12)
@@ -130,11 +137,54 @@ export function packMove(uci) {
 /** Inverse of {@link packMove}; `null` for the sentinel. */
 export function unpackMove(packed) {
   if (!packed) return null
-  const from = packed & 63
-  const to = (packed >> 6) & 63
   const promo = PROMO_CHARS[(packed >> 12) & 7] ?? ''
-  const name = (s) => String.fromCharCode(97 + (s % 8)) + String.fromCharCode(49 + Math.floor(s / 8))
-  return name(from) + name(to) + promo
+  return squareName(packed & 63) + squareName((packed >> 6) & 63) + promo
+}
+
+/** Squares a1…h8 as a flat 64-entry array of FEN characters ('' when empty). */
+export function boardArray(boardField) {
+  const board = new Array(64).fill('')
+  const ranks = boardField.split('/')
+  for (let r = 0; r < ranks.length && r < 8; r++) {
+    const rank = 7 - r // ranks[0] is rank 8
+    let file = 0
+    for (const ch of ranks[r]) {
+      if (ch >= '1' && ch <= '8') file += Number(ch)
+      else if (file < 8) board[rank * 8 + file++] = ch
+    }
+  }
+  return board
+}
+
+/**
+ * Rewrite a castling move from the dump's convention into the standard one.
+ *
+ * **Measured, and it silently degraded the gate before it was found.** Lichess
+ * writes principal variations in UCI *Chess960* notation, where castling is
+ * king-takes-rook: for `e4 e5 Nf3 Nc6 Bc4 f5 d3 Nf6` the index's best move
+ * comes back as `e1h1`. chess.js `lan` and Stockfish both say `e1g1`. Nothing
+ * threw — the move simply never matched, so every castling candidate skipped
+ * the same-search multi-pv comparison and fell through to the weaker
+ * after-move lookup, or all the way back to the local engine.
+ *
+ * Detected structurally rather than by square, so it holds for either colour
+ * and either side of the board: a king "moving onto" a friendly rook is not a
+ * legal move in standard chess, so there are no false positives.
+ *
+ * @param {string[]} board  from {@link boardArray}
+ * @param {string} uci
+ */
+export function standardiseCastling(board, uci) {
+  if (!uci || uci.length < 4) return uci
+  const from = squareIndex(uci.slice(0, 2))
+  const to = squareIndex(uci.slice(2, 4))
+  const king = board[from]
+  if (king !== 'K' && king !== 'k') return uci
+  if (board[to] !== (king === 'K' ? 'R' : 'r')) return uci
+
+  const rank = Math.floor(from / 8)
+  const kingside = to % 8 > from % 8
+  return squareName(from) + squareName(rank * 8 + (kingside ? 6 : 2))
 }
 
 /**
@@ -207,9 +257,14 @@ export function unpackRecord(buf, offset) {
   const pvs = []
   for (let i = 0; i < MAX_PVS; i++) {
     const at = offset + 20 + i * 4
-    const uci = unpackMove(buf.readUInt16LE(at + 2))
-    if (!uci) continue
-    pvs.push({ score: unpackScore(buf.readInt16LE(at)), uci })
+    const packed = buf.readUInt16LE(at + 2)
+    const raw = buf.readInt16LE(at)
+    // An unused slot is both fields zero. A slot carrying a score but no move
+    // is a real evaluation whose line we could not pack, and dropping it would
+    // silently promote the second-best move into `lines[0]` — understating
+    // every swing measured at that position, with nothing recording why.
+    if (!packed && raw === 0) continue
+    pvs.push({ score: unpackScore(raw), uci: unpackMove(packed) })
   }
   return { depth, knodes, pvs }
 }

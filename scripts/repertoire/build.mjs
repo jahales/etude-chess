@@ -536,6 +536,18 @@ export function summarise(results) {
     tooRareToJudge: ok.flatMap((r) => r.crawled.report.tooRareToJudge.map((t) => ({ ...t, entry: r.entry.id }))),
     truncated: ok.flatMap((r) => r.crawled.report.truncatedNodes.map((t) => ({ ...t, entry: r.entry.id }))),
     seconds: results.reduce((n, r) => n + r.seconds, 0),
+    /**
+     * How many of our decisions the evaluation index gated, against how many
+     * fell back to the crawl's own search (ADR 0024). Without it the run
+     * reports the same numbers whether the index covered everything or nothing.
+     */
+    gatedBy: ok.reduce(
+      (acc, r) => ({
+        cloud: acc.cloud + (r.crawled.report.gateSource?.cloud ?? 0),
+        local: acc.local + (r.crawled.report.gateSource?.local ?? 0),
+      }),
+      { cloud: 0, local: 0 },
+    ),
   }
 }
 
@@ -854,6 +866,7 @@ async function main() {
 ── built in ${((Date.now() - started) / 1000).toFixed(0)}s ─────────────────────
 positions       ${summary.positions}
 to memorise     ${summary.load.ourDecisions} decisions of ours, answering ${summary.load.preparedReplies} of theirs
+gated by        ${evalDb ? `index ${summary.gatedBy.cloud} · local search ${summary.gatedBy.local}` : `local search only (no --eval-index)`}
 quiet targets   ${summary.load.quietTargets}
 engine searches ${engine.searchCount()}`)
 

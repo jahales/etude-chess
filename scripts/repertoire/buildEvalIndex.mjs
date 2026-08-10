@@ -104,10 +104,6 @@ export async function scatter(source, dir, { limit = Infinity, onProgress } = {}
   const fds = []
   const bufs = []
   const used = new Int32Array(BUCKETS)
-  for (let i = 0; i < BUCKETS; i++) {
-    fds.push(openSync(bucketPath(dir, i, 'part'), 'w'))
-    bufs.push(Buffer.allocUnsafe(BUCKET_BUF))
-  }
 
   const flush = (i) => {
     if (used[i] > 0) writeSync(fds[i], bufs[i], 0, used[i])
@@ -148,6 +144,14 @@ export async function scatter(source, dir, { limit = Infinity, onProgress } = {}
   }
 
   try {
+    // Opened inside the try so the finally below covers its own setup: failing
+    // partway through — EMFILE under a low ulimit, a read-only output
+    // directory — otherwise strands every descriptor already opened.
+    for (let i = 0; i < BUCKETS; i++) {
+      fds.push(openSync(bucketPath(dir, i, 'part'), 'w'))
+      bufs.push(Buffer.allocUnsafe(BUCKET_BUF))
+    }
+
     outer: for await (const chunk of decompressZstd(createReadStream(source))) {
       const buf = leftover.length ? Buffer.concat([leftover, chunk]) : chunk
       let start = 0

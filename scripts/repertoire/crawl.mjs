@@ -197,7 +197,13 @@ export async function crawl(config) {
     tooRareToJudge: [],
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
-    /** Which source gated each of our decisions — the evaluation index vs this search. */
+    /**
+     * Which source gated each of our decisions — the evaluation index vs this
+     * search. Counted once per decision, on the move actually chosen: counting
+     * every candidate would make a node with twenty candidates worth twenty,
+     * and the number would no longer answer "how much of this repertoire rests
+     * on a depth-50 search".
+     */
     gateSource: { cloud: 0, local: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
@@ -454,7 +460,6 @@ export async function crawl(config) {
         // rather than the local one, or the two would disagree about which
         // moves are even eligible.
         const gated = gate.swingFor(item.fen, c.stats.uci, { swing: c.swing, depth: c.depth })
-        report.gateSource[gated.source]++
         if (gated.swing > SOUNDNESS_MAX_SWING) continue
         const replies = await explorer.query(c.fen)
         const cover = coverByMass(replies.moves, {
@@ -485,19 +490,29 @@ export async function crawl(config) {
         //
         // Constitution §4 is untouched: it governs where *distractors* come
         // from (human frequency, never engine top-N). This is our own move.
-        const engineBest = deep.lines[0]?.pv?.[0]
-        const applied = engineBest ? applyUci(item.fen, engineBest) : null
+        //
+        // Prefer the index's answer over this crawl's own search. Rejecting
+        // every human move on a depth-50 evaluation and then picking a
+        // depth-20 replacement would put the shallowest evidence in the
+        // repertoire exactly where the gate was strictest — and a deeper gate
+        // reaches this branch *more* often, so the effect grows with the fix.
+        const indexed = gate.bestMove(item.fen)
+        const chosenUci = indexed?.uci ?? deep.lines[0]?.pv?.[0]
+        const applied = chosenUci ? applyUci(item.fen, chosenUci) : null
         if (!applied) {
           node.terminal = true
           node.terminalReason = 'no-sound-move'
           report.terminal['no-sound-move']++
           continue
         }
+        report.gateSource[indexed ? 'cloud' : 'local']++
         const fallback = {
           san: applied.san,
-          uci: engineBest,
+          uci: chosenUci,
           fen: applied.fen,
           reason: 'ours-engine',
+          gatedBy: indexed ? 'cloud' : 'local',
+          gateDepth: indexed?.depth ?? 0,
           swing: 0,
         }
         node.children.push(fallback)
@@ -527,6 +542,7 @@ export async function crawl(config) {
         replyBranching: best.replyBranching,
         score: Number(ourMoveScore(best).toFixed(3)),
       }
+      report.gateSource[best.gateSource]++
       node.children.push(chosen)
       enqueue(chosen, c.fen, item.ply + 1, [...item.line, c.san])
     } else {
@@ -776,6 +792,7 @@ async function main() {
 positions       ${result.nodes.size}   (expanded ${r.expanded})
 terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}${r.terminal.delegated ? ` · delegated ${r.terminal.delegated}` : ''}
 decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.band}` : `band only (no canonical source)`}
+gated by        ${evalDb ? `index ${r.gateSource.cloud} · local search ${r.gateSource.local}` : `local search only (no --eval-index)`}
 engine searches ${engine.searchCount()}
 explorer        ${JSON.stringify(explorer.stats())}
 traps found     ${r.traps.length}`)

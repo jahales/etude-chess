@@ -97,6 +97,41 @@ describe('createSoundnessGate', () => {
     expect(g.swingFor(START, 'e7e5', FALLBACK).source).toBe('local')
   })
 
+  it('looks the decision position up once, however many candidates it grades', () => {
+    // The caller loops candidates at one node, so without memoisation the same
+    // position is normalised, hashed and binary-searched once per candidate.
+    let queries = 0
+    const table = { [START]: pos([{ uci: 'd2d4', score: cp(30) }, { uci: 'c2c4', score: cp(28) }]) }
+    const g = createSoundnessGate({
+      evalDb: {
+        query: (fen) => {
+          queries++
+          return table[fen] ?? null
+        },
+      },
+    })
+    for (const uci of ['d2d4', 'c2c4', 'd2d4', 'c2c4']) g.swingFor(START, uci, FALLBACK)
+    expect(queries).toBe(1)
+  })
+
+  describe('bestMove — for when no human move survives the gate', () => {
+    it('offers the index\'s choice rather than leaving the caller to a shallower search', () => {
+      const g = createSoundnessGate({
+        evalDb: db({ [START]: pos([{ uci: 'd2d4', score: cp(30) }]) }),
+      })
+      expect(g.bestMove(START)).toEqual({ uci: 'd2d4', depth: 50 })
+    })
+
+    it('is null when the position is absent, or indexed too shallow', () => {
+      expect(createSoundnessGate().bestMove(START)).toBeNull()
+      expect(createSoundnessGate({ evalDb: db({}) }).bestMove(START)).toBeNull()
+      const shallow = createSoundnessGate({
+        evalDb: db({ [START]: pos([{ uci: 'd2d4', score: cp(30) }], MIN_INDEX_DEPTH - 1) }),
+      })
+      expect(shallow.bestMove(START)).toBeNull()
+    })
+  })
+
   it('counts where its verdicts came from', () => {
     const g = createSoundnessGate({
       evalDb: db({

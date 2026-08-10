@@ -96,6 +96,24 @@ describe('walkRepertoire — the variations chess.js drops', () => {
     expect(lines.indexOf('e4 e5')).toBeLessThan(lines.indexOf('e4 c5'))
   })
 
+  it('visits the mainline first at the root too, not just deeper down', () => {
+    // The stack is popped from the end, so the root children need the same
+    // reversal the recursive push uses. Without it the root's variations are
+    // walked before its mainline and ourDecisions, which keeps the first
+    // occurrence, attributes a shared position to a variation.
+    const twoFirstMoves = HEAD('roots') + '1. d4 (1. e4 e5 2. Nf3) 1... d5 2. c4 *\n'
+    const sans = [...walkRepertoire(twoFirstMoves)].map((n) => n.san)
+    expect(sans.indexOf('d4')).toBeLessThan(sans.indexOf('e4'))
+    expect(sans[0]).toBe('d4')
+  })
+
+  it('marks the root mainline, not a root variation, as the mainline', () => {
+    const twoFirstMoves = HEAD('roots') + '1. d4 (1. e4 e5) 1... d5 *\n'
+    const byLine = new Map([...walkRepertoire(twoFirstMoves)].map((n) => [n.line.join(' '), n]))
+    expect(byLine.get('d4').mainline).toBe(true)
+    expect(byLine.get('e4').mainline).toBe(false)
+  })
+
   it('raises on an illegal move instead of truncating the tree', () => {
     // Well-formed SAN, illegal here: no white knight can reach f6. (A malformed
     // token like "Qh9" is dropped by the chessops tokeniser and never becomes a

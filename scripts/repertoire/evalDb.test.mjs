@@ -134,6 +134,36 @@ describe('createEvalDb — round trip', () => {
   })
 })
 
+describe('createEvalDb — castling comes back in standard notation', () => {
+  // The dump writes king-takes-rook. Every consumer compares against chess.js
+  // `lan`, so an untranslated `e1h1` matches nothing and the move silently
+  // drops to weaker evidence — measured against the real index before the fix.
+  const READY = 'r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq -'
+
+  it('rewrites the dump\'s e1h1 into the e1g1 callers use', async () => {
+    const db = await build([entry(READY, [{ cp: 40, line: 'e1h1 e8h8' }])])
+    const r = db.query(READY)
+    expect(r.bestMove).toBe('e1g1')
+    expect(r.lines[0].pv).toEqual(['e1g1'])
+    db.close()
+  })
+
+  it('matches a castling move produced by chess.js', async () => {
+    const db = await build([entry(READY, [{ cp: 40, line: 'e1h1' }])])
+    const c = new Chess(`${READY} 0 1`)
+    const castle = c.moves({ verbose: true }).find((m) => m.san === 'O-O')
+    expect(castle.lan).toBe('e1g1')
+    expect(db.query(READY).lines.some((l) => l.pv[0] === castle.lan)).toBe(true)
+    db.close()
+  })
+
+  it('leaves non-castling moves untouched', async () => {
+    const db = await build([entry(READY, [{ cp: 40, line: 'f3g5 d7d6' }])])
+    expect(db.query(READY).bestMove).toBe('f3g5')
+    db.close()
+  })
+})
+
 describe('createEvalDb — the index as a whole', () => {
   it('keeps every position across many buckets and finds them all', async () => {
     // 300 distinct legal positions, enough to spread across most buckets and to

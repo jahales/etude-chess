@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Chess } from 'chess.js'
 import { auditDeck, gradeDecision } from './auditRepertoire.mjs'
+import { MIN_INDEX_DEPTH } from './soundness.mjs'
 import { SOUNDNESS_MAX_SWING } from '../../src/domain/repertoire.ts'
 
 // The audit's whole job is a subtraction, and every way of getting it wrong
@@ -122,6 +123,38 @@ describe('gradeDecision — our move is outside the stored pvs', () => {
     expect(g.ourScore).toEqual({ type: 'mate', value: -3 })
     expect(g.swing).toBeGreaterThan(50)
     expect(g.tier).toBe('C')
+  })
+})
+
+describe('gradeDecision — depth floor', () => {
+  // The crawl gate refuses an index entry below MIN_INDEX_DEPTH; the audit must
+  // agree, or the two consumers of one index disagree about what is trustworthy
+  // and the audit reports a depth nothing rejects.
+  it('refuses a decision position indexed too shallow', () => {
+    const db = fakeDb({ [START]: position([line('e2e4', 30)], MIN_INDEX_DEPTH - 1) })
+    const g = gradeDecision({ fen: START, fenAfter: 'x', uci: 'e2e4' }, db)
+    expect(g.covered).toBe(false)
+    expect(g.reason).toMatch(/depth 24/)
+  })
+
+  it('accepts it at exactly the floor', () => {
+    const db = fakeDb({ [START]: position([line('e2e4', 30)], MIN_INDEX_DEPTH) })
+    expect(gradeDecision({ fen: START, fenAfter: 'x', uci: 'e2e4' }, db).covered).toBe(true)
+  })
+
+  it('refuses when only the after-position is too shallow', () => {
+    const db = fakeDb({
+      [START]: position([line('d2d4', 30)], 50),
+      [after(['e4'])]: position([line('e7e5', -30)], MIN_INDEX_DEPTH - 1),
+    })
+    const g = gradeDecision({ fen: START, fenAfter: after(['e4']), uci: 'e2e4' }, db)
+    expect(g.covered).toBe(false)
+    expect(g.reason).toMatch(/depth 24/)
+  })
+
+  it('honours a caller-supplied floor', () => {
+    const db = fakeDb({ [START]: position([line('e2e4', 30)], 10) })
+    expect(gradeDecision({ fen: START, fenAfter: 'x', uci: 'e2e4' }, db, 5).covered).toBe(true)
   })
 })
 

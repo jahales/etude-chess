@@ -33,6 +33,7 @@ import { SOUNDNESS_MAX_SWING } from '../../src/domain/repertoire.ts'
 import { tierForSwing } from '../../src/domain/grade.ts'
 import { winPercent } from '../../src/domain/winPercent.ts'
 import { createEvalDb } from './evalDb.mjs'
+import { MIN_INDEX_DEPTH } from './soundness.mjs'
 import { ourDecisions } from './readRepertoirePgn.mjs'
 import { parseArgs, stringFlag } from './build.mjs'
 
@@ -60,9 +61,19 @@ const negate = (s) => ({ type: s.type, value: -s.value })
  * @param {{fen: string, fenAfter: string, uci: string}} decision
  * @param {{query: (fen: string) => object|null}} db
  */
-export function gradeDecision(decision, db) {
-  const before = db.query(decision.fen)
-  if (!before || !before.lines.length) return { covered: false, reason: 'position not in index' }
+export function gradeDecision(decision, db, minDepth = MIN_INDEX_DEPTH) {
+  const usable = (r) =>
+    r?.lines?.length ? (r.depth >= minDepth ? r : { tooShallow: r.depth }) : null
+
+  const before = usable(db.query(decision.fen))
+  if (!before) return { covered: false, reason: 'position not in index' }
+  if (before.tooShallow) {
+    // The same floor the crawl gate applies. Without it a depth-8 entry — and
+    // the dump is full of them, since every casual cloud-eval request is
+    // recorded — is graded as authoritative against a median of 50, and
+    // reported with a depth nothing rejects.
+    return { covered: false, reason: `indexed only to depth ${before.tooShallow}` }
+  }
 
   const best = before.lines[0]
   const bestWp = winPercent(best.score)
@@ -85,11 +96,13 @@ export function gradeDecision(decision, db) {
     }
   }
 
-  const after = db.query(decision.fenAfter)
-  if (!after || !after.lines.length) {
+  const after = usable(db.query(decision.fenAfter))
+  if (!after || after.tooShallow) {
     return {
       covered: false,
-      reason: 'our move is outside the stored pvs and the position after it is not in the index',
+      reason: after?.tooShallow
+        ? `our move is outside the stored pvs and the position after it is indexed only to depth ${after.tooShallow}`
+        : 'our move is outside the stored pvs and the position after it is not in the index',
       depth: before.depth,
       bestUci: best.pv[0],
     }
