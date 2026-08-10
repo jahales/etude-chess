@@ -606,3 +606,49 @@ describe('crawl — candidate evaluations come from the index first', () => {
     expect(r.report.candidateSource).toEqual({ cloud: 0, local: 4 })
   })
 })
+
+describe('crawl — the baseline candidates are measured against', () => {
+  // `swing = bestWp - candidate`. Once candidates come from the index, leaving
+  // the baseline on a shallower engine reading manufactures swing out of the
+  // depth difference — and that swing feeds trap detection. Both sides of the
+  // subtraction have to come from one source.
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+  const at40 = (score) => ({
+    query: () => ({ lines: [{ multipv: 1, score, pv: ['a2a3'] }], bestMove: 'a2a3', depth: 40, knodes: 1 }),
+  })
+
+  it('takes the baseline from the index when it is deep enough', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: at40(cp(0)) })
+    expect(r.report.bestSource.cloud).toBeGreaterThan(0)
+    expect(r.report.bestSource.local).toBe(0)
+  })
+
+  it('falls back to the engine when the index is absent or shallow', async () => {
+    const none = await run({ engine: stubEngine(), explorer: BOOK })
+    expect(none.report.bestSource).toEqual({ cloud: 0, local: none.report.bestSource.local })
+    expect(none.report.bestSource.local).toBeGreaterThan(0)
+
+    const shallow = {
+      query: () => ({ lines: [{ multipv: 1, score: cp(0), pv: ['a2a3'] }], bestMove: 'a2a3', depth: 5, knodes: 1 }),
+    }
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: shallow })
+    expect(r.report.bestSource.cloud).toBe(0)
+  })
+
+  it('leaves the quiet test entirely on the engine', async () => {
+    // The tactic gap is relative, so deepening one side decalibrates it. An
+    // index that disagrees wildly with the engine must not change quietness.
+    const engineOnly = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    const withIndex = await run({
+      engine: stubEngine(),
+      explorer: BOOK,
+      evalDb: at40(cp(900)),
+      minPly: 4,
+      maxPly: 8,
+    })
+    expect(withIndex.report.terminal.quiet).toBe(engineOnly.report.terminal.quiet)
+  })
+})

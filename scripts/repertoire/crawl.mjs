@@ -115,7 +115,7 @@ function applyUci(fen, uci) {
  * Deep + shallow evaluation and the quiet test for one position.
  * Win percentages are from the side to move.
  */
-async function assess(engine, fen, o) {
+async function assess(engine, fen, o, evalDb = null, report = null) {
   const deep = await engine.analyse(fen, { nodes: o.deepNodes, multipv: o.multipv })
   const shallow = await engine.analyse(fen, {
     nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
@@ -124,10 +124,28 @@ async function assess(engine, fen, o) {
   const multipvWp = deep.lines.map((l) => winPercent(l.score))
   const deepWp = multipvWp[0] ?? 50
   const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
+
+  // The quiet test is the one genuinely *relative* measurement in the crawl: it
+  // asks whether a shallow and a deep reading disagree. Deepening one side does
+  // not improve it, it decalibrates it — an index reading at depth 34 against a
+  // shallow search at depth 21 is a 13-ply gap where the design assumes about
+  // five, so positions would look tactical for no reason but the swap. Both its
+  // readings therefore stay on the engine, at the fixed ratio shallowRatio sets.
+  const quiet = quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp })
+
+  // `quiet` above is left wholly engine-derived and self-consistent. Only
+  // `bestWp` moves, and only because it is *subtracted* from candidate values
+  // that now come from the index: a ~26-ply baseline against 34-ply candidates
+  // manufactures swing out of the depth difference, and that swing feeds trap
+  // detection. Both sides of the subtraction must come from one source.
+  const indexed = evalDb?.query(fen)
+  const useIndex = indexed?.lines?.length && indexed.depth >= MIN_INDEX_DEPTH
+  if (report) report.bestSource[useIndex ? 'cloud' : 'local']++
+
   return {
     deep,
-    bestWp: deepWp,
-    quiet: quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp }),
+    bestWp: useIndex ? winPercent(indexed.lines[0].score) : deepWp,
+    quiet,
   }
 }
 
@@ -285,6 +303,8 @@ export async function crawl(config) {
     gateSource: { cloud: 0, local: 0 },
     /** Where each candidate's evaluation came from — the index vs an engine search. */
     candidateSource: { cloud: 0, local: 0 },
+    /** Where the baseline each candidate is measured against came from. */
+    bestSource: { cloud: 0, local: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
     minDepth: Infinity,
@@ -436,7 +456,7 @@ export async function crawl(config) {
       continue
     }
 
-    const { deep, bestWp, quiet } = await assess(engine, item.fen, o)
+    const { deep, bestWp, quiet } = await assess(engine, item.fen, o, evalDb, report)
     node.bestWinPercent = Number(bestWp.toFixed(2))
     node.quiet = quiet
     if (deep.depth) report.minDepth = Math.min(report.minDepth, deep.depth)
