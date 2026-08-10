@@ -669,12 +669,14 @@ describe('crawl — the shallow search is bought only when it can matter', () =>
       explorer: BOOK,
       minPly: 4,
       maxPly: 8,
+      tacticGap: true,
     })
     expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
   })
 
   it('buys it where breadth and balance both pass', async () => {
-    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    // Opted in — the filter is off by default since ADR 0026.
+    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
     expect(r.report.tacticGap.tested).toBeGreaterThan(0)
   })
 
@@ -683,10 +685,54 @@ describe('crawl — the shallow search is bought only when it can matter', () =>
     // engine calls. Losslessness itself rests on `quietness` needing all three
     // tests to pass, which the domain suite pins directly.
     const decided = stubEngine({ scores: { [at('d4 d5 c4 e6')]: 2000 } })
-    const r = await run({ engine: decided, explorer: BOOK, minPly: 4, maxPly: 8 })
+    const r = await run({ engine: decided, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
     const assessed = r.report.tacticGap.tested + r.report.tacticGap.skipped
     expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
     // Two searches per assessed position would be the old cost; we did fewer.
     expect(decided.searchCount()).toBeLessThan(2 * assessed + r.report.expanded)
+  })
+})
+
+describe('crawl — the tactic gap is opt-in (ADR 0026)', () => {
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+
+  it('buys no shallow search by default', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    expect(r.report.tacticGap.enabled).toBe(false)
+    expect(r.report.tacticGap.tested).toBe(0)
+  })
+
+  it('does fewer searches than with the filter on, for the same tree', async () => {
+    const off = stubEngine()
+    const on = stubEngine()
+    const a = await run({ engine: off, explorer: BOOK, minPly: 4, maxPly: 8 })
+    const b = await run({ engine: on, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    expect(b.report.tacticGap.enabled).toBe(true)
+    expect(b.report.tacticGap.tested).toBeGreaterThan(0)
+    expect(off.searchCount()).toBeLessThan(on.searchCount())
+    // Same tree either way — the filter never fired on this fixture.
+    expect(a.nodes.size).toBe(b.nodes.size)
+  })
+
+  it('still decides against a position when it is switched on and the gap is real', async () => {
+    // A stub whose shallow reading disagrees wildly: the filter must bite, or
+    // re-enabling it at a low budget would be doing nothing.
+    const jumpy = {
+      async analyse(fen, { nodes = 0, multipv = 1 } = {}) {
+        const legal = new Chess(fen).moves({ verbose: true })
+        const base = nodes < 200_000 ? 900 : 0
+        const lines = []
+        for (let i = 0; i < Math.min(multipv, Math.max(1, legal.length)); i++) {
+          lines.push({ multipv: i + 1, score: cp(base), pv: legal[i] ? [legal[i].lan] : [] })
+        }
+        return { lines, bestMove: lines[0]?.pv[0] ?? null, depth: 22 }
+      },
+      searchCount: () => 0,
+    }
+    const r = await run({ engine: jumpy, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    expect(r.report.tacticGap.decided).toBeGreaterThan(0)
   })
 })

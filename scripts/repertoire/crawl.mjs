@@ -77,6 +77,23 @@ export const DEFAULTS = {
    * positions fail the quiet test purely because the budget moved.
    */
   shallowRatio: 1 / 6,
+  /**
+   * Whether to buy a second, shallower search and test it against the deep one
+   * — constitution §6's tactic filter (ADR 0026).
+   *
+   * **Off, because at these budgets it decides nothing.** Measured over 412
+   * positions the crawl actually assessed at 4M nodes, across the QGD Exchange
+   * and QGA, the gap kept *zero* of them from going quiet; mean gap 0.45 win%
+   * against a threshold of 5, maximum 1.34.
+   *
+   * It is not a bad test — it is a test of whether the deep search is deep
+   * enough, and the answer changed when the budget did. v1 ran at 120,000
+   * nodes against a 20,000-node shallow, where the two genuinely disagree. At
+   * 4M against 667k both readings are past the horizon of ordinary opening
+   * tactics. So this stays available rather than deleted: **turn it back on for
+   * any run at a low node budget**, where it is doing real work again.
+   */
+  tacticGap: false,
   multipv: 5,
   massTarget: 0.85,
   minGames: 20,
@@ -127,24 +144,21 @@ async function assess(engine, fen, o, evalDb = null, report = null) {
   // five, so positions would look tactical for no reason but the swap. Both its
   // readings therefore stay on the engine, at the fixed ratio shallowRatio sets.
   //
-  // But all three tests must pass, so where breadth or balance has already
-  // failed the gap cannot change the verdict — a second reading can only *add*
-  // a reason, never remove one. So try it first with the gap neutralised, and
-  // buy the shallow search only when it can still matter. Losslessly identical
-  // output; measured on the shipped repertoire it skips about a fifth of them.
+  // It is also off by default now (ADR 0026) — at 4M nodes it decided nothing
+  // across 412 assessed positions. When it *is* on, all three tests must pass,
+  // so where breadth or balance has already failed the gap cannot change the
+  // verdict: a second reading can only add a reason, never remove one. So the
+  // shallow search is bought only where it can still matter.
   let quiet = quietness({ multipv: multipvWp, shallow: deepWp, deep: deepWp })
-  if (quiet.quiet) {
+  if (o.tacticGap && quiet.quiet) {
     const shallow = await engine.analyse(fen, {
       nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
       multipv: 1,
     })
     const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
     quiet = quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp })
-    // Every position where the gap could have mattered, and what it measured.
-    // Whether this filter still earns its search at 4M nodes is an open
-    // question — it fired 0 times in 96 sampled positions, but that sample was
-    // drawn from an already-quiet shipped repertoire. This records the honest
-    // distribution over positions the crawl actually rejects.
+    // Kept recording whenever the test runs, so re-enabling it at a low budget
+    // produces the evidence for its own worth rather than an assertion.
     if (report) {
       report.tacticGap.tested++
       report.tacticGap.total += quiet.tacticGap
@@ -154,6 +168,7 @@ async function assess(engine, fen, o, evalDb = null, report = null) {
   } else if (report) {
     report.tacticGap.skipped++
   }
+  if (report) report.tacticGap.enabled = Boolean(o.tacticGap)
 
   // `quiet` above is left wholly engine-derived and self-consistent. Only
   // `bestWp` moves, and only because it is *subtracted* from candidate values
@@ -335,7 +350,7 @@ export async function crawl(config) {
      * that sample came from an already-quiet shipped repertoire, so this
      * records the distribution over positions the crawl genuinely rejects.
      */
-    tacticGap: { tested: 0, skipped: 0, decided: 0, total: 0, max: 0 },
+    tacticGap: { enabled: false, tested: 0, skipped: 0, decided: 0, total: 0, max: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
     minDepth: Infinity,
@@ -888,6 +903,7 @@ async function main() {
       deepNodes: args.nodes ? Number(args.nodes) : undefined,
       massTarget: args.mass ? Number(args.mass) : undefined,
       trapThreshold: args.trap ? Number(args.trap) : undefined,
+      tacticGap: Boolean(args['tactic-gap']),
       maxEvalPerNode: args['max-eval'] ? Number(args['max-eval']) : undefined,
       minNodeGames: args['min-node-games'] ? Number(args['min-node-games']) : undefined,
       maxOpponentMoves: args['max-replies'] ? Number(args['max-replies']) : undefined,

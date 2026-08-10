@@ -626,6 +626,7 @@ export const FLAGS = [
   'canon-book',
   'eval-index',
   'pool',
+  'tactic-gap',
   'only',
   'nodes',
   'trap',
@@ -824,6 +825,7 @@ async function main() {
   const deepNodes = numberFlag(args, 'nodes') ?? DEFAULTS.deepNodes
   const crawlDefaults = {
     deepNodes,
+    ...(args['tactic-gap'] ? { tacticGap: true } : {}),
     ...maybe('trapThreshold', numberFlag(args, 'trap')),
     ...maybe('massTarget', numberFlag(args, 'mass')),
     ...maybe('maxEvalPerNode', numberFlag(args, 'max-eval')),
