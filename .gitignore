@@ -58,6 +58,11 @@ scratch/
 # just wants to import it. Only the global *.pgn rule reaches into that
 # directory, so that is the only thing to counter.
 !/repertoire/*.pgn
+# v2 ships as staged study decks in a subdirectory, and the exception above is
+# deliberately one level deep, so it needs its own. Without it `git add -A` says
+# nothing and the decks are simply absent from the repo — which is how the ECO
+# data disappeared once already.
+!/repertoire/v2/*.pgn
 
 # Downloaded game databases (Lumbra's Gigabase, Caissabase, Lichess dumps…).
 # Multi-hundred-MB third-party data: never committed, always re-downloadable,

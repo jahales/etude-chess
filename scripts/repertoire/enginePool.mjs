@@ -17,7 +17,7 @@
 // where every position is known up front. A crawl that picks its next position
 // from the last result cannot use this.
 
-import { cpus } from 'node:os'
+import { cpus, totalmem } from 'node:os'
 import { createEngine } from './engine.mjs'
 
 /**
@@ -32,11 +32,25 @@ export function createEnginePool(opts = {}) {
     // Half the cores leaves room for everything else on the machine, and the cap
     // is about memory rather than CPU: each engine holds its own hash table, so
     // eight of them at the default 256MB is two gigabytes before any searching.
-    size = Math.min(6, Math.max(1, Math.floor(cpus().length / 2))),
+    //
+    // The cap was 6, set when the fleet was a laptop. It is memory, not cores,
+    // so it should be derived from memory: a twelfth of total RAM per engine
+    // leaves the hash tables comfortably inside it, and half the cores still
+    // bounds the CPU side. On a 20-core / 32 GB box that gives 10 rather than 6.
+    size = Math.max(
+      1,
+      Math.min(
+        Math.floor(cpus().length / 2),
+        Math.max(1, Math.floor(totalmem() / (12 * 256 * 1024 * 1024))),
+      ),
+    ),
     ...engineOpts
   } = opts
 
-  const engines = Array.from({ length: size }, () => createEngine(engineOpts))
+  // Every engine is told how many it is sharing the machine with, so its search
+  // timeout is budgeted against the rate it will actually achieve rather than
+  // the rate a lone engine would.
+  const engines = Array.from({ length: size }, () => createEngine({ ...engineOpts, share: size }))
 
   return {
     size,

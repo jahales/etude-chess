@@ -41,6 +41,9 @@ import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { createExplorer } from './explorer.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
+import { createEnginePool } from './enginePool.mjs'
+import { createSoundnessGate, MIN_INDEX_DEPTH } from './soundness.mjs'
+import { createEvalDb } from './evalDb.mjs'
 
 export const DEFAULTS = {
   /**
@@ -48,8 +51,15 @@ export const DEFAULTS = {
    * to — almost every opening position is quiet by move 4 — so this, not
    * `maxPly`, is what decides how deep the output actually runs. At 6 the first
    * built repertoire bottomed out at move 5 across all 25 branches.
+   *
+   * Raised from 10 to 16 by ADR 0025. At 10 the repertoire stopped on the first
+   * quiet position, which is before the middlegame structure exists: v1's
+   * deepest line was ply 13, and a Carlsbad or a French chain does not form
+   * until roughly ply 16-25. The quiet position is still the trainable item;
+   * this says keep going until the *structural* one is reached. Curated
+   * branches only — see ROLE_DEPTH_OFFSET in build.mjs.
    */
-  minPly: 10,
+  minPly: 16,
   /**
    * Depth cap. Must stay **above** `minPly`: the cap is checked before the
    * quiet test, so a cap at the floor means no position is ever assessed for
@@ -57,7 +67,7 @@ export const DEFAULTS = {
    * once — raising `minPly` without raising this — and produced a tree with
    * zero trainable positions while every test passed.
    */
-  maxPly: 14,
+  maxPly: 24,
   deepNodes: 400_000,
   /**
    * The shallow search of constitution §6's filter, as a fraction of the deep
@@ -67,6 +77,23 @@ export const DEFAULTS = {
    * positions fail the quiet test purely because the budget moved.
    */
   shallowRatio: 1 / 6,
+  /**
+   * Whether to buy a second, shallower search and test it against the deep one
+   * — constitution §6's tactic filter (ADR 0026).
+   *
+   * **Off, because at these budgets it decides nothing.** Measured over 412
+   * positions the crawl actually assessed at 4M nodes, across the QGD Exchange
+   * and QGA, the gap kept *zero* of them from going quiet; mean gap 0.45 win%
+   * against a threshold of 5, maximum 1.34.
+   *
+   * It is not a bad test — it is a test of whether the deep search is deep
+   * enough, and the answer changed when the budget did. v1 ran at 120,000
+   * nodes against a 20,000-node shallow, where the two genuinely disagree. At
+   * 4M against 667k both readings are past the horizon of ordinary opening
+   * tactics. So this stays available rather than deleted: **turn it back on for
+   * any run at a low node budget**, where it is doing real work again.
+   */
+  tacticGap: false,
   multipv: 5,
   massTarget: 0.85,
   minGames: 20,
@@ -105,41 +132,154 @@ function applyUci(fen, uci) {
  * Deep + shallow evaluation and the quiet test for one position.
  * Win percentages are from the side to move.
  */
-async function assess(engine, fen, o) {
+async function assess(engine, fen, o, evalDb = null, report = null) {
   const deep = await engine.analyse(fen, { nodes: o.deepNodes, multipv: o.multipv })
-  const shallow = await engine.analyse(fen, {
-    nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
-    multipv: 1,
-  })
   const multipvWp = deep.lines.map((l) => winPercent(l.score))
   const deepWp = multipvWp[0] ?? 50
-  const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
+
+  // The quiet test is the one genuinely *relative* measurement in the crawl: it
+  // asks whether a shallow and a deep reading disagree. Deepening one side does
+  // not improve it, it decalibrates it — an index reading at depth 34 against a
+  // shallow search at depth 21 is a 13-ply gap where the design assumes about
+  // five, so positions would look tactical for no reason but the swap. Both its
+  // readings therefore stay on the engine, at the fixed ratio shallowRatio sets.
+  //
+  // It is also off by default now (ADR 0026) — at 4M nodes it decided nothing
+  // across 412 assessed positions. When it *is* on, all three tests must pass,
+  // so where breadth or balance has already failed the gap cannot change the
+  // verdict: a second reading can only add a reason, never remove one. So the
+  // shallow search is bought only where it can still matter.
+  let quiet = quietness({ multipv: multipvWp, shallow: deepWp, deep: deepWp })
+  if (o.tacticGap && quiet.quiet) {
+    const shallow = await engine.analyse(fen, {
+      nodes: Math.max(5_000, Math.round(o.deepNodes * o.shallowRatio)),
+      multipv: 1,
+    })
+    const shallowWp = shallow.lines[0] ? winPercent(shallow.lines[0].score) : deepWp
+    quiet = quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp })
+    // Kept recording whenever the test runs, so re-enabling it at a low budget
+    // produces the evidence for its own worth rather than an assertion.
+    if (report) {
+      report.tacticGap.tested++
+      report.tacticGap.total += quiet.tacticGap
+      report.tacticGap.max = Math.max(report.tacticGap.max, quiet.tacticGap)
+      if (!quiet.quiet) report.tacticGap.decided++
+    }
+  } else if (report) {
+    report.tacticGap.skipped++
+  }
+  if (report) report.tacticGap.enabled = Boolean(o.tacticGap)
+
+  // `quiet` above is left wholly engine-derived and self-consistent. Only
+  // `bestWp` moves, and only because it is *subtracted* from candidate values
+  // that now come from the index: a ~26-ply baseline against 34-ply candidates
+  // manufactures swing out of the depth difference, and that swing feeds trap
+  // detection. Both sides of the subtraction must come from one source.
+  const indexed = evalDb?.query(fen)
+  const useIndex = indexed?.lines?.length && indexed.depth >= MIN_INDEX_DEPTH
+  if (report) report.bestSource[useIndex ? 'cloud' : 'local']++
+
   return {
     deep,
-    bestWp: deepWp,
-    quiet: quietness({ multipv: multipvWp, shallow: shallowWp, deep: deepWp }),
+    bestWp: useIndex ? winPercent(indexed.lines[0].score) : deepWp,
+    quiet,
   }
 }
 
-/** Win% of a move, from the perspective of whoever plays it. */
-async function evalAfter(engine, fen, uci, o) {
-  const applied = applyUci(fen, uci)
-  if (!applied) return null
-  const r = await engine.analyse(applied.fen, { nodes: o.deepNodes, multipv: 1 })
-  const line = r.lines[0]
-  if (!line) return null
-  // The child's score is from the *replier's* view; negate for the mover's.
+/**
+ * Evaluate every candidate move at one node, in one batch.
+ *
+ * This is where nearly all of a crawl's engine time goes — up to
+ * `maxEvalPerNode` searches per expanded node — and it is the one part that
+ * parallelises. The tree walk cannot: it picks its next position from the last
+ * result, which is the caveat enginePool.mjs documents. The candidates at a
+ * *single* node have no such dependency on each other.
+ *
+ * Each search is still single-threaded whichever analyser runs it, so
+ * engine.mjs's reproducibility rule holds: the same position at the same node
+ * budget returns the same score, and only the wall clock changes.
+ *
+ * @param {{analyseAll: (fens: string[], o: object) => Promise<object[]>}} analyser
+ * @returns {Promise<{stats: object, san: string, fen: string, moverWp: number,
+ *                    score: object, depth: number}[]>} candidates that produced a line
+ */
+async function evalCandidates(analyser, fen, candidates, o, evalDb = null, report = null) {
+  const applied = []
+  for (const m of candidates) {
+    const a = applyUci(fen, m.uci)
+    if (a) applied.push({ stats: m, ...a })
+  }
+  if (!applied.length) return []
+
+  // Take what the index already knows before starting an engine. Measured over
+  // a partial v2 build: **96.7%** of these positions are in it, at median depth
+  // 34 against the ~26 a 4M-node search reaches — so the engine was mostly
+  // re-deriving a *worse* answer than the one on disk. Only the misses are
+  // searched, which is where the budget belongs.
+  const results = new Array(applied.length)
+  const misses = []
+  for (const [i, a] of applied.entries()) {
+    const hit = evalDb ? evalDb.query(a.fen) : null
+    if (hit?.lines?.length && hit.depth >= MIN_INDEX_DEPTH) {
+      results[i] = hit
+      if (report) report.candidateSource.cloud++
+    } else {
+      misses.push(i)
+      if (report) report.candidateSource.local++
+    }
+  }
+  if (misses.length) {
+    const searched = await analyser.analyseAll(
+      misses.map((i) => applied[i].fen),
+      { nodes: o.deepNodes, multipv: 1 },
+    )
+    for (const [n, i] of misses.entries()) results[i] = searched[n]
+  }
+
+  const out = []
+  for (const [i, a] of applied.entries()) {
+    const line = results[i]?.lines?.[0]
+    if (!line) continue
+    // The child's score is from the *replier's* view; negate for the mover's.
+    out.push({
+      ...a,
+      moverWp: winPercent(negate(line.score)),
+      score: line.score,
+      depth: results[i].depth ?? 0,
+    })
+  }
+  return out
+}
+
+/**
+ * One analyser interface whichever the caller supplied.
+ *
+ * With a pool the candidates go out together; without one they run in sequence
+ * exactly as before, so a crawl with no pool is unchanged.
+ */
+function asAnalyser(engine, pool) {
+  if (pool) return { analyseAll: (fens, o) => pool.analyseAll(fens, o) }
   return {
-    ...applied,
-    moverWp: winPercent(negate(line.score)),
-    score: line.score,
-    depth: r.depth ?? 0,
+    async analyseAll(fens, o) {
+      const out = []
+      for (const fen of fens) out.push(await engine.analyse(fen, o))
+      return out
+    },
   }
 }
 
 export async function crawl(config) {
   const o = { ...DEFAULTS, ...config }
-  const { engine, explorer, canon = null, ourColor, forcedLine = [] } = o
+  const { engine, explorer, canon = null, evalDb = null, pool = null, ourColor, forcedLine = [] } = o
+
+  // Candidate evaluations go out as a batch when a pool was supplied; without
+  // one they run in sequence exactly as before.
+  const analyser = asAnalyser(engine, pool)
+
+  // Deep evaluations in front of this crawl's own search, for the soundness
+  // gate only — see soundness.mjs for why trap scoring and the quiet test are
+  // deliberately left alone.
+  const gate = createSoundnessGate({ evalDb })
 
   // The cap is checked before the quiet test, so a floor at or above it makes
   // the quiet test unreachable: every line ends on the cap and the tree has no
@@ -190,6 +330,27 @@ export async function crawl(config) {
     tooRareToJudge: [],
     /** Which source decided each expanded node — canon (masters) vs band. */
     moveSource: { canon: 0, band: 0 },
+    /**
+     * Which source gated each of our decisions — the evaluation index vs this
+     * search. Counted once per decision, on the move actually chosen: counting
+     * every candidate would make a node with twenty candidates worth twenty,
+     * and the number would no longer answer "how much of this repertoire rests
+     * on a depth-50 search".
+     */
+    gateSource: { cloud: 0, local: 0 },
+    /** Where each candidate's evaluation came from — the index vs an engine search. */
+    candidateSource: { cloud: 0, local: 0 },
+    /** Where the baseline each candidate is measured against came from. */
+    bestSource: { cloud: 0, local: 0 },
+    /**
+     * Evidence on whether the shallow search still earns its place. `decided`
+     * counts positions this filter alone kept from going quiet. If it stays at
+     * zero across a full build, the test is buying a search per node for
+     * nothing at these budgets — it fired 0 times in 96 sampled positions, but
+     * that sample came from an already-quiet shipped repertoire, so this
+     * records the distribution over positions the crawl genuinely rejects.
+     */
+    tacticGap: { enabled: false, tested: 0, skipped: 0, decided: 0, total: 0, max: 0 },
     unpunishedTraps: [],
     unverifiedTraps: [],
     minDepth: Infinity,
@@ -341,7 +502,7 @@ export async function crawl(config) {
       continue
     }
 
-    const { deep, bestWp, quiet } = await assess(engine, item.fen, o)
+    const { deep, bestWp, quiet } = await assess(engine, item.fen, o, evalDb, report)
     node.bestWinPercent = Number(bestWp.toFixed(2))
     node.quiet = quiet
     if (deep.depth) report.minDepth = Math.min(report.minDepth, deep.depth)
@@ -411,14 +572,14 @@ export async function crawl(config) {
     }
 
     const scored = []
-    for (const m of candidates) {
-      const after = await evalAfter(engine, item.fen, m.uci, o)
-      if (!after) continue
+    for (const after of await evalCandidates(analyser, item.fen, candidates, o, evalDb, report)) {
+      const m = after.stats
       scored.push({
         stats: m,
         san: after.san,
         fen: after.fen,
         swing: Math.max(0, bestWp - after.moverWp),
+        depth: after.depth ?? 0,
         expected: after.moverWp / 100,
         frequency: frequency(m, total),
         practical: practicalScore(m, sideToMove),
@@ -437,9 +598,14 @@ export async function crawl(config) {
       // One move. Branching cost needs a lookahead into each child's replies.
       const ranked = []
       for (const c of scored) {
-        // Same gate rankOurMoves applies internally; read it from the domain so
-        // the two cannot drift apart when the constant is retuned.
-        if (c.swing > SOUNDNESS_MAX_SWING) continue
+        // The evaluation index decides this where it can, and this crawl's own
+        // search where it cannot. `rankOurMoves` applies the same gate
+        // internally — read from the domain so the two cannot drift apart when
+        // the constant is retuned — so it must be handed the *gated* swing
+        // rather than the local one, or the two would disagree about which
+        // moves are even eligible.
+        const gated = gate.swingFor(item.fen, c.stats.uci, { swing: c.swing, depth: c.depth })
+        if (gated.swing > SOUNDNESS_MAX_SWING) continue
         const replies = await explorer.query(c.fen)
         const cover = coverByMass(replies.moves, {
           massTarget: o.massTarget,
@@ -448,7 +614,9 @@ export async function crawl(config) {
         })
         ranked.push({
           move: c.stats,
-          swing: c.swing,
+          swing: gated.swing,
+          gateSource: gated.source,
+          gateDepth: gated.depth,
           replyBranching: cover.covered.length,
           // How much data that count rests on — a narrow-looking position that
           // nobody has played is not narrow.
@@ -467,19 +635,29 @@ export async function crawl(config) {
         //
         // Constitution §4 is untouched: it governs where *distractors* come
         // from (human frequency, never engine top-N). This is our own move.
-        const engineBest = deep.lines[0]?.pv?.[0]
-        const applied = engineBest ? applyUci(item.fen, engineBest) : null
+        //
+        // Prefer the index's answer over this crawl's own search. Rejecting
+        // every human move on a depth-50 evaluation and then picking a
+        // depth-20 replacement would put the shallowest evidence in the
+        // repertoire exactly where the gate was strictest — and a deeper gate
+        // reaches this branch *more* often, so the effect grows with the fix.
+        const indexed = gate.bestMove(item.fen)
+        const chosenUci = indexed?.uci ?? deep.lines[0]?.pv?.[0]
+        const applied = chosenUci ? applyUci(item.fen, chosenUci) : null
         if (!applied) {
           node.terminal = true
           node.terminalReason = 'no-sound-move'
           report.terminal['no-sound-move']++
           continue
         }
+        report.gateSource[indexed ? 'cloud' : 'local']++
         const fallback = {
           san: applied.san,
-          uci: engineBest,
+          uci: chosenUci,
           fen: applied.fen,
           reason: 'ours-engine',
+          gatedBy: indexed ? 'cloud' : 'local',
+          gateDepth: indexed?.depth ?? 0,
           swing: 0,
         }
         node.children.push(fallback)
@@ -496,11 +674,20 @@ export async function crawl(config) {
         // Only meaningful when a canonical source was configured; then 'band'
         // means we have left master theory behind.
         ...(canon ? { source: bookSource } : {}),
-        swing: Number(c.swing.toFixed(2)),
+        // The gated swing, not the local one — this is the number the move was
+        // actually admitted on, and recording the other would misreport the
+        // basis for the decision.
+        swing: Number(best.swing.toFixed(2)),
+        // Which evaluation admitted it, the way `source` records where the
+        // candidates came from. A move gated locally rests on this crawl's node
+        // budget; one gated by the index rests on a depth-50 search.
+        gatedBy: best.gateSource,
+        gateDepth: best.gateDepth,
         frequency: Number(c.frequency.toFixed(4)),
         replyBranching: best.replyBranching,
         score: Number(ourMoveScore(best).toFixed(3)),
       }
+      report.gateSource[best.gateSource]++
       node.children.push(chosen)
       enqueue(chosen, c.fen, item.ply + 1, [...item.line, c.san])
     } else {
@@ -643,6 +830,15 @@ Repertoire crawler (issue #88, ADR 0021)
                                    tail — where traps live. Raise it to hunt.
   --min-node-games 50              stop expanding below this many games
   --max-replies    6               most opponent moves covered at one node
+  --eval-index db/eval-index       gate our moves on the local Lichess
+                                   evaluation index (median depth 50) instead
+                                   of --nodes, falling back to the engine where
+                                   a position is absent. See issue #106.
+  --pool    10                     engines evaluating candidates in parallel.
+                                   Each stays single-threaded, so results are
+                                   identical to a serial run and only the wall
+                                   clock changes. Defaults to a size derived
+                                   from cores and RAM; 1 disables it.
   --engine  <path>                 Stockfish binary
                                    (default: ${DEFAULT_ENGINE_PATH})
 `
@@ -675,7 +871,26 @@ async function main() {
     : args.canon
       ? createExplorer({ cacheDir: join(dirname(outBase), '.masters-cache'), source: 'masters' })
       : null
-  const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
+  // Created after the pool below, so it can be told how many engines it shares
+  // the machine with — see build.mjs for the failure that taught us.
+  let engine
+
+  // Optional, and absent means the old behaviour exactly: the gate falls back
+  // to this crawl's own search for every decision.
+  const evalDb = args['eval-index'] ? createEvalDb({ dir: String(args['eval-index']) }) : null
+
+  // The candidate fan-out at each node is the only parallelisable part of a
+  // crawl, and it is most of the engine time. `--pool 1` falls back to the
+  // serial path for a like-for-like comparison.
+  const poolSize = args.pool ? Number(args.pool) : undefined
+  const pool =
+    poolSize === 1
+      ? null
+      : createEnginePool({ size: poolSize, path: args.engine ? String(args.engine) : undefined })
+  engine = createEngine({
+    path: args.engine ? String(args.engine) : undefined,
+    share: (pool?.size ?? 0) + 1,
+  })
 
   const started = Date.now()
   console.log(`crawling ${ourColor === 'w' ? 'White' : 'Black'} from: ${forcedLine.join(' ') || '(start)'}`)
@@ -685,6 +900,8 @@ async function main() {
       engine,
       explorer,
       canon,
+      evalDb,
+      pool,
       ourColor,
       forcedLine,
       maxPly: args['max-ply'] ? Number(args['max-ply']) : undefined,
@@ -692,6 +909,7 @@ async function main() {
       deepNodes: args.nodes ? Number(args.nodes) : undefined,
       massTarget: args.mass ? Number(args.mass) : undefined,
       trapThreshold: args.trap ? Number(args.trap) : undefined,
+      tacticGap: Boolean(args['tactic-gap']),
       maxEvalPerNode: args['max-eval'] ? Number(args['max-eval']) : undefined,
       minNodeGames: args['min-node-games'] ? Number(args['min-node-games']) : undefined,
       maxOpponentMoves: args['max-replies'] ? Number(args['max-replies']) : undefined,
@@ -703,7 +921,7 @@ async function main() {
         color: ourColor,
         line: forcedLine.join(' '),
         generated: new Date().toISOString(),
-        options: { ...result.options, engine: undefined, explorer: undefined },
+        options: { ...result.options, engine: undefined, explorer: undefined, evalDb: undefined, pool: undefined },
       },
       report: {
         ...result.report,
@@ -741,7 +959,8 @@ async function main() {
 positions       ${result.nodes.size}   (expanded ${r.expanded})
 terminal        quiet ${r.terminal.quiet} · depth-cap ${r.terminal['depth-cap']} · out-of-book ${r.terminal['out-of-book']}${r.terminal.delegated ? ` · delegated ${r.terminal.delegated}` : ''}
 decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.band}` : `band only (no canonical source)`}
-engine searches ${engine.searchCount()}
+gated by        ${evalDb ? `index ${r.gateSource.cloud} · local search ${r.gateSource.local}` : `local search only (no --eval-index)`}
+engine searches ${engine.searchCount() + (pool?.searchCount() ?? 0)}${pool ? ` (${pool.size} engines in parallel)` : ''}
 explorer        ${JSON.stringify(explorer.stats())}
 traps found     ${r.traps.length}`)
 
@@ -785,6 +1004,7 @@ ${r.tooRareToJudge.length} line(s) look like traps but have under ${TRAP_MIN_GAM
     console.log(`\nwrote ${outBase}.json and ${outBase}.pgn`)
   } finally {
     await engine.quit()
+    await pool?.quit()
   }
 }
 

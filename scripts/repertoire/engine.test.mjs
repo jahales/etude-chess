@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createEngine } from './engine.mjs'
+import { createEngine , searchTimeoutMs } from './engine.mjs'
 
 // Driven against a scripted fake engine rather than Stockfish, so these run in
 // milliseconds and can pose situations a real search rarely produces on demand.
@@ -221,5 +221,36 @@ describe('engine — protocol handling', () => {
     const e = engineWith({ default: ['bestmove e2e4'] })
     await e.analyse(FEN)
     await expect(e.quit()).resolves.toBeUndefined()
+  })
+})
+
+describe('searchTimeoutMs', () => {
+  it('scales with the node budget', () => {
+    expect(searchTimeoutMs(100_000_000)).toBeGreaterThan(searchTimeoutMs(4_000_000))
+  })
+
+  it('never drops below the floor, for commands that carry no budget', () => {
+    // `isready` has no nodes at all, so it rests entirely on the floor — and
+    // that is one of the two searches a 4M-node build lost.
+    expect(searchTimeoutMs(0)).toBeGreaterThanOrEqual(120_000)
+    expect(searchTimeoutMs(1)).toBeGreaterThanOrEqual(120_000)
+  })
+
+  it('gives a pooled engine more time than a lone one, budget and floor alike', () => {
+    // The bug: a 4M-node search budgeted at 80s, floored to 120s, run ten to a
+    // machine. Ten engines do not each get the whole machine.
+    expect(searchTimeoutMs(4_000_000, 10)).toBeGreaterThan(searchTimeoutMs(4_000_000, 1))
+    expect(searchTimeoutMs(0, 10)).toBeGreaterThan(searchTimeoutMs(0, 1))
+  })
+
+  it('grows in proportion to the number of engines sharing', () => {
+    expect(searchTimeoutMs(4_000_000, 10)).toBeCloseTo(10 * searchTimeoutMs(4_000_000, 1) / 1, -3)
+  })
+
+  it('treats a missing or nonsense share as one engine', () => {
+    const lone = searchTimeoutMs(1_000_000, 1)
+    for (const share of [undefined, 0, -5]) {
+      expect(searchTimeoutMs(1_000_000, share)).toBe(lone)
+    }
   })
 })

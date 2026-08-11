@@ -1,0 +1,61 @@
+# Repertoire v2 — staged study decks
+
+Six files, of which **two are ever in use**. Import the pair for the tier you are
+on, one per colour, into En Croissant (Files → Add New → from PGN) and point the
+repertoire trainer at whichever side you are drilling.
+
+| file | decisions |
+|---|---|
+| `etude-white-core.pgn` · `etude-black-core.pgn` | **150** — start here |
+| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 500 |
+| `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2,299 |
+
+**Import the two colours separately.** En Croissant trains from one side's point
+of view, so a file holding both is importable as neither — it would drill you as
+White in the Caro-Kann.
+
+**Each tier is a superset of the last**, so moving up never means relearning
+anything. When you do move up, remove the previous tier's import first: keeping
+both means every core line is drilled twice and the scheduler treats them as
+separate items.
+
+White holds **both** first moves. 1.d4 and 1.e4 are alternatives at the board,
+not separate things to drill, so they live in one file — whether to play both is
+a repertoire decision rather than a drilling one.
+
+## How the tiers were chosen
+
+Ranked by `studyOrder.mjs`: how often you reach a position (band-book frequency)
+× what playing the *natural* move instead would cost (from the evaluation index).
+A decision where instinct is already right is worth nothing to study however
+common — you will find it at the board.
+
+Then made **prefix-closed**: a decision is admitted together with every decision
+on the path to it, and the budget pays for the ancestors too. You cannot drill
+move 12 of the Carlsbad without moves 1 to 11, so a tier is a set of complete
+lines rather than a well-ranked list of positions.
+
+`tiers.json` records which decision landed in which tier.
+
+## What is in here
+
+Built 2026-08-11 from an 8M-game band book (Lichess 1300–1800 blitz/rapid,
+ply 20) and 2.82M Lumbra OTB games, gated on a local index of 401M Lichess
+evaluations at median depth 34–50 (ADR 0024), with curated lines run to ply 16
+(ADR 0025).
+
+```
+1.d4 + Black   1,331 decisions · 423 quiet targets · deepest ply 19
+1.e4             934 decisions · 195 quiet targets · deepest ply 20
+```
+
+against v1's 551 decisions and 266 quiet targets.
+
+## Caveat — the trap annotations are provisional
+
+The **moves** are gated at depth 34–50 and sound. The `?!`/`?` trap commentary is
+not yet confirmed: trap values shifted when the deeper evaluation baseline landed,
+and `replicate.mjs` against a second month's book is what separates a real trap
+from one month's noise. The June 2026 dump is downloaded for exactly that and the
+pass has not been run. Drill the moves; do not yet trust a `?` to mean the move
+is refuted.

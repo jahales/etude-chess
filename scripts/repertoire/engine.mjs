@@ -14,6 +14,31 @@ import { createInterface } from 'node:readline'
 import { parseBestMove, parseInfoLine } from '../../src/engine/uci.ts'
 import { parsePieceValues } from '../../src/engine/evalTable.ts'
 
+/** Nodes/sec assumed of a lone engine — ~30× slower than this machine manages. */
+const SLOWEST_ASSUMED_NPS = 50_000
+/** Floor for commands that carry no node budget at all, such as `isready`. */
+const MIN_TIMEOUT_MS = 120_000
+
+/**
+ * How long to wait for a search of `nodes` nodes, with `share` engines running.
+ *
+ * A fixed ceiling does not survive a raised budget: at 4M nodes a search takes
+ * a few seconds on an idle machine and minutes when something else is using the
+ * cores, and a flat 120s once killed a whole review over one position that was
+ * merely queued behind a test run.
+ *
+ * `share` is the second half of that lesson. The pessimism above was calibrated
+ * for one engine having the machine to itself; ten in a pool each achieve a
+ * fraction of it, so a budget ignoring its own parallelism kills searches for
+ * being exactly as slow as the design intends. It took out two branches of a
+ * 4M-node build — one of them on `isready`, which has no node budget and so
+ * rested entirely on the floor.
+ */
+export function searchTimeoutMs(nodes = 0, share = 1) {
+  const engines = Math.max(1, share)
+  return Math.max(MIN_TIMEOUT_MS * engines, (nodes / (SLOWEST_ASSUMED_NPS / engines)) * 1000)
+}
+
 /** Where En Croissant installs Stockfish on Windows. */
 export const DEFAULT_ENGINE_PATH = `${process.env.APPDATA}\\org.encroissant.app\\engines\\stockfish\\stockfish-windows-x86-64-avx2.exe`
 
@@ -44,6 +69,8 @@ export function createEngine(opts = {}) {
     // are reproducible is simply untrue.
     threads = 1,
     hashMb = 256,
+    /** Engines competing for this machine; scales the search timeout budget. */
+    share = 1,
   } = opts
 
   const proc = spawn(path, args, { stdio: ['pipe', 'pipe', 'ignore'] })
@@ -67,11 +94,15 @@ export function createEngine(opts = {}) {
    * that was merely queued behind a test run. Budgeted at a deliberately
    * pessimistic 50k nodes/sec — roughly 30× slower than this machine manages —
    * with a floor for the handshake commands, which carry no budget at all.
+   *
+   * `share` is how many engines are competing for this machine. That pessimism
+   * was calibrated for one engine having it to itself; running ten in a pool
+   * divides the rate each achieves, so a budget ignoring it kills searches for
+   * being exactly as slow as the design intends. It took out two branches of a
+   * 4M-node build before it was accounted for — including one on `isready`,
+   * which carries no node budget and so rested entirely on the floor.
    */
-  const SLOWEST_ASSUMED_NPS = 50_000
-  const MIN_TIMEOUT_MS = 120_000
-  const timeoutFor = (nodes = 0) =>
-    Math.max(MIN_TIMEOUT_MS, (nodes / SLOWEST_ASSUMED_NPS) * 1000)
+  const timeoutFor = (nodes = 0) => searchTimeoutMs(nodes, share)
 
   /** Run `cmd` and resolve when `done(line)` returns truthy, feeding each line to `sink`. */
   function until(cmd, done, sink, timeoutMs = MIN_TIMEOUT_MS) {

@@ -31,5 +31,8 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0021](0021-opening-repertoire-generator.md) | Generate an opening repertoire from explorer data + engine, terminating at quiet positions | Accepted |
 | [0022](0022-repertoire-branch-ownership.md) | One repertoire from many crawls: each branch owns its subtree | Accepted |
 | [0023](0023-second-white-repertoire-1-e4.md) | A second White repertoire: 1.e4, alongside the Queen's Gambit | Accepted |
+| [0024](0024-gate-on-a-local-evaluation-index.md) | Gate repertoire moves on a local evaluation index, not the crawl's own search | Accepted |
+| [0025](0025-curated-lines-run-to-the-structure.md) | Curated lines run to the structure, not to the first quiet position | Accepted |
+| [0026](0026-retire-the-tactic-gap-at-high-node-budgets.md) | The tactic-gap filter is off by default, and why that is not a repeal | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.

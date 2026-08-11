@@ -46,8 +46,8 @@
       "color": "w",
       "line": "d4 d5 c4 dxc4 e3",
       "why": "The priority line. White does not rush to regain c4; develop and let the attempt to HOLD the pawn cost Black the position. The break to know is a4 against ...b5.",
-      "$depthNote": "Set against the depth floor: the punishing line 3.e3 b5 4.a4 c6 5.axb5 cxb5 6.Qf3 lands on ply 11, so the cap must clear it. If minPly ever rises past 11 this branch can no longer reach its own priority line.",
-      "maxPly": 13
+      "$depthNote": "Set against the depth floor: the punishing line 3.e3 b5 4.a4 c6 5.axb5 cxb5 6.Qf3 lands on ply 11, so the cap must clear it. The warning this note used to carry — that a floor past ply 11 would strand the branch above its own cap — came true when ADR 0025 raised the base to 16, and `badDepths` in build.mjs now catches that class of collision before any engine time is spent rather than leaving it to a reader. Raised to 22 so the branch still clears its priority line with the deeper floor above it.",
+      "maxPly": 22
     },
     {
       "id": "slav-white",
@@ -151,6 +151,16 @@
       "color": "b",
       "line": "e4 c6 d4 d5 e5 Bf5",
       "why": "A French structure with the good bishop already outside — the entire point of playing 1...c6 rather than 1...e6."
+    },
+    {
+      "id": "caro-ne2",
+      "name": "Caro-Kann — 2.Ne2 and the e6 sacrifice",
+      "color": "b",
+      "line": "e4 c6 Ne2",
+      "why": "The trap line: 2.Ne2 d5 3.e5 Bf5 4.Ng3 Bg6 5.h4 h5 6.e6, giving up a pawn to wreck the kingside and strand the light-squared bishop. Know the refutation and it is a free pawn; meet it cold and the bishop has no squares.",
+      "$reachNote": "2.Ne2 sidesteps every other Caro branch, all of which are rooted past White's d4. It therefore fell to the `caro` sweeper — which stops at ply 8, while the sacrifice lands on ply 11, so v1 could not have covered it at any node budget. Measured in the 5M-game band book: 2.Ne2 is 575 of 273,254 replies to 1...c6 (0.21%), far outside the 85% mass target, so the sweeper would not even have listed the move.",
+      "$trapNote": "Objectively a bluff, and that is the point. At depth 55 the index puts Black at 52.6% after 6.e6 — the sacrifice is unsound with an answer. But the band plays it 11 times out of 11 from that position, and 5.h4 in 39 of 39, so it is forced at club level and scores on surprise alone. This is precisely `trapValue`'s bad-but-overperforming case; what it needs is depth to reach and games to judge, hence the lowered floor.",
+      "minNodeGames": 8
     },
     {
       "id": "caro-exchange",

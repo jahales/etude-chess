@@ -453,9 +453,28 @@ describe('crawl — the shipped defaults must be usable', () => {
     expect(DEFAULTS.minPly).toBeLessThan(DEFAULTS.maxPly)
   })
 
+  // A QGD to ply 20, so a line can actually reach the floor. A ladder shorter
+  // than `maxPly` runs out of book first and every terminal is `out-of-book`,
+  // which reports as "no quiet positions" and looks exactly like the bug this
+  // block exists to catch.
+  const QGD_20 = [
+    'd4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O',
+    'e3', 'h6', 'Bh4', 'b6', 'cxd5', 'Nxd5', 'Bxe7', 'Qxe7', 'Nxd5', 'exd5',
+  ]
+
+  it('has a fixture deep enough to reach the shipped floor', () => {
+    // Fails loudly if the defaults outgrow the ladder, rather than letting the
+    // next test report zero quiet terminals for a reason that is not the bug.
+    expect(QGD_20.length).toBeGreaterThanOrEqual(DEFAULTS.minPly + 4)
+  })
+
   it('produces quiet terminals with no ply options at all', async () => {
-    const deep = ladder(['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Nf3', 'Be7', 'Bg5', 'O-O', 'e3', 'h6'])
-    const result = await crawl({ engine: stubEngine(), explorer: deep, ourColor: 'w', forcedLine: [] })
+    const result = await crawl({
+      engine: stubEngine(),
+      explorer: ladder(QGD_20),
+      ourColor: 'w',
+      forcedLine: [],
+    })
     expect(result.report.terminal.quiet).toBeGreaterThan(0)
   })
 
@@ -532,5 +551,188 @@ describe('crawl — positions another branch has already decided', () => {
     // is the first four FEN fields, as everywhere else in the crawler.
     const viaOtherOrder = at('d4 e6 c4 d5')
     expect(viaOtherOrder).toBe(at('d4 d5 c4 e6'))
+  })
+})
+
+describe('crawl — candidate evaluations come from the index first', () => {
+  // Measured over a partial v2 build: 96.7% of candidate positions are already
+  // in the index at median depth 34, against the ~26 a 4M-node search reaches.
+  // The engine was re-deriving a worse answer than the one on disk.
+  const BOOK = stubBook({
+    'd4 d5 c4': [
+      { san: 'e6', w: 300, d: 100, b: 300 },
+      { san: 'c6', w: 200, d: 50, b: 200 },
+    ],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+    'd4 d5 c4 c6': [{ san: 'Nf3', w: 400, d: 100, b: 300 }],
+  })
+
+  /** Every position the crawl reaches from this book, so "all indexed" means all. */
+  const ALL = new Set([
+    at('d4 d5 c4 e6'), at('d4 d5 c4 c6'),
+    at('d4 d5 c4 e6 Nc3'), at('d4 d5 c4 c6 Nf3'),
+  ])
+
+  const indexed = (fens, depth = 40) => ({
+    query: (fen) =>
+      fens.has(fenKey(fen))
+        ? { lines: [{ multipv: 1, score: cp(20), pv: ['a2a3'] }], bestMove: 'a2a3', depth, knodes: 1 }
+        : null,
+  })
+
+  it('does not search a position the index already holds', async () => {
+    const engine = stubEngine()
+    const withIndex = await run({ engine, explorer: BOOK, evalDb: indexed(ALL) })
+    expect(withIndex.report.candidateSource).toEqual({ cloud: 4, local: 0 })
+
+    const bare = stubEngine()
+    const without = await run({ engine: bare, explorer: BOOK })
+    expect(without.report.candidateSource).toEqual({ cloud: 0, local: 4 })
+    // The index run must have done strictly less engine work for the same tree.
+    expect(engine.searchCount()).toBeLessThan(bare.searchCount())
+  })
+
+  it('searches the ones it does not hold', async () => {
+    const r = await run({
+      engine: stubEngine(),
+      explorer: BOOK,
+      evalDb: indexed(new Set([at('d4 d5 c4 e6')])),
+    })
+    expect(r.report.candidateSource).toEqual({ cloud: 1, local: 3 })
+  })
+
+  it('searches rather than trusting an entry shallower than the gate accepts', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: indexed(ALL, 5) })
+    expect(r.report.candidateSource).toEqual({ cloud: 0, local: 4 })
+  })
+})
+
+describe('crawl — the baseline candidates are measured against', () => {
+  // `swing = bestWp - candidate`. Once candidates come from the index, leaving
+  // the baseline on a shallower engine reading manufactures swing out of the
+  // depth difference — and that swing feeds trap detection. Both sides of the
+  // subtraction have to come from one source.
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+  const at40 = (score) => ({
+    query: () => ({ lines: [{ multipv: 1, score, pv: ['a2a3'] }], bestMove: 'a2a3', depth: 40, knodes: 1 }),
+  })
+
+  it('takes the baseline from the index when it is deep enough', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: at40(cp(0)) })
+    expect(r.report.bestSource.cloud).toBeGreaterThan(0)
+    expect(r.report.bestSource.local).toBe(0)
+  })
+
+  it('falls back to the engine when the index is absent or shallow', async () => {
+    const none = await run({ engine: stubEngine(), explorer: BOOK })
+    expect(none.report.bestSource).toEqual({ cloud: 0, local: none.report.bestSource.local })
+    expect(none.report.bestSource.local).toBeGreaterThan(0)
+
+    const shallow = {
+      query: () => ({ lines: [{ multipv: 1, score: cp(0), pv: ['a2a3'] }], bestMove: 'a2a3', depth: 5, knodes: 1 }),
+    }
+    const r = await run({ engine: stubEngine(), explorer: BOOK, evalDb: shallow })
+    expect(r.report.bestSource.cloud).toBe(0)
+  })
+
+  it('leaves the quiet test entirely on the engine', async () => {
+    // The tactic gap is relative, so deepening one side decalibrates it. An
+    // index that disagrees wildly with the engine must not change quietness.
+    const engineOnly = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    const withIndex = await run({
+      engine: stubEngine(),
+      explorer: BOOK,
+      evalDb: at40(cp(900)),
+      minPly: 4,
+      maxPly: 8,
+    })
+    expect(withIndex.report.terminal.quiet).toBe(engineOnly.report.terminal.quiet)
+  })
+})
+
+describe('crawl — the shallow search is bought only when it can matter', () => {
+  // quietness needs all three tests to pass, so where breadth or balance has
+  // already failed a second reading can only add a reason, never remove one.
+  // Skipping it there is lossless; the verdict must be identical either way.
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+
+  it('skips it where the position is already decided', async () => {
+    // Wildly imbalanced: balance fails on the deep reading alone.
+    const r = await run({
+      engine: stubEngine({ scores: { [at('d4 d5 c4 e6')]: 2000 } }),
+      explorer: BOOK,
+      minPly: 4,
+      maxPly: 8,
+      tacticGap: true,
+    })
+    expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
+  })
+
+  it('buys it where breadth and balance both pass', async () => {
+    // Opted in — the filter is off by default since ADR 0026.
+    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    expect(r.report.tacticGap.tested).toBeGreaterThan(0)
+  })
+
+  it('does fewer searches for the same tree', async () => {
+    // The saving, stated as the thing that matters: identical crawl, fewer
+    // engine calls. Losslessness itself rests on `quietness` needing all three
+    // tests to pass, which the domain suite pins directly.
+    const decided = stubEngine({ scores: { [at('d4 d5 c4 e6')]: 2000 } })
+    const r = await run({ engine: decided, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    const assessed = r.report.tacticGap.tested + r.report.tacticGap.skipped
+    expect(r.report.tacticGap.skipped).toBeGreaterThan(0)
+    // Two searches per assessed position would be the old cost; we did fewer.
+    expect(decided.searchCount()).toBeLessThan(2 * assessed + r.report.expanded)
+  })
+})
+
+describe('crawl — the tactic gap is opt-in (ADR 0026)', () => {
+  const BOOK = stubBook({
+    'd4 d5 c4': [{ san: 'e6', w: 300, d: 100, b: 300 }],
+    'd4 d5 c4 e6': [{ san: 'Nc3', w: 400, d: 100, b: 300 }],
+  })
+
+  it('buys no shallow search by default', async () => {
+    const r = await run({ engine: stubEngine(), explorer: BOOK, minPly: 4, maxPly: 8 })
+    expect(r.report.tacticGap.enabled).toBe(false)
+    expect(r.report.tacticGap.tested).toBe(0)
+  })
+
+  it('does fewer searches than with the filter on, for the same tree', async () => {
+    const off = stubEngine()
+    const on = stubEngine()
+    const a = await run({ engine: off, explorer: BOOK, minPly: 4, maxPly: 8 })
+    const b = await run({ engine: on, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    expect(b.report.tacticGap.enabled).toBe(true)
+    expect(b.report.tacticGap.tested).toBeGreaterThan(0)
+    expect(off.searchCount()).toBeLessThan(on.searchCount())
+    // Same tree either way — the filter never fired on this fixture.
+    expect(a.nodes.size).toBe(b.nodes.size)
+  })
+
+  it('still decides against a position when it is switched on and the gap is real', async () => {
+    // A stub whose shallow reading disagrees wildly: the filter must bite, or
+    // re-enabling it at a low budget would be doing nothing.
+    const jumpy = {
+      async analyse(fen, { nodes = 0, multipv = 1 } = {}) {
+        const legal = new Chess(fen).moves({ verbose: true })
+        const base = nodes < 200_000 ? 900 : 0
+        const lines = []
+        for (let i = 0; i < Math.min(multipv, Math.max(1, legal.length)); i++) {
+          lines.push({ multipv: i + 1, score: cp(base), pv: legal[i] ? [legal[i].lan] : [] })
+        }
+        return { lines, bestMove: lines[0]?.pv[0] ?? null, depth: 22 }
+      },
+      searchCount: () => 0,
+    }
+    const r = await run({ engine: jumpy, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
+    expect(r.report.tacticGap.decided).toBeGreaterThan(0)
   })
 })
