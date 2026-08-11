@@ -870,11 +870,15 @@ async function main() {
   // this build's own --nodes budget.
   const evalIndexPath = stringFlag(args, 'eval-index')
   const evalDb = evalIndexPath ? createEvalDb({ dir: evalIndexPath }) : null
-  const engine = createEngine({ path: enginePath })
   // The candidate fan-out at each node is the only parallelisable part of a
   // crawl, and it is most of the engine time. `--pool 1` keeps the serial path.
   const poolSize = numberFlag(args, 'pool')
   const pool = poolSize === 1 ? null : createEnginePool({ size: poolSize, path: enginePath })
+  // The standalone engine competes with every pool engine for the same cores, so
+  // it needs the same timeout budget they get. Without this it kept the lone-
+  // engine assumption and was killed at the 120s floor mid-search — which is
+  // exactly how open-italian died on a 4M-node run.
+  const engine = createEngine({ path: enginePath, share: (pool?.size ?? 0) + 1 })
   const started = Date.now()
   console.log(`building ${entries.length} branch(es) at ${deepNodes.toLocaleString()} nodes → ${outDir}\n`)
 

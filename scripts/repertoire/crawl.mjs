@@ -871,7 +871,9 @@ async function main() {
     : args.canon
       ? createExplorer({ cacheDir: join(dirname(outBase), '.masters-cache'), source: 'masters' })
       : null
-  const engine = createEngine({ path: args.engine ? String(args.engine) : undefined })
+  // Created after the pool below, so it can be told how many engines it shares
+  // the machine with — see build.mjs for the failure that taught us.
+  let engine
 
   // Optional, and absent means the old behaviour exactly: the gate falls back
   // to this crawl's own search for every decision.
@@ -885,6 +887,10 @@ async function main() {
     poolSize === 1
       ? null
       : createEnginePool({ size: poolSize, path: args.engine ? String(args.engine) : undefined })
+  engine = createEngine({
+    path: args.engine ? String(args.engine) : undefined,
+    share: (pool?.size ?? 0) + 1,
+  })
 
   const started = Date.now()
   console.log(`crawling ${ourColor === 'w' ? 'White' : 'Black'} from: ${forcedLine.join(' ') || '(start)'}`)
