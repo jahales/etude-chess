@@ -1,0 +1,90 @@
+import { describe, it, expect } from 'vitest'
+import { assignTiers, prunePgn } from './studyDecks.mjs'
+import { walkRepertoire } from './readRepertoirePgn.mjs'
+
+const row = (line, value) => ({ line, value })
+
+describe('assignTiers', () => {
+  // The property that makes a tier drillable: you cannot learn move 12 without
+  // moves 1 to 11, so a decision only enters a tier with its whole ancestry.
+  it('admits a decision only together with its ancestors', () => {
+    const tier = assignTiers([row('e4', 0.1), row('e4 e5 Nf3', 9), row('e4 e5 Nf3 Nc6 Bc4', 8)], [10])
+    expect(tier.get('e4')).toBe(0)
+    expect(tier.get('e4 e5 Nf3')).toBe(0)
+    expect(tier.get('e4 e5 Nf3 Nc6 Bc4')).toBe(0)
+  })
+
+  it('charges the ancestry against the budget', () => {
+    // Three decisions needed to reach the valuable one, budget of two: it
+    // cannot fit, so the whole chain goes to the next tier rather than
+    // arriving there half-formed.
+    const tier = assignTiers([row('d4', 1), row('d4 d5 c4', 2), row('d4 d5 c4 e6 cxd5', 99)], [2])
+    expect(tier.get('d4 d5 c4 e6 cxd5')).toBeGreaterThan(0)
+  })
+
+  it('orders tiers by value, not by where a line sits in the file', () => {
+    const tier = assignTiers([row('a3', 0.01), row('e4', 5)], [1])
+    expect(tier.get('e4')).toBeLessThan(tier.get('a3'))
+  })
+
+  it('puts everything left into the final tier', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => row(`e4 ${'a'.repeat(i + 1)}`, i))
+    const tier = assignTiers(rows, [2, 4])
+    for (const r of rows) expect(tier.get(r.line)).toBeLessThanOrEqual(2)
+    expect(Math.max(...tier.values())).toBe(2)
+  })
+
+  it('places unscorable decisions last rather than dropping them', () => {
+    // They are by definition the ones we know least about, so they are not
+    // silently lost — they are simply not what to learn first.
+    const tier = assignTiers([{ line: 'e4', skipped: 'thin book' }, row('d4', 5)], [1])
+    expect(tier.has('e4')).toBe(true)
+    expect(tier.get('e4')).toBeGreaterThanOrEqual(tier.get('d4'))
+  })
+
+  it('is cumulative — every tier is a superset of the one before', () => {
+    const rows = Array.from({ length: 30 }, (_, i) => row(`e4 ${'b'.repeat(i + 1)}`, 30 - i))
+    const tier = assignTiers(rows, [5, 12])
+    const upTo = (n) => new Set([...tier].filter(([, t]) => t <= n).map(([l]) => l))
+    const a = upTo(0)
+    const b = upTo(1)
+    for (const line of a) expect(b.has(line)).toBe(true)
+  })
+})
+
+describe('prunePgn', () => {
+  const PGN =
+    '[Event "t"]\n[Orientation "white"]\n[Result "*"]\n\n' +
+    '1. e4 e5 (1... c5 2. c3 d5) 2. Nf3 Nc6 3. Bb5 *\n'
+
+  it('keeps a retained line and everything leading to it', () => {
+    const out = prunePgn(PGN, new Set(['e4', 'e4 e5 Nf3']))
+    const sans = [...walkRepertoire(out)].map((n) => n.san)
+    expect(sans).toContain('e4')
+    expect(sans).toContain('e5')
+    expect(sans).toContain('Nf3')
+  })
+
+  it('drops a variation nothing retained sits under', () => {
+    const out = prunePgn(PGN, new Set(['e4', 'e4 e5 Nf3']))
+    expect([...walkRepertoire(out)].map((n) => n.san)).not.toContain('c3')
+  })
+
+  it('keeps the opponent move above a retained reply', () => {
+    // A deck that dropped these would answer moves it never shows you.
+    const out = prunePgn(PGN, new Set(['e4', 'e4 c5 c3']))
+    const sans = [...walkRepertoire(out)].map((n) => n.san)
+    expect(sans).toContain('c5')
+    expect(sans).toContain('c3')
+  })
+
+  it('emits nothing when a tier retains nothing from a file', () => {
+    expect(prunePgn(PGN, new Set(['d4'])).trim()).toBe('')
+  })
+
+  it('produces a PGN the reader can parse back', () => {
+    const out = prunePgn(PGN, new Set(['e4', 'e4 e5 Nf3', 'e4 e5 Nf3 Nc6 Bb5']))
+    expect(() => [...walkRepertoire(out)]).not.toThrow()
+    expect([...walkRepertoire(out)].length).toBeGreaterThan(3)
+  })
+})
