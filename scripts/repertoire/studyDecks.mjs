@@ -141,8 +141,13 @@ async function main() {
       // One file per colour per tier: En Croissant trains from a single side's
       // point of view, so a PGN holding both is importable as neither.
       const colour = orientationOf([...parsePgn(text)][0]) === 'w' ? 'white' : 'black'
-      const stem = path.split(/[\\/]/).pop().replace(/\.pgn$/, '')
-      writeFileSync(join(outDir, `${label}-${colour}-${stem}.pgn`), pruned)
+      // Name from the *directory* as well as the file. Both White decks are
+      // called `repertoire-white.pgn` in their own build directory, so keying on
+      // the filename alone had the 1.e4 deck silently overwrite the 1.d4 one —
+      // a whole repertoire lost with no error and a plausible file left behind.
+      const parts = path.split(/[\\/]/)
+      const stem = `${parts.at(-2)}-${parts.at(-1).replace(/\.pgn$/, '')}`
+      writeFileSync(join(outDir, `${label}-${stem}.pgn`), pruned)
     }
   }
 

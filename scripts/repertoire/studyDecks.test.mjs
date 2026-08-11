@@ -88,3 +88,16 @@ describe('prunePgn', () => {
     expect([...walkRepertoire(out)].length).toBeGreaterThan(3)
   })
 })
+
+describe('deck file naming', () => {
+  it('distinguishes two sources whose filenames are identical', () => {
+    // Both White decks are `repertoire-white.pgn` inside their own build
+    // directory. Keying on the filename alone had the 1.e4 deck overwrite the
+    // 1.d4 one — no error, and a perfectly plausible file left behind.
+    const stem = (p) => {
+      const parts = p.split(/[\/]/)
+      return `${parts.at(-2)}-${parts.at(-1).replace(/\.pgn$/, '')}`
+    }
+    expect(stem('out/v2-main/repertoire-white.pgn')).not.toBe(stem('out/v2-e4/repertoire-white.pgn'))
+  })
+})
