@@ -89,15 +89,22 @@ describe('prunePgn', () => {
   })
 })
 
-describe('deck file naming', () => {
-  it('distinguishes two sources whose filenames are identical', () => {
-    // Both White decks are `repertoire-white.pgn` inside their own build
-    // directory. Keying on the filename alone had the 1.e4 deck overwrite the
-    // 1.d4 one — no error, and a perfectly plausible file left behind.
-    const stem = (p) => {
-      const parts = p.split(/[\/]/)
-      return `${parts.at(-2)}-${parts.at(-1).replace(/\.pgn$/, '')}`
-    }
-    expect(stem('out/v2-main/repertoire-white.pgn')).not.toBe(stem('out/v2-e4/repertoire-white.pgn'))
+describe('deck output shape', () => {
+  it('merges same-colour sources rather than emitting one file each', () => {
+    // Colour is the only axis En Croissant has — it trains from one side's
+    // point of view. Two White files would mean choosing between them at every
+    // session for no reason, and the 1.d4 and 1.e4 repertoires are both White.
+    // An earlier version keyed the filename on the build directory, which
+    // turned that into two files; before *that* it keyed on the filename alone
+    // and one silently overwrote the other.
+    const sources = [
+      { colour: 'white', pgn: '[Event "a"]\n[Orientation "white"]\n\n1. d4 *\n' },
+      { colour: 'white', pgn: '[Event "b"]\n[Orientation "white"]\n\n1. e4 *\n' },
+      { colour: 'black', pgn: '[Event "c"]\n[Orientation "black"]\n\n1. e4 c6 *\n' },
+    ]
+    const byColour = {}
+    for (const s of sources) (byColour[s.colour] ??= []).push(s.pgn)
+    expect(Object.keys(byColour).sort()).toEqual(['black', 'white'])
+    expect(byColour.white).toHaveLength(2)
   })
 })

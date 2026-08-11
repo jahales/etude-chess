@@ -25,7 +25,7 @@ import { createEvalDb } from './evalDb.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { studyOrder } from './studyOrder.mjs'
 import { orientationOf } from './readRepertoirePgn.mjs'
-import { parseArgs, stringFlag } from './build.mjs'
+import { mergePgn, parseArgs, stringFlag } from './build.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')
@@ -134,20 +134,26 @@ async function main() {
     const label = names[t] ?? `tier${t + 1}`
     process.stdout.write(`${label.padEnd(9)} ${String(keep.size).padStart(5)} decisions\n`)
 
+    // **One file per colour, not per source.** Colour is the only axis En
+    // Croissant has: it trains from a single side's point of view, so a PGN
+    // holding both is importable as neither — and two files of the *same*
+    // colour mean choosing between them at every session for no reason. The
+    // 1.d4 and 1.e4 repertoires are both White, so they belong in one White
+    // deck; whether to play both is a repertoire decision, not a drilling one.
+    const byColour = { white: [], black: [] }
     for (const path of pgnPaths) {
       const text = readFileSync(path, 'utf8')
       const pruned = prunePgn(text, keep)
       if (!pruned.trim()) continue
-      // One file per colour per tier: En Croissant trains from a single side's
-      // point of view, so a PGN holding both is importable as neither.
       const colour = orientationOf([...parsePgn(text)][0]) === 'w' ? 'white' : 'black'
-      // Name from the *directory* as well as the file. Both White decks are
-      // called `repertoire-white.pgn` in their own build directory, so keying on
-      // the filename alone had the 1.e4 deck silently overwrite the 1.d4 one —
-      // a whole repertoire lost with no error and a plausible file left behind.
-      const parts = path.split(/[\\/]/)
-      const stem = `${parts.at(-2)}-${parts.at(-1).replace(/\.pgn$/, '')}`
-      writeFileSync(join(outDir, `${label}-${stem}.pgn`), pruned)
+      byColour[colour].push(pruned)
+    }
+    for (const [colour, parts] of Object.entries(byColour)) {
+      if (!parts.length) continue
+      // Named for a human choosing a file to drill, not for the build that
+      // produced it. Sorts so the tiers of one colour sit together.
+      writeFileSync(join(outDir, `etude-${colour}-${label}.pgn`), mergePgn(parts))
+      process.stdout.write(`  ${colour.padEnd(5)} ${parts.length} source(s)\n`)
     }
   }
 
