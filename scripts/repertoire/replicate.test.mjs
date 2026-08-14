@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { compareTraps, AGREEMENT_FACTOR } from './replicate.mjs'
+import { compareTraps, AGREEMENT_FACTOR , trapsOf } from './replicate.mjs'
 import { learnedTotal } from './verifyBook.mjs'
 
 // `compareTraps` decides whether a finding is real. Its contradicted-vs-unseen
@@ -101,5 +101,35 @@ describe('learnedTotal', () => {
   it('learns nothing from a book that never recorded the field', () => {
     expect(learnedTotal({ gamesScanned: 5000 })).toBeUndefined()
     expect(learnedTotal(undefined)).toBeUndefined()
+  })
+})
+
+describe('trapsOf — the two output shapes', () => {
+  // crawl.mjs nests findings under `report`; build.mjs's summary.json puts
+  // `traps` at the top level. Reading only the first made a comparison of two
+  // summaries silently find nothing and report "0 of 0 traps survive
+  // replication" — which reads exactly like a clean result, after six hours of
+  // crawling to produce it.
+  it('reads a single-branch crawl output', () => {
+    expect(trapsOf({ report: { traps: [{ line: 'd4 e5' }] } })).toHaveLength(1)
+  })
+
+  it('reads a whole-repertoire build summary', () => {
+    expect(trapsOf({ traps: [{ line: 'd4 e5' }, { line: 'e4 d5' }] })).toHaveLength(2)
+  })
+
+  it('prefers the nested list when a run somehow has both', () => {
+    expect(trapsOf({ report: { traps: [{ line: 'a' }] }, traps: [] })).toHaveLength(1)
+  })
+
+  it('is empty rather than throwing on something that is neither', () => {
+    for (const run of [null, undefined, {}, { nodes: {} }]) expect(trapsOf(run)).toEqual([])
+  })
+
+  it('lets compareTraps work on two build summaries', () => {
+    const a = { traps: [{ line: 'd4 e5 dxe5', trapValue: 0.4, games: 100 }] }
+    const b = { traps: [{ line: 'd4 e5 dxe5', trapValue: 0.35, games: 90 }], nodes: {} }
+    expect(compareTraps(a, b).replicated).toHaveLength(1)
+    expect(compareTraps(a, b).replicated[0].stable).toBe(true)
   })
 })

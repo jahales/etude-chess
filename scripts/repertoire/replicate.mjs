@@ -30,9 +30,22 @@ export const AGREEMENT_FACTOR = 4
  * gap, not evidence either way, and is reported separately so it cannot be
  * mistaken for a refutation.
  */
+/**
+ * The trap list, from either output shape.
+ *
+ * `crawl.mjs` writes one branch and nests its findings under `report`;
+ * `build.mjs` writes a whole-repertoire `summary.json` with `traps` at the top
+ * level. Reading only the first meant a comparison of two *summaries* silently
+ * found nothing and reported `0 of 0 traps survive replication` — which reads
+ * exactly like a clean result, after six hours of crawling to produce it.
+ */
+export function trapsOf(run) {
+  return run?.report?.traps ?? run?.traps ?? []
+}
+
 export function compareTraps(runA, runB) {
-  const trapsA = new Map((runA.report?.traps ?? []).map((t) => [t.line, t]))
-  const trapsB = new Map((runB.report?.traps ?? []).map((t) => [t.line, t]))
+  const trapsA = new Map(trapsOf(runA).map((t) => [t.line, t]))
+  const trapsB = new Map(trapsOf(runB).map((t) => [t.line, t]))
 
   // A trap's line ends with the trap move, so its *parent* is what run B had to
   // have expanded in order to have an opinion. Matching on the trap line itself
@@ -94,14 +107,22 @@ async function main() {
     readFile(pathB, 'utf8').then(JSON.parse),
   ])
 
+  if (!trapsOf(runA).length && !trapsOf(runB).length) {
+    console.error(
+      'neither run has a trap list — check these are crawl or build outputs. ' +
+        'Reporting "0 of 0 survive" here would read exactly like a clean result.',
+    )
+    process.exit(1)
+  }
+
   const forward = compareTraps(runA, runB)
   const reverse = compareTraps(runB, runA)
 
   const confirmed = forward.replicated.filter((r) => r.stable)
   const shaky = forward.replicated.filter((r) => !r.stable)
 
-  console.log(`\nA: ${pathA}  (${(runA.report?.traps ?? []).length} traps)`)
-  console.log(`B: ${pathB}  (${(runB.report?.traps ?? []).length} traps)\n`)
+  console.log(`\nA: ${pathA}  (${trapsOf(runA).length} traps)`)
+  console.log(`B: ${pathB}  (${trapsOf(runB).length} traps)\n`)
 
   console.log(`✓ replicated in both, consistent magnitude — ${confirmed.length}`)
   for (const r of confirmed) {
@@ -125,7 +146,7 @@ async function main() {
     for (const r of all.slice(0, 10)) console.log(`    ${r.line}   [${r.a.toFixed(4)}, n=${r.games}]`)
   }
 
-  const total = (runA.report?.traps ?? []).length
+  const total = trapsOf(runA).length
   console.log(
     `\n${confirmed.length} of ${total} traps from A survive replication` +
       (total ? ` (${((100 * confirmed.length) / total).toFixed(0)}%)` : ''),
