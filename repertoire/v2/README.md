@@ -1,23 +1,29 @@
 # Repertoire v2 — staged study decks
 
-Six files, of which **two are ever in use**. Import the pair for the tier you are
-on, one per colour, into En Croissant (Files → Add New → from PGN) and point the
-repertoire trainer at whichever side you are drilling.
+Four files, of which **two are ever in use**. Import the pair for the tier you
+are on, one per colour, into En Croissant (Files → Add New → from PGN) and point
+the repertoire trainer at whichever side you are drilling.
 
 | file | games | decisions |
 |---|---|---|
-| `etude-white-core.pgn` · `etude-black-core.pgn` | 2 · 6 | **150** — start here |
-| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | 500 |
+| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | **500** — start here |
 | `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2 · 8 | 2,299 |
 
 **Import the two colours separately.** En Croissant trains from one side's point
 of view, so a file holding both is importable as neither — it would drill you as
 White in the Caro-Kann.
 
-**Each tier is a superset of the last**, so moving up never means relearning
-anything. When you do move up, remove the previous tier's import first: keeping
-both means every core line is drilled twice and the scheduler treats them as
-separate items.
+**`complete` is a superset of `standard`**, so moving up never means relearning
+anything. When you do move up, remove the previous import first: keeping both
+means every line is drilled twice and the scheduler treats them as separate
+items.
+
+There was a 150-decision `core` tier between these and it was dropped: 150 is
+roughly the first four plies of what you meet most, which is thin enough that
+you meet an unprepared position in most games. The step from 500 straight to
+everything is steep, but it is a step taken once, against a first deck that can
+actually stand on its own. Re-cut at any time with `npm run rep:decks` and a
+different `--sizes`.
 
 White holds **both** first moves as two games — 1.d4 and 1.e4 are alternatives
 at the board, so they sit in one file and you drill whichever you play. Black is

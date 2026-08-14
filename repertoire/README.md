@@ -8,10 +8,9 @@ evaluation gate in
 
 ## Use [v2](v2/) — two files
 
-Import `v2/etude-white-core.pgn` and `v2/etude-black-core.pgn` into En Croissant
+Import `v2/etude-white-standard.pgn` and `v2/etude-black-standard.pgn` into En Croissant
 (Files → Add New → from PGN), **separately**, then point the repertoire trainer
-at whichever side you are drilling. Move up to `-standard` and then `-complete`
-as each becomes automatic. Six files exist; two are ever in use.
+at whichever side you are drilling. Move up to `-complete` when that becomes automatic. Four files exist; two are ever in use.
 
 Everything else about the tiers is in [v2/README.md](v2/README.md), including
 the one caveat that matters: the moves are gated at depth 34–50 and sound, but
