@@ -84,8 +84,10 @@ ontology workstream: ADR [0019](decisions/0019-why-layer-next.md). #64, #50.
 
 ### 4. Close the review loop · `epic:review-loop`
 Every flagged mistake gets a path back into practice: drill your misses (#49), play it out from
-here (#48), your reason reflected back at the reveal, one metric language across modes (#65), a
-richer curated pack (#51).
+here (#48), your reason reflected back at the reveal, a richer curated pack (#51). The leading
+indicator (#65) **shipped 2026-08-14** — blunder rate per game over the games a completed
+analysis measured in full, framed by ADR
+[0027](decisions/0027-blunder-rate-as-the-leading-indicator.md).
 
 - **Depends on:** review existing (done), and the "why" layer for the explanations it drills on.
 
@@ -150,7 +152,8 @@ Real, small, and never urgent.
 - **Justification capture and honest metrics** apply from v0.1.0 onward (telemetry seed).
 - **What to trust:** rated game rating is the only real metric, and it moves slowly. **Puzzle
   rating will climb faster and will lie.** The earliest honest leading indicator is your own
-  blunder rate per game from the review loop (#65).
+  blunder rate per game from the review loop (#65) — now in the library, and deliberately not
+  drawn as a trend (ADR [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md)).
 
 ## Last — the learner model and adaptivity
 Only once the above generates dense, labeled telemetry: multidimensional IRT skill vector

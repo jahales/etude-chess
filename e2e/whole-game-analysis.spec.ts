@@ -63,5 +63,13 @@ test.describe('whole-game analysis', () => {
     await expect(page.locator('.playing-as')).toContainText('% accuracy')
     await expect(page.locator('.playing-as')).not.toContainText('over')
     expect(await page.locator('.mv-score').count()).toBe(scored)
+
+    // #65: a real pass — not a seeded record — produces a game the leading
+    // indicator will count. `e2e/blunder-rate.spec.ts` pins the rules about
+    // which games qualify; this pins that the pass actually writes one that
+    // does, which is the assumption those rules rest on.
+    await page.getByRole('button', { name: /Back to your games/ }).click()
+    await expect(page.locator('.blunder-rate')).toContainText('blunders per game')
+    await expect(page.locator('.blunder-rate')).toContainText('over 1 game')
   })
 })

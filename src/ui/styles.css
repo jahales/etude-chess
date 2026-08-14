@@ -1288,3 +1288,34 @@ button {
   font-size: 0.8rem;
   color: var(--ink-faint);
 }
+
+/* Blunder rate — the leading indicator (#65, ADR 0027).
+   Styled as a stated figure with its sample and its caveats attached, not as a
+   dashboard tile: no accent fill, no bar, nothing to fill up. The caveats are
+   part of the number, so they sit inside the same block rather than in a
+   tooltip someone has to go looking for. */
+.blunder-rate {
+  margin: 1.2rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  max-width: 62ch;
+}
+/* The sample sits on its own line directly under the figure: attached to it,
+   never wrapping into the middle of it, and never left off. */
+.blunder-rate .metric-n {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+.blunder-rate .metric-caveat {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}

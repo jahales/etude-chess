@@ -116,6 +116,10 @@ Attack it as its own workstream, not as a side effect of feature work:
   loop. It's the earliest honest signal, and — because the maintainer is dogfooding at ~1355,
   the band where the P0 "why" layer matters most — it doubles as the project's only cheap
   validation data. Instrument it from the start.
+  **Instrumented 2026-08-14 (#65)**, in the library. What it shows and — more to the point —
+  what it deliberately does not (no trend, no goal, no bar; only games a completed analysis
+  measured in full): ADR
+  [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md).
 
 ## Invariant (never violate, regardless of feature)
 
