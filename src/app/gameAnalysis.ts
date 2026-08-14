@@ -58,6 +58,20 @@ function moverAt(ply: number): 'w' | 'b' {
 }
 
 /**
+ * The plies you moved on. One definition, because every figure about *your*
+ * play is a mean over this set and two of them disagreeing about which moves
+ * were yours would be invisible until the numbers contradicted each other.
+ *
+ * Assumes the game starts at move 1 with White — true of every `kind: 'game'`
+ * record, and the reason a play-out (#48) is not measured by these figures.
+ */
+export function yourPlies(game: StoredGame): number[] {
+  return game.sanHistory
+    .map((_, ply) => ply)
+    .filter((ply) => moverAt(ply) === game.yourColor)
+}
+
+/**
  * A game's accuracy **and how much of the game it covers**.
  *
  * The coverage is the point. `coachLog` only holds moves the coach finished
@@ -83,13 +97,11 @@ export interface AccuracyReport {
 }
 
 export function accuracyReport(game: StoredGame): AccuracyReport {
-  const yourPlies = game.sanHistory
-    .map((_, ply) => ply)
-    .filter((ply) => moverAt(ply) === game.yourColor)
-  const total = yourPlies.length
+  const plies = yourPlies(game)
+  const total = plies.length
 
   if (isAnalysed(game)) {
-    const swings = yourPlies
+    const swings = plies
       .map((ply) => evalSwingAt(game.evalByPly, ply, game.yourColor, game.startEval))
       .filter((s): s is number => s !== undefined)
       // A move that gained ground is not better than perfect; clamp so it can't

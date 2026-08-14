@@ -8,11 +8,13 @@ import {
   movesWorthStudying,
   type ReplayMove,
 } from '../app/replay'
-import { ANNOTATION_NAME } from '../domain/annotation'
+import { ANNOTATION_NAME, BLUNDER_MIN_SWING } from '../domain/annotation'
+import type { BlunderRate } from '../domain/blunderRate'
 import type { AnalyserState } from '../app/useAnalyser'
 import { usePositionAnalysis } from '../app/usePositionAnalysis'
 import { useGameAnalysis } from '../app/useGameAnalysis'
 import { accuracyReport, BATCH_NODES } from '../app/gameAnalysis'
+import { blunderRateOf, gameBlunders } from '../app/blunderRate'
 import { countGames, deleteGame, gameKind, listGames, type StoredGame } from '../persist/db'
 import { formatBytes, storageStatus, type StorageStatus } from '../persist/storage'
 import { BoardPanel } from './BoardPanel'
@@ -35,6 +37,10 @@ export function Library({
   const [total, setTotal] = useState(0)
   const [storage, setStorage] = useState<StorageStatus | null>(null)
   const [reload, setReload] = useState(0)
+
+  // Derived from the rows already loaded — the leading indicator costs no extra
+  // read, because the whole-game pass persisted everything it needs (#65).
+  const rate = useMemo(() => blunderRateOf(games ?? []), [games])
 
   useEffect(() => {
     let cancelled = false
@@ -85,6 +91,7 @@ export function Library({
           Showing your {games.length} most recent games of {total}.
         </p>
       )}
+      <BlunderRateNote rate={rate} />
       <div className="table-wrap">
       <table className="games-table">
         <thead>
@@ -95,6 +102,9 @@ export function Library({
             <th scope="col">Result</th>
             <th scope="col" className="num">
               Accuracy
+            </th>
+            <th scope="col" className="num">
+              Blunders
             </th>
             <th scope="col" className="num">
               Take-backs
@@ -120,6 +130,7 @@ export function Library({
                 {accuracyOf(g).text}
                 {accuracyOf(g).note && <span className="coverage-note">{accuracyOf(g).note}</span>}
               </td>
+              <BlundersCell game={g} />
               <td className="num mono">{g.takebacks}</td>
               <td className="row-actions">
                 <button className="btn ghost" type="button" onClick={() => onOpen(g)}>
@@ -142,6 +153,72 @@ export function Library({
       </div>
       <StorageNote storage={storage} />
     </>
+  )
+}
+
+/**
+ * The leading indicator (#65): how often you hand over a game.
+ *
+ * Framing is the whole design here, so the rules it renders under are worth
+ * stating (ADR 0027, constitution §9/§12):
+ *
+ * - **The `n` travels with the number, always.** Games and moves, plus what was
+ *   left out. A rate is a claim about a sample; printed alone it borrows the
+ *   authority of a much larger one.
+ * - **No trend, no goal, no bar.** We have not measured that this number moving
+ *   means anything, so it is not drawn as something to improve. It says what
+ *   these games were.
+ * - **The threshold is stated**, so the figure is checkable against the `??`
+ *   glyphs in the games it came from.
+ */
+function BlunderRateNote({ rate }: { rate: BlunderRate }) {
+  const games = (n: number) => `${n} game${n === 1 ? '' : 's'}`
+
+  if (rate.perGame === undefined) {
+    return (
+      <p className="blunder-rate">
+        <b>No blunder rate yet.</b> Only a game whose whole-game analysis scored every move you
+        played can be counted — open one and run &ldquo;Analyse the whole game&rdquo;.
+        {rate.uncounted > 0 && <> {games(rate.uncounted)} waiting.</>}
+      </p>
+    )
+  }
+
+  return (
+    <p className="blunder-rate">
+      <b className="mono">{rate.perGame.toFixed(2)} blunders per game</b>{' '}
+      <span className="metric-n">
+        over {games(rate.games)} · {rate.blunders} across {rate.yourMoves} of your moves
+        {rate.uncounted > 0 && <> · {games(rate.uncounted)} not counted</>}
+      </span>
+      {rate.smallSample && (
+        <span className="metric-caveat">
+          Too few games to read anything into. At this sample the figure moves by a third of
+          itself on one good or bad game.
+        </span>
+      )}
+      <span className="metric-caveat">
+        A blunder is a move that gave up {BLUNDER_MIN_SWING}% or more of your winning chances —
+        the moves marked <b>??</b> in the move list. Only games with a completed whole-game
+        analysis count: a partial one has graded your early moves and not the rest, so it reads
+        better than the game was. This describes the games below and nothing else — it is not a
+        rating, and it is not evidence about your play away from here.
+      </span>
+    </p>
+  )
+}
+
+/**
+ * One game's blunders, or why it is not in the number above. Per-row so the
+ * total is checkable rather than asserted: the games it rests on are named.
+ */
+function BlundersCell({ game }: { game: StoredGame }) {
+  const result = gameBlunders(game)
+  if (result.counted) return <td className="num mono">{result.blunders}</td>
+  return (
+    <td className="num mono">
+      —<span className="coverage-note">{result.reason}</span>
+    </td>
   )
 }
 

@@ -84,6 +84,13 @@ fast to test precisely because nothing in here can touch anything. TDD here.
   as a hung piece), `coach` (play-mode, engine-based "why"), `mistakeKind` (labels a mistake the
   search already found as hung material / missed material / positional — **a label only**, never
   a finding of its own, since SEE cannot see x-rays or pinned defenders).
+- **Measurement** — `blunderRate` folds per-game counts into the project's leading indicator
+  (#65, ADR [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md)). `isBlunder`
+  *delegates* to `annotation`'s `??` rather than re-testing `BLUNDER_MIN_SWING`, so the moves
+  counted and the moves glyphed cannot drift; `perGame` is `undefined` over no games, because a
+  rate over an empty sample is not 0.00. Everything a caller needs to state the sample — games,
+  moves, what was left out, whether it is too thin to mean anything — is on the result, so the
+  figure cannot be rendered without it.
 - **Sessions and records** — `harness` (PGN→quiz), `session` (attempt + summary),
   `gameRecord` (`CoachEntry` + `PositionEval` — the vocabulary a played game is *recorded* in,
   in the domain so `persist` never has to import from `app`).
@@ -164,6 +171,11 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
   calculation": #74 was Home and the library reporting different numbers for the same game
   because Home read the stored `accuracy` field, which is written once from the coach log and
   never rewritten when a later analysis pass scores every move.
+- `blunderRate.ts` (pure) — the leading indicator over your stored games (#65). Decides which
+  games may contribute: a *completed* pass that measured **every** move you played, and not a
+  play-out, whose ply parity no longer says who moved. A game that misses the bar is reported
+  as uncounted with the reason, which is what the library prints per row. `yourPlies` lives in
+  `gameAnalysis.ts` so this and `accuracyReport` cannot disagree about which moves were yours.
 - `usePositionAnalysis.ts` — analyse an arbitrary position on request (replay's "what should I
   have played here"), with the same stale-result guard the reducers use. Kept here rather than in
   a component so the staleness rule lives in one place.
@@ -210,7 +222,10 @@ replay` — Home is a card chooser, each mode gets a focused setup screen (`Scre
 title + back). `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
 material strip and engine lines; `Library.tsx` is the stored-game table **and** the replay
 screen — replay reads stored data by default but can drive the engine on request (one position,
-or the whole-game pass). `format.ts` and `useBoardWidth.ts` are the shared trivia.
+or the whole-game pass). It also renders the **blunder rate** (#65) above the table, with its
+sample and caveats in the same block and a per-row count so the total is checkable rather than
+asserted; ADR [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md) governs the
+framing, and it is the feature. `format.ts` and `useBoardWidth.ts` are the shared trivia.
 
 **Guess mode is the exception to that map: it has no file of its own.** Where every other mode
 names a component, guess-the-move lives *inline in `App.tsx`* — `GamePicker`, `Play` (board +

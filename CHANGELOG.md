@@ -6,7 +6,30 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
+  instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
+  why: rated game rating is the only real metric and it moves in months, puzzle rating moves in
+  weeks and lies, and the earliest thing we can measure honestly is how often you hand over a
+  game. It is derived from the whole-game analysis that already scores every position (#68), so
+  nothing new is captured and nothing is recomputed.
+
+  What took the work was the framing, and it is the feature (ADR
+  [0027](docs/decisions/0027-blunder-rate-as-the-leading-indicator.md), constitution §9/§12).
+  **A game only counts once a completed analysis has measured every move you played** — the
+  #74 failure again otherwise, since the coach grades your moves in order and stops when the
+  game does, so a partial pass is a mean over your opening moves wearing the label of a whole
+  game. It reads well and it is wrong in a direction you can't see. Games that don't qualify are
+  named as uncounted rather than assumed clean, and each row shows its own blunder count so the
+  total is checkable against the games it came from. A blunder is exactly the move the move list
+  marks `??`, by delegation rather than by a matching constant, so the two can't drift.
+
+  The sample travels with the number — games, moves, and what was left out — and below ten games
+  it says outright that it's too thin to read anything into, because a few hundred games total is
+  the sample this project actually has. Deliberately **no trend line, no goal, no progress bar**:
+  we have not measured that this number moving means anything about your chess, and drawing it as
+  something to fill in would claim exactly what §12 forbids. Over no analysed games it reports no
+  rate at all, rather than a 0.00 that reads as a perfect record.
 
 ## [0.3.0] — 2026-08-14
 

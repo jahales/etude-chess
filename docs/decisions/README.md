@@ -34,5 +34,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0024](0024-gate-on-a-local-evaluation-index.md) | Gate repertoire moves on a local evaluation index, not the crawl's own search | Accepted (amends 0021) |
 | [0025](0025-curated-lines-run-to-the-structure.md) | Curated lines run to the structure, not to the first quiet position | Accepted (amends 0021) |
 | [0026](0026-retire-the-tactic-gap-at-high-node-budgets.md) | The tactic-gap filter is off by default, and why that is not a repeal | Accepted (amends 0021) |
+| [0027](0027-blunder-rate-as-the-leading-indicator.md) | Blunder rate per game: a stated figure with its sample, not a dashboard | Accepted |
 
 > These are provisional. This is an exploratory project; expect amendments.
