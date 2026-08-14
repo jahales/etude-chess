@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { assignTiers, prunePgn } from './studyDecks.mjs'
+import { assignTiers, mergeByRoot, mergeGames, prunePgn } from './studyDecks.mjs'
+import { parsePgn } from 'chessops/pgn'
 import { walkRepertoire } from './readRepertoirePgn.mjs'
 
 const row = (line, value) => ({ line, value })
@@ -106,5 +107,64 @@ describe('deck output shape', () => {
     for (const s of sources) (byColour[s.colour] ??= []).push(s.pgn)
     expect(Object.keys(byColour).sort()).toEqual(['black', 'white'])
     expect(byColour.white).toHaveLength(2)
+  })
+})
+
+describe('mergeGames', () => {
+  const parse = (t) => [...parsePgn(t)]
+  const H = (o) => `[Event "x"]\n[Orientation "${o}"]\n[Result "*"]\n\n`
+
+  it('grafts games that share a prefix into one tree', () => {
+    // The core White deck was 26 games for 144 decisions, seventeen of them
+    // five moves or fewer — one repertoire entry per manifest branch, which is
+    // the build's unit and not the drilling one.
+    const { root } = mergeGames(parse(H('white') + '1. d4 d5 2. c4 *\n' + H('white') + '1. d4 Nf6 2. c4 *\n'))
+    expect(root.children).toHaveLength(1)
+    expect(root.children[0].data.san).toBe('d4')
+    expect(root.children[0].children.map((c) => c.data.san).sort()).toEqual(['Nf6', 'd5'])
+  })
+
+  it('keeps genuinely different first moves apart', () => {
+    const { root } = mergeGames(parse(H('white') + '1. d4 *\n' + H('white') + '1. e4 *\n'))
+    expect(root.children.map((c) => c.data.san).sort()).toEqual(['d4', 'e4'])
+  })
+
+  it('does not alias the source nodes', () => {
+    // Two decks are built from the same parsed source; splicing originals in
+    // would have one deck's pruning mutate the other's tree.
+    const games = parse(H('white') + '1. d4 d5 *\n')
+    const { root } = mergeGames(games)
+    root.children[0].children.length = 0
+    expect(games[0].moves.children[0].children).toHaveLength(1)
+  })
+
+  it('carries a comment across from whichever game has one', () => {
+    const { root } = mergeGames(
+      parse(H('white') + '1. d4 *\n' + H('white') + '1. d4 {the Queen\'s Gambit} *\n'),
+    )
+    expect(root.children[0].data.comments?.length).toBeGreaterThan(0)
+  })
+})
+
+describe('mergeByRoot', () => {
+  const headers = new Map([['Event', 'deck'], ['Orientation', 'white'], ['Result', '*']])
+
+  it('emits one game per opening move', () => {
+    const text =
+      '[Event "a"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 *\n\n' +
+      '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 Nf6 *\n\n' +
+      '[Event "c"]\n[Orientation "white"]\n[Result "*"]\n\n1. e4 e5 *\n'
+    const out = mergeByRoot(text, headers)
+    expect((out.match(/\[Event /g) ?? [])).toHaveLength(2)
+    expect(out).toMatch(/1\.d4/)
+    expect(out).toMatch(/1\.e4/)
+  })
+
+  it('round-trips through the reader with every line intact', () => {
+    const text =
+      '[Event "a"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 2. c4 e6 *\n\n' +
+      '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 Nf6 2. c4 g6 *\n'
+    const lines = [...walkRepertoire(mergeByRoot(text, headers))].map((n) => n.line.join(' '))
+    for (const want of ['d4 d5 c4 e6', 'd4 Nf6 c4 g6']) expect(lines).toContain(want)
   })
 })

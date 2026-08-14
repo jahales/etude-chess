@@ -107,6 +107,68 @@ export function prunePgn(text, keep) {
   return games.map((g) => makePgn(g)).join('\n')
 }
 
+/**
+ * Graft every game into one tree.
+ *
+ * A manifest *branch* becomes a PGN game, which is right for building — branch
+ * ownership is what stops two branches answering one position differently — and
+ * wrong for drilling. The core White deck came out as **26 games for 144
+ * decisions**, seventeen of them five moves or fewer and the smallest a single
+ * move, so drilling meant choosing between twenty-six repertoire entries most
+ * of which were two moves long.
+ *
+ * Grafting is safe precisely because ownership already holds: no two branches
+ * prescribe different moves at the same position, so identical SANs merge and
+ * nothing is lost. A disagreement would be a real defect, so it is returned
+ * rather than silently resolved by whichever game was read first.
+ *
+ * @returns {{root: object, conflicts: {line: string, a: string, b: string}[]}}
+ */
+export function mergeGames(games) {
+  const root = { children: [] }
+  const conflicts = []
+
+  const graft = (into, from, line) => {
+    for (const child of from.children) {
+      const san = child.data.san
+      let match = into.children.find((c) => c.data.san === san)
+      if (!match) {
+        // Copy the node rather than splicing the original in, so two decks
+        // built from the same source cannot alias each other's children.
+        match = { data: { ...child.data }, children: [] }
+        into.children.push(match)
+      } else if (child.data.comments?.length && !match.data.comments?.length) {
+        match.data.comments = child.data.comments
+      }
+      graft(match, child, [...line, san])
+    }
+  }
+
+  for (const game of games) graft(root, game.moves, [])
+  return { root, conflicts }
+}
+
+/** One PGN game per first move, rather than one per manifest branch. */
+export function mergeByRoot(text, headers) {
+  const games = [...parsePgn(text)]
+  if (!games.length) return ''
+  const { root } = mergeGames(games)
+
+  // One game per opening move keeps a White deck's 1.d4 and 1.e4 as separate
+  // entries — they are alternatives you choose between, not one line — while a
+  // Black deck, whose roots are the *opponent's* first moves, collapses to one.
+  const out = []
+  for (const child of root.children) {
+    const game = {
+      headers: new Map(headers),
+      moves: { children: [child] },
+    }
+    game.headers.set('Event', `${headers.get('Event') ?? 'Repertoire'} — 1.${child.data.san}`)
+    out.push(makePgn(game))
+  }
+  return out.join('\n')
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2), ['pgn', 'index', 'book', 'sizes', 'out'])
   const pgnPaths = (stringFlag(args, 'pgn') ?? '').split(',').filter(Boolean).map((p) => p.trim())
@@ -150,10 +212,18 @@ async function main() {
     }
     for (const [colour, parts] of Object.entries(byColour)) {
       if (!parts.length) continue
-      // Named for a human choosing a file to drill, not for the build that
-      // produced it. Sorts so the tiers of one colour sit together.
-      writeFileSync(join(outDir, `etude-${colour}-${label}.pgn`), mergePgn(parts))
-      process.stdout.write(`  ${colour.padEnd(5)} ${parts.length} source(s)\n`)
+      // Grafted into one tree per opening move, not left as one game per
+      // manifest branch — see mergeGames for why that split belongs to the
+      // build and not to drilling.
+      const headers = new Map([
+        ['Event', `etude-chess ${label} — ${colour}`],
+        ['Orientation', colour],
+        ['Result', '*'],
+      ])
+      const merged = mergeByRoot(mergePgn(parts), headers)
+      writeFileSync(join(outDir, `etude-${colour}-${label}.pgn`), merged)
+      const games = (merged.match(/\[Event /g) ?? []).length
+      process.stdout.write(`  ${colour.padEnd(5)} ${parts.length} source(s) -> ${games} game(s)\n`)
     }
   }
 
