@@ -55,12 +55,18 @@ export function confirmedTraps(replications) {
  */
 export function trapRefutations(ranked, confirmed) {
   const pinned = new Map()
+  // Depth in plies, not characters. Comparing string length picks the wrong
+  // decision whenever the immediate reply has a long SAN and a deeper line has
+  // short ones — `T Qxd8+` is seven characters past the trap and the two-ply
+  // `T f6 e4` is six, so the continuation would win and the refutation itself
+  // would be left unpinned, which is the exact failure this function prevents.
+  const plies = (line) => line.split(' ').length
   for (const trap of confirmed) {
-    // The shortest decision below the trap is the reply to it.
+    // The shallowest decision below the trap is the reply to it.
     let best = null
     for (const r of ranked) {
       if (!r.line.startsWith(`${trap} `)) continue
-      if (!best || r.line.length < best.line.length) best = r
+      if (!best || plies(r.line) < plies(best.line)) best = r
     }
     if (best) pinned.set(best.line, trap)
   }
@@ -108,19 +114,26 @@ export function assignTiers(ranked, sizes, pin = new Set()) {
   for (const line of pin) {
     for (const need of closure(line)) tier.set(need, 0)
   }
+
+  // `used` is the running total admitted across *all* tiers so far, which is
+  // what makes the comparison against a cumulative budget meaningful. It starts
+  // at whatever pinning admitted, including however far that went over
+  // sizes[0]: resetting it to the nominal boundary on each advance would hand
+  // the overflow back as free space and let every later tier drift past its
+  // stated size. With one boundary the last tier is unbounded so nothing shows;
+  // with two, six pinned lines under `--sizes 3,5` produced tiers of 6/2/2 —
+  // eight decisions inside a budget of five.
   let used = tier.size
 
   for (const row of order) {
     if (tier.has(row.line)) continue
+    // `closure` always returns at least `row.line` itself: it is in `byLine`
+    // (it came from `ranked`) and not yet in `tier` (just checked).
     const need = closure(row.line)
-    if (!need.length) continue
 
     // Advance a tier when this admission would overflow the budget. The last
     // tier has no budget: everything left belongs to it.
-    while (current < sizes.length && used + need.length > sizes[current]) {
-      current++
-      used = current === 0 ? 0 : sizes[current - 1]
-    }
+    while (current < sizes.length && used + need.length > sizes[current]) current++
     for (const line of need) tier.set(line, current)
     used += need.length
   }
@@ -182,17 +195,39 @@ export function prunePgn(text, keep, confirmed = null) {
  * nothing is lost. A disagreement would be a real defect, so it is returned
  * rather than silently resolved by whichever game was read first.
  *
+ * Detecting one needs to know whose move a node holds, because two children are
+ * *correct* under the opponent — that is us answering their alternatives — and
+ * wrong under us, where the whole point is that there is one move to play. The
+ * root's children are White's first move, so depth parity plus the deck's
+ * orientation settles it. Without `orientation` the check cannot run and is
+ * skipped rather than guessed at.
+ *
+ * @param {object[]} games
+ * @param {'w'|'b'|null} [orientation]  the side this deck drills
  * @returns {{root: object, conflicts: {line: string, a: string, b: string}[]}}
  */
-export function mergeGames(games) {
+export function mergeGames(games, orientation = null) {
   const root = { children: [] }
   const conflicts = []
+  const oursAt = (depth) => orientation !== null && (depth % 2 === 0 ? 'w' : 'b') === orientation
 
-  const graft = (into, from, line) => {
+  const graft = (into, from, line, depth) => {
     for (const child of from.children) {
       const san = child.data.san
       let match = into.children.find((c) => c.data.san === san)
       if (!match) {
+        // A second distinct move where *we* are to play is two branches
+        // prescribing different answers to one position — the defect branch
+        // ownership exists to prevent, and one that would drill you as wrong
+        // half the time. Recorded with the path so it can be found by hand.
+        //
+        // Except at the root, where alternatives are the design: 1.d4 and 1.e4
+        // are two repertoires you choose between at the board, which is why a
+        // White deck holds both. Flagging that would fire on every run and
+        // train the reader to ignore the warning (issue #114).
+        if (depth > 0 && oursAt(depth) && into.children.length) {
+          conflicts.push({ line: line.join(' '), a: into.children[0].data.san, b: san })
+        }
         // Copy the node rather than splicing the original in, so two decks
         // built from the same source cannot alias each other's children.
         match = { data: { ...child.data }, children: [] }
@@ -200,19 +235,23 @@ export function mergeGames(games) {
       } else if (child.data.comments?.length && !match.data.comments?.length) {
         match.data.comments = child.data.comments
       }
-      graft(match, child, [...line, san])
+      graft(match, child, [...line, san], depth + 1)
     }
   }
 
-  for (const game of games) graft(root, game.moves, [])
+  for (const game of games) graft(root, game.moves, [], 0)
   return { root, conflicts }
 }
 
-/** One PGN game per first move, rather than one per manifest branch. */
-export function mergeByRoot(text, headers) {
+/**
+ * One PGN game per first move, rather than one per manifest branch.
+ *
+ * @returns {{pgn: string, conflicts: {line: string, a: string, b: string}[]}}
+ */
+export function mergeByRoot(text, headers, orientation = null) {
   const games = [...parsePgn(text)]
-  if (!games.length) return ''
-  const { root } = mergeGames(games)
+  if (!games.length) return { pgn: '', conflicts: [] }
+  const { root, conflicts } = mergeGames(games, orientation)
 
   // One game per opening move keeps a White deck's 1.d4 and 1.e4 as separate
   // entries — they are alternatives you choose between, not one line — while a
@@ -226,7 +265,7 @@ export function mergeByRoot(text, headers) {
     game.headers.set('Event', `${headers.get('Event') ?? 'Repertoire'} — 1.${child.data.san}`)
     out.push(makePgn(game))
   }
-  return out.join('\n')
+  return { pgn: out.join('\n'), conflicts }
 }
 
 /**
@@ -248,7 +287,17 @@ async function main() {
   const pgnPaths = (stringFlag(args, 'pgn') ?? '').split(',').filter(Boolean).map((p) => p.trim())
   if (!pgnPaths.length) throw new Error('--pgn is required (comma-separated repertoire PGNs)')
 
+  // Validated rather than trusted: `--sizes abc` yields [NaN], every budget
+  // comparison against NaN is false, so nothing ever advances a tier and the
+  // run writes two identically-sized decks under different names and exits 0.
+  // Descending sizes are just as quiet, and mean nothing as cumulative budgets.
   const sizes = (stringFlag(args, 'sizes') ?? '150,500').split(',').map(Number)
+  if (!sizes.length || sizes.some((n) => !Number.isInteger(n) || n <= 0)) {
+    throw new Error(`--sizes must be positive whole numbers, got "${stringFlag(args, 'sizes')}"`)
+  }
+  if (sizes.some((n, i) => i > 0 && n <= sizes[i - 1])) {
+    throw new Error(`--sizes must ascend — they are cumulative budgets, got ${sizes.join(',')}`)
+  }
   const outDir = stringFlag(args, 'out') ?? join(repoRoot, 'out', 'decks')
 
   const db = createEvalDb({ dir: stringFlag(args, 'index') ?? join(repoRoot, 'db', 'eval-index') })
@@ -278,6 +327,15 @@ async function main() {
   mkdirSync(outDir, { recursive: true })
   process.stdout.write(`\n${ranked.length} decisions across ${pgnPaths.length} file(s)\n\n`)
 
+  // Read and classify each source once. Neither the file's contents nor which
+  // colour it drills depends on the tier, and doing it inside the loop parsed
+  // every multi-megabyte PGN twice per tier — once here and once in prunePgn.
+  const sources = pgnPaths.map((path) => {
+    const text = readFileSync(path, 'utf8')
+    return { text, colour: orientationOf([...parsePgn(text)][0]) === 'w' ? 'white' : 'black' }
+  })
+  const allConflicts = []
+
   for (let t = 0; t < sizes.length + 1; t++) {
     // Cumulative: each deck is a superset of the last, so moving on to the next
     // one never means relearning the one before it.
@@ -292,11 +350,9 @@ async function main() {
     // 1.d4 and 1.e4 repertoires are both White, so they belong in one White
     // deck; whether to play both is a repertoire decision, not a drilling one.
     const byColour = { white: [], black: [] }
-    for (const path of pgnPaths) {
-      const text = readFileSync(path, 'utf8')
+    for (const { text, colour } of sources) {
       const pruned = prunePgn(text, keep, confirmed.size ? confirmed : null)
       if (!pruned.trim()) continue
-      const colour = orientationOf([...parsePgn(text)][0]) === 'w' ? 'white' : 'black'
       byColour[colour].push(pruned)
     }
     for (const [colour, parts] of Object.entries(byColour)) {
@@ -309,7 +365,12 @@ async function main() {
         ['Orientation', colour],
         ['Result', '*'],
       ])
-      const merged = mergeByRoot(mergePgn(parts), headers)
+      const { pgn: merged, conflicts } = mergeByRoot(
+        mergePgn(parts),
+        headers,
+        colour === 'white' ? 'w' : 'b',
+      )
+      for (const c of conflicts) allConflicts.push({ deck: `${colour}-${label}`, ...c })
       writeFileSync(join(outDir, `etude-${colour}-${label}.pgn`), merged)
       const games = (merged.match(/\[Event /g) ?? []).length
       process.stdout.write(`  ${colour.padEnd(5)} ${parts.length} source(s) -> ${games} game(s)\n`)
@@ -326,6 +387,20 @@ async function main() {
   )
   process.stdout.write(`\ndecks: ${outDir}\n`)
   db.close()
+
+  // Loud, and non-zero. A deck that answers one position two ways marks you
+  // wrong half the time you drill it, and the decks are already on disk by
+  // here — so this has to be impossible to read as a clean run.
+  if (allConflicts.length) {
+    process.stderr.write(
+      `\n${allConflicts.length} position(s) answered two different ways — the decks are wrong:\n`,
+    )
+    for (const c of allConflicts) {
+      process.stderr.write(`  ${c.deck}  after "${c.line || '(start)'}": ${c.a} vs ${c.b}\n`)
+    }
+    process.stderr.write('\nbranch ownership should make this impossible; fix the manifest.\n')
+    process.exitCode = 1
+  }
 }
 
 // Windows gives `file:///C:/…` from import.meta.url but argv[1] is a plain path,

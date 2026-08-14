@@ -152,7 +152,15 @@ export function ourDecisions(text) {
       byPosition.set(key, node)
       continue
     }
-    if (prior.san !== node.san) conflicts.push({ fen: key, a: prior, b: node })
+    // `root` marks the start position, where two answers are the design rather
+    // than a defect: 1.d4 and 1.e4 are alternatives you choose between, so a
+    // White deck holds both. Marked instead of dropped so a caller can decide —
+    // discarding it here would hide a genuine duplicate root if one ever
+    // appeared, and reporting it as a conflict fires on every audit of a deck
+    // that is behaving exactly as intended (issue #114).
+    if (prior.san !== node.san) {
+      conflicts.push({ fen: key, a: prior, b: node, root: node.ply === 1 })
+    }
   }
 
   return { decisions: [...byPosition.values()], conflicts }

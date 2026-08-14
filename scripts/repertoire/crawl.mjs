@@ -779,6 +779,13 @@ export async function crawl(config) {
   awaitingPunishment.clear()
 
   report.traps.sort((a, b) => b.trapValue - a.trapValue)
+
+  // Candidates the index scored *above* its own first line. That is impossible
+  // if the stored pvs are ordered best-first, which every swing here assumes,
+  // so a non-zero count means the gate has been comparing against something
+  // that is not the best move — and because the swing is clamped at zero, the
+  // symptom is candidates passing rather than anything failing.
+  report.gateMisordered = gate.stats().misordered
   return { nodes, rootFen, forcedSans, report, options: o }
 }
 
@@ -962,7 +969,7 @@ decided by      ${canon ? `masters ${r.moveSource.canon} · band ${r.moveSource.
 gated by        ${evalDb ? `index ${r.gateSource.cloud} · local search ${r.gateSource.local}` : `local search only (no --eval-index)`}
 engine searches ${engine.searchCount() + (pool?.searchCount() ?? 0)}${pool ? ` (${pool.size} engines in parallel)` : ''}
 explorer        ${JSON.stringify(explorer.stats())}
-traps found     ${r.traps.length}`)
+traps found     ${r.traps.length}${r.gateMisordered ? `\n⚠ ordering      ${r.gateMisordered} candidate(s) scored above the index's own best line — the gate's baseline is suspect` : ''}`)
 
     if (r.traps.length) {
       console.log('\ntop traps (frequency × swing × outperformance):')

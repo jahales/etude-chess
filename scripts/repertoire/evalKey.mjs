@@ -98,7 +98,7 @@ export function evalFen(fen) {
  *
  * MD5 is used for its width and speed, not its security: nothing here is
  * adversarial, and 128 random bits put the chance of *any* accidental collision
- * across the dump's 394.7M positions at roughly 1e-22.
+ * across the dump's 401,283,893 positions at roughly 1e-22.
  *
  * @param {string} normalisedFen  output of {@link evalFen}
  * @returns {Buffer} 16 bytes

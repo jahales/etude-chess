@@ -124,7 +124,11 @@ export function createEvalDb({ dir }) {
         bestMove: lines[0]?.pv?.[0] ?? null,
         depth: rec.depth,
         knodes: rec.knodes,
-        source: 'cloud',
+        // Named for what it is. This said `'cloud'` — the shape it imitates —
+        // so every counter downstream attributed hundreds of thousands of local
+        // reads to a service that was never contacted, and `stats()` on this
+        // same object disagreed by reporting `'eval-index'`.
+        source: 'eval-index',
       }
     },
 

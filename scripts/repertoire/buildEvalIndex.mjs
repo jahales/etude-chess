@@ -5,7 +5,7 @@
 //
 // ## Why not a database
 //
-// The dump is 394.7M positions. Loading that into SQLite means 394.7M random
+// The dump is 401,283,893 positions. Loading that into SQLite means 401M random
 // B-tree inserts, which is where the six-to-twelve hours of such a build goes —
 // the parsing is not the expensive part, the index maintenance is. Filtering to
 // opening positions dodges the cost only by throwing away data we would rather
