@@ -612,6 +612,14 @@ export function summarise(results) {
       }),
       { cloud: 0, local: 0 },
     ),
+    /**
+     * Candidates the index scored above its own first line, summed over every
+     * branch. Should be 0; anything else means the gate's baseline was not the
+     * best move, and since the swing is clamped at zero the failure mode is
+     * candidates being *admitted*, not rejected — so it has to appear in the
+     * summary rather than only in one branch's console output.
+     */
+    gateMisordered: ok.reduce((n, r) => n + (r.crawled.report.gateMisordered ?? 0), 0),
   }
 }
 

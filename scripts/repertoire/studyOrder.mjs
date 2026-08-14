@@ -11,8 +11,11 @@
 //
 //   reach  — how often you actually arrive at the position, from the band book,
 //            which is the same source the crawl used to decide the opponent's
-//            moves. Optionally scaled by the owner's own games, so an opening
-//            they face weekly outranks one the band plays and they do not.
+//            moves. `scoreDecision` can scale this by `ownWeight`, so an opening
+//            the owner faces weekly could outrank one the band plays and they do
+//            not — but **nothing supplies it yet**, so the shipped ranking is
+//            band frequency alone. Said plainly because the weighting reads as
+//            though it were already in force.
 //   cost   — what not knowing costs. Not "how good is our move" — every move
 //            here already passed the soundness gate, so by the project's own
 //            definition they are all as good as best (ADR 0021, constitution
@@ -89,6 +92,12 @@ export function scoreDecision(decision, { db, band, bandTotal, minDepth, ownWeig
   if (instinctValue === null) return { skipped: 'the instinctive move is not scorable' }
 
   const reach = (games / bandTotal) * ownWeight
+  // Clamped, because a decision cannot be worth *negative* study. A negative
+  // raw cost means the band's instinctive move scores better than the move the
+  // repertoire prescribes, which the soundness gate should already have caught;
+  // it is surfaced as `betterInstinct` rather than folded into a 0 so a build
+  // can see it, since silently ranking such a decision last is how it would
+  // stay hidden.
   const cost = Math.max(0, ours - instinctValue)
   return {
     reach,
@@ -98,10 +107,11 @@ export function scoreDecision(decision, { db, band, bandTotal, minDepth, ownWeig
     instinctShare: gamesFor(alternative) / games,
     ourValue: ours,
     value: reach * cost,
+    ...(ours < instinctValue ? { betterInstinct: Number((instinctValue - ours).toFixed(2)) } : {}),
   }
 }
 
-export async function studyOrder({ pgnPaths, db, band, minDepth = MIN_INDEX_DEPTH, ownWeights = {} }) {
+export async function studyOrder({ pgnPaths, db, band, minDepth = MIN_INDEX_DEPTH }) {
   const root = await band.query(new Chess().fen())
   const bandTotal = totalGames(root?.moves ?? []) || 1
 
@@ -115,11 +125,6 @@ export async function studyOrder({ pgnPaths, db, band, minDepth = MIN_INDEX_DEPT
         band: bandHere,
         bandTotal,
         minDepth,
-        // A branch the owner meets more often than the band does is worth more
-        // than its band share says. Defaults to 1, i.e. band frequency alone.
-        // `line` is the SAN path as an array; its first move names the opening
-        // family the weight is keyed on.
-        ownWeight: ownWeights[d.line[0]] ?? 1,
       })
       rows.push({
         file: path.split(/[\\/]/).pop(),
@@ -137,9 +142,13 @@ export async function studyOrder({ pgnPaths, db, band, minDepth = MIN_INDEX_DEPT
 async function main() {
   const args = parseArgs(process.argv.slice(2), ['pgn', 'index', 'book', 'top', 'out'])
   const db = createEvalDb({ dir: stringFlag(args, 'index') ?? join(repoRoot, 'db', 'eval-index') })
-  const band = await createLocalBook({
-    path: stringFlag(args, 'book') ?? join(repoRoot, 'db', 'book-band.json'),
-  })
+  // The same book studyDecks defaults to. These disagreed — this one pointed at
+  // `book-band.json`, the superseded 5M-game ply-12 build, which is still on
+  // disk — so a bare run ranked every decision against stale frequencies and
+  // printed a confident, plausible, wrong order with nothing saying which book
+  // it read (issue #115). The path is echoed below for the same reason.
+  const bookPath = stringFlag(args, 'book') ?? join(repoRoot, 'db', 'book-band-2026-07.json')
+  const band = await createLocalBook({ path: bookPath })
   const pgnPaths = (
     stringFlag(args, 'pgn') ??
     [
@@ -156,9 +165,22 @@ async function main() {
 
   process.stdout.write(
     `\n${scored.length} of ${rows.length} decisions scored ` +
-      `(${rows.length - scored.length} not scorable: thin book or absent from the index)\n\n` +
+      `(${rows.length - scored.length} not scorable: thin book or absent from the index)\n` +
+      `book ${bookPath}\n\n` +
       `value = how often you reach it × what playing the natural move instead would cost\n\n`,
   )
+  const better = scored.filter((r) => r.betterInstinct)
+  if (better.length) {
+    process.stdout.write(
+      `⚠ ${better.length} decision(s) where the band's instinctive move scores better than ours —\n` +
+        `  the soundness gate should have caught these; worst first:\n`,
+    )
+    for (const r of [...better].sort((a, b) => b.betterInstinct - a.betterInstinct).slice(0, 5)) {
+      process.stdout.write(`    +${r.betterInstinct.toFixed(1)} win%  ${r.instinct} over ${r.san}  ${r.line}\n`)
+    }
+    process.stdout.write('\n')
+  }
+
   process.stdout.write('  value   reach  cost  instead of        line\n')
   for (const r of scored.slice(0, top)) {
     process.stdout.write(

@@ -51,7 +51,23 @@ function applyUci(fen, uci) {
  * @param {number} [opts.minDepth]
  */
 export function createSoundnessGate({ evalDb = null, minDepth = MIN_INDEX_DEPTH } = {}) {
-  const counters = { cloud: 0, local: 0, multipv: 0, after: 0 }
+  const counters = { cloud: 0, local: 0, multipv: 0, after: 0, misordered: 0 }
+
+  /**
+   * Clamp a swing at zero, but count the case that should be impossible.
+   *
+   * A negative swing means a candidate outscored `lines[0]`, which can only
+   * happen if the index's lines are not ordered best-first — the assumption
+   * every number in this file rests on. Clamping alone would turn that into
+   * "swing 0", i.e. **the candidate passes the gate**, and a systematic
+   * ordering fault would let every candidate through while the run reported a
+   * clean sweep. So the clamp stays (a stray fraction of a win% is noise, not
+   * a finding) and the occurrence is counted, so `stats()` can say so.
+   */
+  const clampSwing = (raw) => {
+    if (raw < -0.5) counters.misordered++
+    return Math.max(0, raw)
+  }
 
   // The caller loops over every candidate at a node, so the *decision* position
   // is looked up once per candidate — up to `maxEvalPerNode` identical
@@ -98,7 +114,7 @@ export function createSoundnessGate({ evalDb = null, minDepth = MIN_INDEX_DEPTH 
         counters.cloud++
         counters.multipv++
         return {
-          swing: Math.max(0, bestWp - winPercent(mine.score)),
+          swing: clampSwing(bestWp - winPercent(mine.score)),
           source: 'cloud',
           depth: here.depth,
           method: 'multipv',
@@ -113,6 +129,9 @@ export function createSoundnessGate({ evalDb = null, minDepth = MIN_INDEX_DEPTH 
       counters.cloud++
       counters.after++
       return {
+        // Not counted as misordered: unlike the multipv path these two numbers
+        // come from different searches at different depths, so a small negative
+        // here is depth disagreement rather than evidence about ordering.
         swing: Math.max(0, bestWp - winPercent(negate(after.lines[0].score))),
         source: 'cloud',
         depth: Math.min(here.depth, after.depth),

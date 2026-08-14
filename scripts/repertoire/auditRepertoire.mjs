@@ -149,7 +149,13 @@ export function auditDeck(deck, db, root = repoRoot) {
     decisions: graded.length,
     covered: covered.length,
     gaps: graded.filter((g) => !g.covered),
-    conflicts: conflicts.map((c) => ({ line: c.a.line.join(' '), a: c.a.san, b: c.b.san })),
+    conflicts: conflicts.map((c) => ({
+      line: c.a.line.join(' '),
+      a: c.a.san,
+      b: c.b.san,
+      // Carried through, not dropped — the report filters on it (issue #114).
+      root: c.root,
+    })),
     byMethod: {
       multipv: covered.filter((g) => g.method === 'multipv').length,
       after: covered.filter((g) => g.method === 'after').length,
@@ -229,13 +235,22 @@ function report(results) {
     if (gaps.length > 15) out.push(`  … and ${gaps.length - 15} more`)
   }
 
-  const conflicts = results.flatMap((r) => r.conflicts)
+  // Root alternatives are excluded, not counted: 1.d4 and 1.e4 are two
+  // repertoires you pick between at the board, so a White deck holding both is
+  // the design working. This guard used to be "one namespace per file", which
+  // was right until #109 merged both first moves into one White file — after
+  // which every audit ended on a warning that always meant nothing, which is
+  // how a reader learns to skip the line that would matter (issue #114).
+  const all = results.flatMap((r) => r.conflicts)
+  const conflicts = all.filter((c) => !c.root)
+  const roots = all.length - conflicts.length
   out.push('')
   out.push(
     conflicts.length
       ? `⚠ ${conflicts.length} position(s) answered two different ways within one deck`
       : 'no position is answered two different ways within a deck — branch ownership holds',
   )
+  if (roots) out.push(`  (${roots} first-move alternative(s) not counted — a deck may offer both)`)
 
   return out.join('\n')
 }

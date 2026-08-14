@@ -119,6 +119,34 @@ describe('createEvalDb — round trip', () => {
     db.close()
   })
 
+  // The White-to-move case above only proves the packing preserves the order it
+  // was given. Black is where the ordering could actually invert: the scores are
+  // stored White-relative and negated on the way out, so if the dump ordered its
+  // pvs by White's preference rather than the mover's, `lines[0]` would be
+  // Black's *worst* move — and everything downstream treats it as the best.
+  // `soundness.mjs` subtracts from it, the audit grades against it, `studyOrder`
+  // scores against it, and a negative swing is clamped to 0, so the whole gate
+  // would pass every candidate while reporting a clean run.
+  //
+  // Checked against the real index when this test was written: 932 White-to-move
+  // and 346 Black-to-move repertoire positions all had monotonically
+  // non-increasing mover win%, so the convention holds. This pins it.
+  it('keeps lines best-first for the mover when Black is to move', async () => {
+    const db = await build([
+      entry(AFTER_E4, [
+        { cp: -80, line: 'c7c5' }, // best for Black: most negative for White
+        { cp: -20, line: 'e7e5' },
+        { cp: 40, line: 'g8h6' }, // worst for Black
+      ]),
+    ])
+    const r = db.query(AFTER_E4)
+    expect(r.lines.map((l) => l.pv[0])).toEqual(['c7c5', 'e7e5', 'g8h6'])
+    // From the mover's side these must descend, not ascend.
+    expect(r.lines.map((l) => l.score.value)).toEqual([80, 20, -40])
+    expect(r.bestMove).toBe('c7c5')
+    db.close()
+  })
+
   it('matches a six-field FEN against the dump\'s four-field key', async () => {
     const db = await build([entry(START, [{ cp: 30, line: 'e2e4' }])])
     expect(db.query(new Chess().fen())).not.toBeNull()

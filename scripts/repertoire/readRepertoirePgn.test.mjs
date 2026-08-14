@@ -161,6 +161,18 @@ describe('ourDecisions', () => {
     const { conflicts } = ourDecisions(clashing)
     expect(conflicts).toHaveLength(1)
     expect([conflicts[0].a.san, conflicts[0].b.san].sort()).toEqual(['Nc3', 'cxd5'])
+    expect(conflicts[0].root).toBe(false)
+  })
+
+  it('marks a first-move alternative as a root, not a defect', () => {
+    // A White deck holds 1.d4 and 1.e4 because they are alternatives you pick
+    // between at the board. Reported so nothing is hidden, but flagged so the
+    // audit can exclude it instead of ending every run on a warning that always
+    // means nothing (issue #114).
+    const both = HEAD('a') + '1. d4 d5 *\n\n' + HEAD('b') + '1. e4 e5 *\n'
+    const { conflicts } = ourDecisions(both)
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].root).toBe(true)
   })
 })
 

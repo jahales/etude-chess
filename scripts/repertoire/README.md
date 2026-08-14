@@ -682,7 +682,7 @@ node scripts/repertoire/studyOrder.mjs --book db/book-band-2026-07.json
 
 ```
 --pgn   a.pgn,b.pgn   repertoire PGNs   (default: repertoire/v2/etude-{white,black}-complete.pgn)
---book  <path>        band book, for reach     (default: db/book-band.json — pass the dated one)
+--book  <path>        band book, for reach          (default: db/book-band-2026-07.json)
 --index <path>        evaluation index, for cost           (default: db/eval-index)
 --top   30            rows to print
 --out   <path>        full ranking as JSON             (default: out/study-order.json)
@@ -694,10 +694,11 @@ they are all good. It is the gap to what you would have played *instead*: the mo
 alternative at our band, the instinctive one, scored from the index. **A decision where instinct
 is already right is worth nothing to study however common** — you will find it at the board.
 
-Its default `--book` is `db/book-band.json`, the older 5M-game ply-12 book, while `studyDecks.mjs`
-defaults to the dated `db/book-band-2026-07.json` — 8M games, ply 20. Pass `--book` explicitly, as
-`rep:study` does. The split default is known and tracked:
-[#115](https://github.com/jahales/etude-chess/issues/115).
+It used to default to `db/book-band.json` — the superseded 5M-game ply-12 book — while
+`studyDecks.mjs` defaulted to the dated `db/book-band-2026-07.json`. Because the old book is still
+on disk, a bare run found it, ranked everything against stale frequencies and printed a confident
+wrong order, with nothing in the output naming the book. Both now default to the dated book and
+the ranking prints the path it read ([#115](https://github.com/jahales/etude-chess/issues/115)).
 
 ### Cutting the staged decks — `studyDecks.mjs` (`npm run rep:decks`)
 

@@ -51,6 +51,29 @@ describe('assignTiers', () => {
     expect(tier.get('e4')).toBeGreaterThanOrEqual(tier.get('d4'))
   })
 
+  // Pinned lines enter tier 0 over budget, deliberately. What must not happen is
+  // the overflow being handed back as free space: `used` was reset to the
+  // nominal boundary on each advance, so six pins under `--sizes 3,5` produced
+  // tiers of 6/2/2 — eight decisions inside a cumulative budget of five.
+  it('carries a pin overflow into the later budgets instead of forgiving it', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => row(`m${i}`, 10 - i))
+    const pin = new Set(['m0', 'm1', 'm2', 'm3', 'm4', 'm5'])
+    const tier = assignTiers(rows, [3, 5], pin)
+    const upTo = (n) => [...tier].filter(([, t]) => t <= n).length
+    expect(upTo(0)).toBe(6)
+    // Tier 0 alone already exceeds the cumulative budget of 5, so tier 1 has
+    // nothing to give and everything else belongs to the unbounded last tier.
+    expect(upTo(1)).toBe(6)
+    expect(upTo(2)).toBe(10)
+  })
+
+  it('still fills tiers normally when nothing is pinned', () => {
+    const rows = Array.from({ length: 10 }, (_, i) => row(`m${i}`, 10 - i))
+    const tier = assignTiers(rows, [3, 5])
+    expect([...tier].filter(([, t]) => t <= 0).length).toBe(3)
+    expect([...tier].filter(([, t]) => t <= 1).length).toBe(5)
+  })
+
   it('is cumulative — every tier is a superset of the one before', () => {
     const rows = Array.from({ length: 30 }, (_, i) => row(`e4 ${'b'.repeat(i + 1)}`, 30 - i))
     const tier = assignTiers(rows, [5, 12])
@@ -152,6 +175,48 @@ describe('mergeGames', () => {
     )
     expect(root.children[0].data.comments?.length).toBeGreaterThan(0)
   })
+
+  // Grafting is only safe because branch ownership guarantees no two branches
+  // answer one position differently. That guarantee was asserted in the
+  // docstring and never checked: `conflicts` was returned always empty, so a
+  // violation produced a deck offering two answers and said nothing.
+  it('reports two branches prescribing different moves in one position', () => {
+    const { conflicts } = mergeGames(
+      parse(H('white') + '1. d4 d5 2. c4 *\n' + H('white') + '1. d4 d5 2. Nf3 *\n'),
+      'w',
+    )
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0]).toMatchObject({ line: 'd4 d5', a: 'c4', b: 'Nf3' })
+  })
+
+  it('does not mistake the opponent\'s alternatives for a conflict', () => {
+    // Two replies to 1.d4 is the repertoire doing its job — we answer both.
+    const { conflicts } = mergeGames(
+      parse(H('white') + '1. d4 d5 *\n' + H('white') + '1. d4 Nf6 *\n'),
+      'w',
+    )
+    expect(conflicts).toEqual([])
+  })
+
+  it('reads the parity from the deck\'s own colour', () => {
+    // In a Black deck the root holds White's first moves, so ours are one ply
+    // deeper — the same tree shape means the opposite thing.
+    const black = parse(H('black') + '1. e4 c6 *\n' + H('black') + '1. e4 e5 *\n')
+    expect(mergeGames(black, 'b').conflicts).toHaveLength(1)
+    expect(mergeGames(black, 'w').conflicts).toEqual([])
+  })
+
+  it('does not flag the two first moves a White deck deliberately holds', () => {
+    // 1.d4 and 1.e4 are alternatives you choose between at the board, so the
+    // White deck ships both. Flagging it would fire on every run (issue #114).
+    const { conflicts } = mergeGames(parse(H('white') + '1. d4 *\n' + H('white') + '1. e4 *\n'), 'w')
+    expect(conflicts).toEqual([])
+  })
+
+  it('skips the check rather than guessing when no orientation is given', () => {
+    const { conflicts } = mergeGames(parse(H('white') + '1. d4 d5 2. c4 *\n' + H('white') + '1. d4 d5 2. Nf3 *\n'))
+    expect(conflicts).toEqual([])
+  })
 })
 
 describe('mergeByRoot', () => {
@@ -162,18 +227,25 @@ describe('mergeByRoot', () => {
       '[Event "a"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 *\n\n' +
       '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 Nf6 *\n\n' +
       '[Event "c"]\n[Orientation "white"]\n[Result "*"]\n\n1. e4 e5 *\n'
-    const out = mergeByRoot(text, headers)
-    expect((out.match(/\[Event /g) ?? [])).toHaveLength(2)
-    expect(out).toMatch(/1\.d4/)
-    expect(out).toMatch(/1\.e4/)
+    const { pgn } = mergeByRoot(text, headers)
+    expect((pgn.match(/\[Event /g) ?? [])).toHaveLength(2)
+    expect(pgn).toMatch(/1\.d4/)
+    expect(pgn).toMatch(/1\.e4/)
   })
 
   it('round-trips through the reader with every line intact', () => {
     const text =
       '[Event "a"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 2. c4 e6 *\n\n' +
       '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 Nf6 2. c4 g6 *\n'
-    const lines = [...walkRepertoire(mergeByRoot(text, headers))].map((n) => n.line.join(' '))
+    const lines = [...walkRepertoire(mergeByRoot(text, headers).pgn)].map((n) => n.line.join(' '))
     for (const want of ['d4 d5 c4 e6', 'd4 Nf6 c4 g6']) expect(lines).toContain(want)
+  })
+
+  it('passes a conflict up to the caller', () => {
+    const text =
+      '[Event "a"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 2. c4 *\n\n' +
+      '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 d5 2. Nf3 *\n'
+    expect(mergeByRoot(text, headers, 'w').conflicts).toHaveLength(1)
   })
 })
 
@@ -215,6 +287,20 @@ describe('confirmed traps in the decks', () => {
     ]
     const pinned = trapRefutations(ranked, new Set(['d4 e5']))
     expect(pinned.get('d4 e5 dxe5')).toBe('d4 e5')
+  })
+
+  it('measures depth in plies, not characters', () => {
+    // The immediate reply has a long SAN and the deeper continuation two short
+    // ones, so by string length `d4 e5 dxe5 f6 e4` (16) beats `d4 e5 Qxd8+`
+    // (11)... but by plies the reply wins, which is the whole point. Ranking by
+    // characters pins a continuation and leaves the refutation itself unpinned,
+    // free to be pruned out of the first tier.
+    const ranked = [
+      { line: 'd4 e5 Qxd8+', value: 0.01 },
+      { line: 'd4 e5 dxe5 f6 e4', value: 0.02 },
+    ]
+    const pinned = trapRefutations(ranked, new Set(['d4 e5']))
+    expect([...pinned.keys()]).toEqual(['d4 e5 Qxd8+'])
   })
 
   it('puts a pinned line in the first tier however badly it ranks', () => {

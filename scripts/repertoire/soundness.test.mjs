@@ -49,6 +49,27 @@ describe('createSoundnessGate', () => {
     expect(g.swingFor(START, 'e2e4', FALLBACK).swing).toBe(0)
   })
 
+  // Everything here assumes the index's lines are ordered best-first. If they
+  // are not, every candidate scores a negative swing, the clamp turns it into 0,
+  // and the gate passes the lot while reporting a clean run — the failure is
+  // invisible precisely because nothing is rejected. So the clamp stays and the
+  // occurrence is counted.
+  it('counts a candidate that outscores the index\'s own first line', () => {
+    const g = createSoundnessGate({
+      evalDb: db({ [START]: pos([{ uci: 'd2d4', score: cp(10) }, { uci: 'e2e4', score: cp(90) }]) }),
+    })
+    expect(g.swingFor(START, 'e2e4', FALLBACK).swing).toBe(0)
+    expect(g.stats().misordered).toBe(1)
+  })
+
+  it('does not count ordinary rounding as a misordering', () => {
+    const g = createSoundnessGate({
+      evalDb: db({ [START]: pos([{ uci: 'd2d4', score: cp(30) }, { uci: 'e2e4', score: cp(30) }]) }),
+    })
+    g.swingFor(START, 'e2e4', FALLBACK)
+    expect(g.stats().misordered).toBe(0)
+  })
+
   it('falls back to the position after our move when it is outside the pvs', () => {
     const g = createSoundnessGate({
       evalDb: db({
@@ -142,6 +163,8 @@ describe('createSoundnessGate', () => {
     g.swingFor(START, 'c2c4', FALLBACK) // multipv
     g.swingFor(START, 'e2e4', FALLBACK) // after
     g.swingFor('8/8/8/4k3/8/8/4K3/8 w - - 0 1', 'e2e3', FALLBACK) // miss
-    expect(g.stats()).toEqual({ cloud: 2, local: 1, multipv: 1, after: 1 })
+    // `misordered` is part of the shape and is expected to stay 0 — a non-zero
+    // value would mean the index's lines are not ordered best-first.
+    expect(g.stats()).toEqual({ cloud: 2, local: 1, multipv: 1, after: 1, misordered: 0 })
   })
 })
