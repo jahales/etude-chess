@@ -6,7 +6,7 @@ the repertoire trainer at whichever side you are drilling.
 
 | file | games | decisions |
 |---|---|---|
-| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | **500** — start here |
+| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | **525** — start here |
 | `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2 · 8 | 2,299 |
 
 **Import the two colours separately.** En Croissant trains from one side's point
@@ -63,11 +63,30 @@ evaluations at median depth 34–50 (ADR 0024), with curated lines run to ply 16
 
 against v1's 551 decisions and 266 quiet targets.
 
-## Caveat — the trap annotations are provisional
+## The traps have been replicated
 
-The **moves** are gated at depth 34–50 and sound. The `?!`/`?` trap commentary is
-not yet confirmed: trap values shifted when the deeper evaluation baseline landed,
-and `replicate.mjs` against a second month's book is what separates a real trap
-from one month's noise. The June 2026 dump is downloaded for exactly that and the
-pass has not been run. Drill the moves; do not yet trust a `?` to mean the move
-is refuted.
+A `· trap ·` comment means **two independent months agreed**, on both the finding
+and its magnitude. Built from June 2026 and July 2026, 8M games each:
+
+```
+1.d4 + Black    98 of 149 replicated (66%)
+1.e4           184 of 217 replicated (85%)
+```
+
+Anything the second month did not confirm is relabelled `· one month only ·`.
+The statistics stay — they are true of the month they came from — but the word
+inviting you to trust them is gone. `trapValue` is a statistic over noisy human
+data, and one month cannot tell a real trap from a coin flip.
+
+**The 235 refutations are pinned into the first tier regardless of rank.** A trap
+is the *opponent's* move, so it never ranks in `studyOrder` — the value is in
+what they do, and the reach × cost of our reply understates it badly. Left to the
+ranking, the standard White deck held **2** trap comments out of 282 confirmed;
+it now holds 247. The highest-value trap in the whole repertoire is the Englund
+(`d4 e5 dxe5 f6 e4 fxe5`, 4.51 across 2,292 games), which is also the owner's
+worst-scoring opening at 20% over 5 real games.
+
+A third group is reported by `replicate.mjs` and deliberately *not* treated as a
+refutation: traps the other month's crawl never reached. That is a coverage gap —
+the two months send the crawl down different rare lines — and counting it against
+a finding would delete real ones.

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { assignTiers, mergeByRoot, mergeGames, prunePgn, tierNames } from './studyDecks.mjs'
+import {
+  assignTiers,
+  confirmedTraps,
+  mergeByRoot,
+  mergeGames,
+  prunePgn,
+  tierNames,
+  trapRefutations,
+} from './studyDecks.mjs'
 import { parsePgn } from 'chessops/pgn'
 import { walkRepertoire } from './readRepertoirePgn.mjs'
 
@@ -184,5 +192,57 @@ describe('tierNames', () => {
 
   it('gives one name per tier', () => {
     for (const n of [1, 2, 3, 4, 6]) expect(tierNames(n)).toHaveLength(n)
+  })
+})
+
+describe('confirmed traps in the decks', () => {
+  it('takes only the replicated list, not everything the crawl flagged', () => {
+    const reps = [
+      { confirmed: [{ line: 'd4 e5 dxe5' }], shaky: [{ line: 'x' }], unseen: [{ line: 'y' }] },
+      { confirmed: [{ line: 'e4 d5 exd5' }] },
+    ]
+    expect([...confirmedTraps(reps)].sort()).toEqual(['d4 e5 dxe5', 'e4 d5 exd5'])
+  })
+
+  it('pins the reply to a trap, since the trap itself is never a decision', () => {
+    // A trap is the opponent's move, so it never ranks. Our refutation is the
+    // ply after it, and without pinning it the whole subtree is pruned away —
+    // the standard White deck had 2 trap comments out of 282 confirmed.
+    const ranked = [
+      { line: 'd4', value: 5 },
+      { line: 'd4 e5 dxe5', value: 0.01 },
+      { line: 'd4 e5 dxe5 f6 e4', value: 0.001 },
+    ]
+    const pinned = trapRefutations(ranked, new Set(['d4 e5']))
+    expect(pinned.get('d4 e5 dxe5')).toBe('d4 e5')
+  })
+
+  it('puts a pinned line in the first tier however badly it ranks', () => {
+    const ranked = [
+      { line: 'e4', value: 9 },
+      { line: 'd4', value: 8 },
+      { line: 'd4 e5 dxe5', value: 0.0001 },
+    ]
+    const tier = assignTiers(ranked, [1], new Set(['d4 e5 dxe5']))
+    expect(tier.get('d4 e5 dxe5')).toBe(0)
+    expect(tier.get('d4')).toBe(0) // its ancestry comes with it
+  })
+
+  it('downgrades a trap label the second month did not confirm', () => {
+    const pgn =
+      '[Event "t"]\n[Orientation "white"]\n[Result "*"]\n\n' +
+      '1. d4 e5 { [%eval 0.8] · trap · 5% play this · n=900 } 2. dxe5 *\n'
+    const out = prunePgn(pgn, new Set(['d4', 'd4 e5 dxe5']), new Set(['nothing matches']))
+    expect(out).toContain('one month only')
+    expect(out).not.toContain('· trap ·')
+  })
+
+  it('leaves a confirmed trap label alone', () => {
+    const pgn =
+      '[Event "t"]\n[Orientation "white"]\n[Result "*"]\n\n' +
+      '1. d4 e5 { [%eval 0.8] · trap · 5% play this · n=900 } 2. dxe5 *\n'
+    const out = prunePgn(pgn, new Set(['d4', 'd4 e5 dxe5']), new Set(['d4 e5']))
+    expect(out).toContain('· trap ·')
+    expect(out).not.toContain('one month only')
   })
 })
