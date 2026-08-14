@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
-import { crawl, DEFAULTS } from './crawl.mjs'
+import { crawl, crawlOptions, ratingBuckets, DEFAULTS, FLAGS, HELP } from './crawl.mjs'
+import { FLAGS as BUILD_FLAGS } from './build.mjs'
+import { flagsNamedIn, parseArgs } from './args.mjs'
 
 // Unit tests for the crawler itself. `crawl()` takes its engine and books as
 // parameters, so the whole thing runs deterministically with stubs — no
@@ -734,5 +736,150 @@ describe('crawl — the tactic gap is opt-in (ADR 0026)', () => {
     }
     const r = await run({ engine: jumpy, explorer: BOOK, minPly: 4, maxPly: 8, tacticGap: true })
     expect(r.report.tacticGap.decided).toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The command line (issue #115)
+// ---------------------------------------------------------------------------
+//
+// This script is the most expensive one in the repo — a real run is hours of
+// Stockfish — and until #115 it was the one that took any flag you gave it. The
+// tests below are about the arguments, not the crawl: everything here decides
+// whether an hour of engine time answers the question you asked.
+
+describe('crawl.mjs rejects flags it does not know (#115)', () => {
+  it('throws on a typo instead of crawling for hours at the default', () => {
+    // `--nodez 4000000` crawled at the default budget and wrote a summary
+    // indistinguishable from the one you wanted. build.mjs threw on the same
+    // typo; the two entry points now share one parser and one answer.
+    expect(() => parseArgs(['--nodez', '4000000'], FLAGS)).toThrow(/unknown option --nodez/)
+  })
+
+  it('names what it does accept, so the fix is in the error', () => {
+    expect(() => parseArgs(['--nodez', '4000000'], FLAGS)).toThrow(/--nodes/)
+  })
+
+  it('accepts every flag build.mjs passes through to a crawl', () => {
+    // build.mjs drives crawl() directly rather than shelling out, but the two
+    // flag lists describe the same run and every shared name must parse here.
+    const shared = BUILD_FLAGS.filter((f) => FLAGS.includes(f))
+    expect(shared).toContain('trap')
+    expect(shared).toContain('tactic-gap')
+    for (const flag of shared) expect(() => parseArgs([`--${flag}`, 'x'], FLAGS)).not.toThrow()
+  })
+
+  it('rejects a bare argument rather than skipping it', () => {
+    expect(() => parseArgs(['out/qga'], FLAGS)).toThrow(/unexpected argument/)
+  })
+})
+
+describe('crawl.mjs --help says what crawl.mjs accepts (#115)', () => {
+  it('documents every flag it accepts', () => {
+    // `--tactic-gap` was read at crawl.mjs:912 and appeared in no help text.
+    expect(flagsNamedIn(HELP)).toEqual([...FLAGS].sort())
+  })
+
+  it('accepts every flag it documents', () => {
+    // The failure this fix must not introduce: a flag in --help that the
+    // parser has never heard of turns a correct invocation into a hard error.
+    for (const flag of flagsNamedIn(HELP)) {
+      expect(() => parseArgs([`--${flag}`, 'x'], FLAGS)).not.toThrow()
+    }
+  })
+
+  it('quotes the defaults from the constants, so they cannot drift', () => {
+    expect(HELP).toContain(`--min-ply ${DEFAULTS.minPly}`)
+    expect(HELP).toContain(`--max-ply ${DEFAULTS.maxPly}`)
+    expect(HELP).toContain(`--trap    ${DEFAULTS.trapThreshold}`)
+    // ADR 0024's index is median depth 34–50; both help texts said 50 alone.
+    expect(HELP).not.toMatch(/median depth 50/)
+  })
+})
+
+describe('crawlOptions — a numeric flag with its value dropped (#115)', () => {
+  it('reads a number', () => {
+    expect(crawlOptions({ trap: '0.01' }).trapThreshold).toBe(0.01)
+    expect(crawlOptions({ nodes: '4000000' }).deepNodes).toBe(4_000_000)
+  })
+
+  it('rejects a bare --trap rather than crawling at a threshold of 1', () => {
+    // parseArgs marks a valueless flag `true` and Number(true) is 1 — a
+    // threshold 100× the intended 0.01, which reports no traps at all and
+    // looks exactly like a clean run.
+    expect(() => crawlOptions({ trap: true })).toThrow(/--trap needs a number/)
+  })
+
+  it('still means zero when you ask for zero', () => {
+    // argv values arrive as strings, so `--trap 0` is '0' — truthy, and 0 is
+    // what it means. An earlier draft of #115 called this a bug; it is not,
+    // and a refactor must not "fix" it into the default.
+    expect(crawlOptions({ trap: '0' })).toEqual({ trapThreshold: 0 })
+  })
+
+  it('rejects every other numeric flag given no value', () => {
+    for (const [flag, option] of [
+      ['max-ply', 'maxPly'],
+      ['min-ply', 'minPly'],
+      ['nodes', 'deepNodes'],
+      ['mass', 'massTarget'],
+      ['max-eval', 'maxEvalPerNode'],
+      ['min-node-games', 'minNodeGames'],
+      ['max-replies', 'maxOpponentMoves'],
+    ]) {
+      expect(() => crawlOptions({ [flag]: true })).toThrow(new RegExp(`--${flag} needs a number`))
+      expect(crawlOptions({ [flag]: '7' })).toEqual({ [option]: 7 })
+    }
+  })
+
+  it('rejects a value that is not a number', () => {
+    expect(() => crawlOptions({ nodes: 'four million' })).toThrow(/--nodes needs a number/)
+  })
+
+  it('leaves a flag out entirely rather than passing undefined', async () => {
+    // crawl() merges with `{ ...DEFAULTS, ...config }`, and a spread overwrites
+    // with an explicit undefined instead of skipping it. Passing the whole set
+    // unconditionally — which this script did — meant a plain run had no depth
+    // cap, no floor, no minNodeGames and no trap threshold: an unbounded crawl
+    // that terminated nothing, reported as a successful one.
+    expect(crawlOptions({})).toEqual({})
+    expect(Object.keys(crawlOptions({}))).toHaveLength(0)
+
+    // Not through `run`, which sets its own depths — the point is what reaches
+    // crawl() when the command line said nothing at all.
+    const r = await crawl({
+      ourColor: 'w',
+      forcedLine: ['d4', 'd5', 'c4'],
+      engine: stubEngine(),
+      explorer: stubBook(TRAP_BOOK),
+      ...crawlOptions({}),
+    })
+    expect(r.options.maxPly).toBe(DEFAULTS.maxPly)
+    expect(r.options.minPly).toBe(DEFAULTS.minPly)
+    expect(r.options.trapThreshold).toBe(DEFAULTS.trapThreshold)
+    expect(r.options.minNodeGames).toBe(DEFAULTS.minNodeGames)
+  })
+
+  it('turns the tactic gap on only when asked', () => {
+    expect(crawlOptions({})).not.toHaveProperty('tacticGap')
+    expect(crawlOptions({ 'tactic-gap': true })).toEqual({ tacticGap: true })
+  })
+})
+
+describe('ratingBuckets — the explorer buckets, not a range', () => {
+  it('reads a comma-separated list', () => {
+    expect(ratingBuckets({ ratings: '1600,1800' })).toEqual([1600, 1800])
+  })
+
+  it('is undefined when absent, so the API default stands', () => {
+    expect(ratingBuckets({})).toBeUndefined()
+  })
+
+  it("rejects buildBook.mjs's range syntax rather than asking for bucket NaN", () => {
+    expect(() => ratingBuckets({ ratings: '1600-1800' })).toThrow(/comma-separated buckets/)
+  })
+
+  it('rejects a bare --ratings', () => {
+    expect(() => ratingBuckets({ ratings: true })).toThrow(/--ratings needs a value/)
   })
 })

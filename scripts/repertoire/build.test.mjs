@@ -9,18 +9,15 @@ import { fenKey } from '../../src/domain/repertoirePgn.ts'
 import {
   buildAll,
   mergePgn,
-  parseArgs,
   parseManifest,
   resolveEntry,
   summarise,
   illegalLines,
   isBuilt,
-  numberFlag,
   pgnError,
   readBranch,
   resolveOnly,
   splitByColour,
-  stringFlag,
   writeBranch,
   CRAWL_PLIES,
   QUIET_HEADROOM,
@@ -31,7 +28,10 @@ import {
   crawlOrder,
   badRoles,
   MIN_OWN_PLIES,
+  FLAGS,
+  HELP,
 } from './build.mjs'
+import { flagsNamedIn, numberFlag, parseArgs, stringFlag } from './args.mjs'
 
 // The batch layer: many crawls, one repertoire. Runs against the same stubs
 // crawl.test.mjs uses, so a whole multi-branch build takes milliseconds.
@@ -378,26 +378,57 @@ describe('buildAll — running a subset', () => {
 
 describe('parseArgs', () => {
   it('reads flags with and without values', () => {
-    expect(parseArgs(['--nodes', '400000', '--resume'])).toEqual({ nodes: '400000', resume: true })
+    expect(parseArgs(['--nodes', '400000', '--resume'], FLAGS)).toEqual({ nodes: '400000', resume: true })
   })
 
   it('rejects an unknown option instead of ignoring it', () => {
     // A silently-dropped `--trap 0.01` runs the whole build at the default and
     // reports success — an hour of engine time to discover. This exact thing
     // happened while building the manifest.
-    expect(() => parseArgs(['--trapp', '0.01'])).toThrow(/unknown option --trapp/)
+    expect(() => parseArgs(['--trapp', '0.01'], FLAGS)).toThrow(/unknown option --trapp/)
   })
 
   it('lists what it does accept, so the fix is in the error', () => {
-    expect(() => parseArgs(['--nope'])).toThrow(/--nodes/)
+    expect(() => parseArgs(['--nope'], FLAGS)).toThrow(/--nodes/)
   })
 
   it('rejects a bare argument rather than skipping it', () => {
-    expect(() => parseArgs(['out/repertoire'])).toThrow(/unexpected argument/)
+    expect(() => parseArgs(['out/repertoire'], FLAGS)).toThrow(/unexpected argument/)
   })
 
   it('treats a following flag as the end of a value', () => {
-    expect(parseArgs(['--check', '--nodes', '1'])).toEqual({ check: true, nodes: '1' })
+    expect(parseArgs(['--check', '--nodes', '1'], FLAGS)).toEqual({ check: true, nodes: '1' })
+  })
+
+  it('refuses to parse without a list of known flags at all', () => {
+    // The list used to default to build.mjs's. A caller that forgot it got a
+    // parser that validated its flags against another script's — which is how
+    // the two entry points drifted apart in the first place (#115).
+    expect(() => parseArgs(['--nodes', '1'])).toThrow(/known flags/)
+  })
+})
+
+describe('build.mjs --help says what build.mjs accepts (#115)', () => {
+  // Both directions, because both have shipped. `--tactic-gap` was parsed and
+  // undocumented, which on a parser that rejects the unknown reads as a flag
+  // that does not exist; and a flag documented but not in FLAGS would turn a
+  // correct invocation into a hard error, which is the worse of the two.
+  it('documents every flag it accepts', () => {
+    expect(flagsNamedIn(HELP)).toEqual([...FLAGS].sort())
+  })
+
+  it('accepts every flag it documents', () => {
+    for (const flag of flagsNamedIn(HELP)) {
+      expect(() => parseArgs([`--${flag}`, 'x'], FLAGS)).not.toThrow()
+    }
+  })
+
+  it('quotes the depth numbers the code actually uses, not the ones it used to', () => {
+    // Was `--min-ply 10` with −2/−4 role offsets long after the base moved to
+    // 16 and the offsets to −8/−10 (ADR 0025).
+    expect(HELP).toContain(`--min-ply  ${GLOBAL_MIN_PLY}`)
+    expect(HELP).toContain(`${-ROLE_DEPTH_OFFSET.sweeper} plies below it and signposts ${-ROLE_DEPTH_OFFSET.signpost}`)
+    expect(HELP).not.toMatch(/median depth 50/)
   })
 })
 
@@ -896,7 +927,7 @@ describe('the depth floor has one owner', () => {
 
 describe('--min-ply', () => {
   it('is accepted, since the constant’s own doc points at it', () => {
-    expect(parseArgs(['--min-ply', '8'])).toEqual({ 'min-ply': '8' })
+    expect(parseArgs(['--min-ply', '8'], FLAGS)).toEqual({ 'min-ply': '8' })
   })
 
   it('is validated like every other numeric flag', () => {

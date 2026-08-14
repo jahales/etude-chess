@@ -18,6 +18,7 @@ import { Chess } from 'chess.js'
 import { delegationsFor, plies, sumLoads, theoryLoad, validatePlan } from '../../src/domain/repertoirePlan.ts'
 import { fenKey, toPgn } from '../../src/domain/repertoirePgn.ts'
 import { crawl, DEFAULTS } from './crawl.mjs'
+import { maybe, numberFlag, parseArgs, stringFlag } from './args.mjs'
 import { labelVariations, prefixVariations, variationFor } from './openings.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { createExplorer } from './explorer.mjs'
@@ -627,14 +628,17 @@ export function summarise(results) {
 // CLI
 // ---------------------------------------------------------------------------
 
+/**
+ * Every flag this script accepts. Anything else is an error, not a default —
+ * see `parseArgs` in args.mjs. Kept in the order `HELP` lists them, because a
+ * test asserts the two agree and a mismatch is easier to read that way.
+ */
 export const FLAGS = [
   'manifest',
   'out',
   'book',
   'canon-book',
   'eval-index',
-  'pool',
-  'tactic-gap',
   'only',
   'nodes',
   'trap',
@@ -644,67 +648,13 @@ export const FLAGS = [
   'max-replies',
   'min-ply',
   'crawl-plies',
+  'tactic-gap',
+  'pool',
   'resume',
   'check',
   'engine',
   'help',
 ]
-
-/**
- * Rejects flags it does not know, rather than ignoring them.
- *
- * A silently-dropped `--trap 0.01` runs the whole build at the default and
- * reports success — the same shape of failure as every other defect this
- * pipeline has produced, and an hour of engine time to discover.
- */
-export function parseArgs(argv, known = FLAGS) {
-  const out = {}
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]
-    if (!a.startsWith('--')) throw new Error(`unexpected argument "${a}" — every option takes a --flag`)
-    const key = a.slice(2)
-    if (!known.includes(key)) {
-      throw new Error(`unknown option --${key}. Known: ${known.map((k) => `--${k}`).join(' ')}`)
-    }
-    const next = argv[i + 1]
-    if (next === undefined || next.startsWith('--')) out[key] = true
-    else {
-      out[key] = next
-      i++
-    }
-  }
-  return out
-}
-
-/**
- * A flag that takes a number, or nothing at all.
- *
- * `parseArgs` marks a valueless flag `true`, and `Number(true)` is 1 — so
- * `--trap --nodes 120000` silently ran the whole build at a trap threshold of
- * 1, found nothing, and reported success. `Number('abc')` is NaN, which reached
- * Stockfish as `go nodes NaN`. Rejecting flags it does not know was only half
- * the job; this is the other half.
- */
-export function numberFlag(args, key) {
-  const raw = args[key]
-  if (raw === undefined) return undefined
-  const value = Number(raw)
-  if (raw === true || !Number.isFinite(value)) {
-    throw new Error(`--${key} needs a number${raw === true ? ' — its value is missing' : `, got "${raw}"`}`)
-  }
-  return value
-}
-
-/** Spread a crawl option only when the flag was given, so defaults still apply. */
-const maybe = (key, value) => (value === undefined ? {} : { [key]: value })
-
-/** A flag that takes a string. A bare `--out` made a directory called "true". */
-export function stringFlag(args, key) {
-  const raw = args[key]
-  if (raw === undefined) return undefined
-  if (raw === true) throw new Error(`--${key} needs a value`)
-  return String(raw)
-}
 
 /**
  * The branches `--only` names, or null for all of them.
@@ -758,7 +708,12 @@ export function illegalLines(entries) {
   return problems
 }
 
-const HELP = `
+/**
+ * What `--help` prints — and, via `FLAGS`, a promise that every flag named here
+ * is one the parser accepts. Numbers in the option column are examples; where a
+ * default is quoted it is interpolated from the constant, so it cannot drift.
+ */
+export const HELP = `
 Build the whole repertoire from a manifest (issue #88, ADR 0021)
 
   node scripts/repertoire/build.mjs --book out/band.json --canon-book out/otb.json
@@ -768,31 +723,37 @@ Build the whole repertoire from a manifest (issue #88, ADR 0021)
   --book       <path>    OUR BAND: what opponents actually play. Decides theirs.
   --canon-book <path>    MASTERS: what is principled. Decides ours.
   --eval-index <path>    gate our moves on the local Lichess evaluation index
-                         (median depth 50) rather than --nodes, falling back to
-                         the engine where a position is absent. See issue #106.
+                         (median depth 34–50) rather than --nodes, falling back
+                         to the engine where a position is absent. See #106.
   --only     a,b,c       build these branch ids only
-  --nodes    400000      engine budget per position
-  --trap     0.05        trapValue threshold
-  --mass     0.85        opponent coverage target
-  --max-eval 20          opponent moves evaluated per node
-  --min-node-games 50    stop expanding below this many games in the band book
-  --max-replies    6     most opponent moves covered at one node
-  --min-ply  10          base floor for a curated branch. A line stops as soon
+  --nodes    ${String(DEFAULTS.deepNodes).padEnd(11)} engine budget per position
+  --trap     ${String(DEFAULTS.trapThreshold).padEnd(11)} trapValue threshold
+  --mass     ${String(DEFAULTS.massTarget).padEnd(11)} opponent coverage target
+  --max-eval ${String(DEFAULTS.maxEvalPerNode).padEnd(11)} opponent moves evaluated per node
+  --min-node-games ${String(DEFAULTS.minNodeGames).padEnd(5)} stop expanding below this many games in the band book
+  --max-replies    ${String(DEFAULTS.maxOpponentMoves).padEnd(5)} most opponent moves covered at one node
+  --min-ply  ${String(GLOBAL_MIN_PLY).padEnd(11)} base floor for a curated branch. A line stops as soon
                          as it may, so this is what decides depth. Sweepers sit
-                         2 plies below it and signposts 4, and all three move
+                         ${-ROLE_DEPTH_OFFSET.sweeper} plies below it and signposts ${-ROLE_DEPTH_OFFSET.signpost}, and all three move
                          together when it does.
-  --crawl-plies 8        plies each branch crawls past its curated prefix
-  --resume               skip branches whose output already exists
-  --check                validate the manifest and exit — no engine, no crawling
+  --crawl-plies ${String(CRAWL_PLIES).padEnd(8)} plies each branch crawls past its curated prefix
+  --tactic-gap           buy a second, shallower search and test it against the
+                         deep one. Off by default (ADR 0026); worth it below
+                         ~1M nodes, worth nothing above.
   --pool     10          engines evaluating candidates in parallel. Each stays
                          single-threaded, so the results are identical to a
                          serial run and only the wall clock changes. Defaults to
                          a size derived from cores and RAM; 1 disables it.
+  --resume               skip branches whose output already exists
+  --check                validate the manifest and exit — no engine, no crawling
   --engine   <path>      Stockfish binary
+  --help                 this text
+
+Anything not in that list is an error, not a default (issue #115).
 `
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2))
+  const args = parseArgs(process.argv.slice(2), FLAGS)
   if (args.help) {
     console.log(HELP)
     return

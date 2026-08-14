@@ -44,6 +44,7 @@ import { createEngine, DEFAULT_ENGINE_PATH } from './engine.mjs'
 import { createEnginePool } from './enginePool.mjs'
 import { createSoundnessGate, MIN_INDEX_DEPTH } from './soundness.mjs'
 import { createEvalDb } from './evalDb.mjs'
+import { maybe, numberFlag, parseArgs, stringFlag } from './args.mjs'
 
 export const DEFAULTS = {
   /**
@@ -793,23 +794,50 @@ export async function crawl(config) {
 // CLI
 // ---------------------------------------------------------------------------
 
-function parseArgs(argv) {
-  const out = {}
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]
-    if (!a.startsWith('--')) continue
-    const key = a.slice(2)
-    const next = argv[i + 1]
-    if (next === undefined || next.startsWith('--')) out[key] = true
-    else {
-      out[key] = next
-      i++
-    }
-  }
-  return out
-}
+/**
+ * Every flag this script accepts. Anything else is an error, not a default.
+ *
+ * This list is the whole point of issue #115. `crawl.mjs` had its own parser
+ * that took anything, so `--nodez 4000000` crawled for hours at the default
+ * budget and wrote a summary indistinguishable from the one you asked for,
+ * while `build.mjs` — the same pipeline, entered a different way — rejected the
+ * identical typo. One parser now, in args.mjs, and one answer.
+ *
+ * Kept in the order `HELP` lists them, because a test asserts the two agree and
+ * a mismatch is easier to read that way. Missing a flag from this list is worse
+ * than the bug it fixes: it turns a working invocation into a hard error.
+ */
+export const FLAGS = [
+  'color',
+  'line',
+  'out',
+  'book',
+  'canon-book',
+  'canon',
+  'source',
+  'ratings',
+  'max-ply',
+  'min-ply',
+  'nodes',
+  'mass',
+  'trap',
+  'max-eval',
+  'min-node-games',
+  'max-replies',
+  'tactic-gap',
+  'eval-index',
+  'pool',
+  'engine',
+  'help',
+]
 
-const HELP = `
+/**
+ * What `--help` prints — and, via `FLAGS`, a promise that every flag named here
+ * is one the parser accepts. Every number is interpolated from the constant it
+ * describes, so the two cannot drift the way `--tactic-gap` and the index depth
+ * did.
+ */
+export const HELP = `
 Repertoire crawler (issue #88, ADR 0021)
 
   node scripts/repertoire/crawl.mjs --color white --line "d4 d5 c4 dxc4" --out out/qga
@@ -827,20 +855,26 @@ Repertoire crawler (issue #88, ADR 0021)
                                    canonical source instead of --canon-book
   --source  amateur | masters      explorer endpoint          (default: amateur)
   --ratings 1600,1800              rating buckets, amateur only
-  --max-ply 10                     depth cap in plies         (default: ${DEFAULTS.maxPly})
-  --min-ply 6                      earliest a line may stop   (default: ${DEFAULTS.minPly})
-  --nodes   400000                 engine budget per position
-  --mass    0.85                   opponent coverage target
-  --trap    0.05                   trapValue threshold
-  --max-eval       20              opponent moves evaluated per node. Candidates
+  --max-ply ${String(DEFAULTS.maxPly).padEnd(22)} depth cap in plies
+  --min-ply ${String(DEFAULTS.minPly).padEnd(22)} earliest a line may stop. A line stops as
+                                   soon as it may, so this, not --max-ply, is
+                                   what decides how deep the output runs.
+  --nodes   ${String(DEFAULTS.deepNodes).padEnd(22)} engine budget per position
+  --mass    ${String(DEFAULTS.massTarget).padEnd(22)} opponent coverage target
+  --trap    ${String(DEFAULTS.trapThreshold).padEnd(22)} trapValue threshold
+  --max-eval       ${String(DEFAULTS.maxEvalPerNode).padEnd(15)} opponent moves evaluated per node. Candidates
                                    come in frequency order, so this cap chops the
                                    tail — where traps live. Raise it to hunt.
-  --min-node-games 50              stop expanding below this many games
-  --max-replies    6               most opponent moves covered at one node
+  --min-node-games ${String(DEFAULTS.minNodeGames).padEnd(15)} stop expanding below this many games
+  --max-replies    ${String(DEFAULTS.maxOpponentMoves).padEnd(15)} most opponent moves covered at one node
+  --tactic-gap                     buy a second, shallower search and test it
+                                   against the deep one. Off by default (ADR
+                                   0026); worth it below ~1M nodes, worth
+                                   nothing above.
   --eval-index db/eval-index       gate our moves on the local Lichess
-                                   evaluation index (median depth 50) instead
-                                   of --nodes, falling back to the engine where
-                                   a position is absent. See issue #106.
+                                   evaluation index (median depth 34–50)
+                                   instead of --nodes, falling back to the
+                                   engine where a position is absent. See #106.
   --pool    10                     engines evaluating candidates in parallel.
                                    Each stays single-threaded, so results are
                                    identical to a serial run and only the wall
@@ -848,33 +882,103 @@ Repertoire crawler (issue #88, ADR 0021)
                                    from cores and RAM; 1 disables it.
   --engine  <path>                 Stockfish binary
                                    (default: ${DEFAULT_ENGINE_PATH})
+  --help                           this text
+
+Anything not in that list is an error, not a default (issue #115).
 `
 
+/**
+ * The `crawl()` options a parsed command line asks for.
+ *
+ * A flag that was not given is **left out**, not passed as `undefined`:
+ * `crawl()` merges with `{ ...DEFAULTS, ...config }`, and a spread overwrites
+ * with an explicit `undefined` rather than skipping it. Passing the whole set
+ * unconditionally — which is what this script did — meant a plain
+ * `crawl.mjs --color white --out x` ran with no depth cap, no floor, no
+ * `minNodeGames` and no trap threshold: an unbounded crawl that terminates
+ * nothing and finds nothing, reported as a successful one.
+ *
+ * Separated from `main` so it can be tested without an engine: everything that
+ * decides how long a crawl runs is decided here.
+ */
+export function crawlOptions(args) {
+  return {
+    ...maybe('maxPly', numberFlag(args, 'max-ply')),
+    ...maybe('minPly', numberFlag(args, 'min-ply')),
+    ...maybe('deepNodes', numberFlag(args, 'nodes')),
+    ...maybe('massTarget', numberFlag(args, 'mass')),
+    ...maybe('trapThreshold', numberFlag(args, 'trap')),
+    ...maybe('maxEvalPerNode', numberFlag(args, 'max-eval')),
+    ...maybe('minNodeGames', numberFlag(args, 'min-node-games')),
+    ...maybe('maxOpponentMoves', numberFlag(args, 'max-replies')),
+    ...(args['tactic-gap'] ? { tacticGap: true } : {}),
+  }
+}
+
+/**
+ * The explorer buckets `--ratings` names, or undefined for the API default.
+ *
+ * Validated rather than mapped straight through `Number`: `--ratings 1600-1800`
+ * is the range syntax `buildBook.mjs` takes, and it parses here as the single
+ * bucket NaN — which the explorer answers with an empty book, so the crawl runs
+ * out of book on the first move and reports that as the position's own fault.
+ */
+export function ratingBuckets(args) {
+  const raw = stringFlag(args, 'ratings')
+  if (raw === undefined) return undefined
+  const buckets = raw.split(',').map((s) => Number(s.trim()))
+  if (!buckets.length || buckets.some((n) => !Number.isFinite(n))) {
+    throw new Error(`--ratings takes comma-separated buckets, e.g. 1600,1800 — got "${raw}"`)
+  }
+  return buckets
+}
+
 async function main() {
-  const args = parseArgs(process.argv.slice(2))
+  const args = parseArgs(process.argv.slice(2), FLAGS)
   if (args.help || !args.color || !args.out) {
     console.log(HELP)
     process.exit(args.help ? 0 : 1)
   }
 
-  const ourColor = String(args.color).startsWith('b') ? 'b' : 'w'
-  const forcedLine = args.line ? String(args.line).trim().split(/\s+/).filter(Boolean) : []
-  const outBase = String(args.out)
+  // Read through stringFlag, so a bare `--color` is an error rather than
+  // String(true) — which does not start with "b", so it silently crawled White.
+  const ourColor = stringFlag(args, 'color').startsWith('b') ? 'b' : 'w'
+  const line = stringFlag(args, 'line')
+  const forcedLine = line ? line.trim().split(/\s+/).filter(Boolean) : []
+  const outBase = stringFlag(args, 'out')
+  const enginePath = stringFlag(args, 'engine')
+
+  // Named rather than compared inline: `--source masters` and `--source
+  // amateur` were the only two spellings that meant anything, and every other
+  // one — including `--source master` — quietly meant amateur.
+  const source = stringFlag(args, 'source') ?? 'amateur'
+  if (source !== 'amateur' && source !== 'masters') {
+    throw new Error(`--source is amateur or masters, got "${source}"`)
+  }
+
+  // Every numeric flag is read here, before a book is opened or an engine is
+  // started — a run that is going to fail on its arguments should fail before
+  // it has cost anything. `--trap` with its value dropped used to reach
+  // Stockfish as a threshold of 1 and cost an afternoon.
+  const options = crawlOptions(args)
+  const buckets = ratingBuckets(args)
 
   // A local book built by buildBook.mjs is a drop-in replacement for the API:
   // reproducible, rate-limit-free and offline. See that script's header.
-  const explorer = args.book
-    ? await createLocalBook({ path: String(args.book) })
+  const bookPath = stringFlag(args, 'book')
+  const explorer = bookPath
+    ? await createLocalBook({ path: bookPath })
     : createExplorer({
         cacheDir: join(dirname(outBase), '.explorer-cache'),
-        source: args.source === 'masters' ? 'masters' : 'amateur',
-        ratings: args.ratings ? String(args.ratings).split(',').map(Number) : undefined,
+        source,
+        ratings: buckets,
       })
 
   // The canonical source is optional: without it the band book decides both
   // halves, which is the old behaviour.
-  const canon = args['canon-book']
-    ? await createLocalBook({ path: String(args['canon-book']) })
+  const canonPath = stringFlag(args, 'canon-book')
+  const canon = canonPath
+    ? await createLocalBook({ path: canonPath })
     : args.canon
       ? createExplorer({ cacheDir: join(dirname(outBase), '.masters-cache'), source: 'masters' })
       : null
@@ -884,20 +988,15 @@ async function main() {
 
   // Optional, and absent means the old behaviour exactly: the gate falls back
   // to this crawl's own search for every decision.
-  const evalDb = args['eval-index'] ? createEvalDb({ dir: String(args['eval-index']) }) : null
+  const evalIndexPath = stringFlag(args, 'eval-index')
+  const evalDb = evalIndexPath ? createEvalDb({ dir: evalIndexPath }) : null
 
   // The candidate fan-out at each node is the only parallelisable part of a
   // crawl, and it is most of the engine time. `--pool 1` falls back to the
   // serial path for a like-for-like comparison.
-  const poolSize = args.pool ? Number(args.pool) : undefined
-  const pool =
-    poolSize === 1
-      ? null
-      : createEnginePool({ size: poolSize, path: args.engine ? String(args.engine) : undefined })
-  engine = createEngine({
-    path: args.engine ? String(args.engine) : undefined,
-    share: (pool?.size ?? 0) + 1,
-  })
+  const poolSize = numberFlag(args, 'pool')
+  const pool = poolSize === 1 ? null : createEnginePool({ size: poolSize, path: enginePath })
+  engine = createEngine({ path: enginePath, share: (pool?.size ?? 0) + 1 })
 
   const started = Date.now()
   console.log(`crawling ${ourColor === 'w' ? 'White' : 'Black'} from: ${forcedLine.join(' ') || '(start)'}`)
@@ -911,15 +1010,7 @@ async function main() {
       pool,
       ourColor,
       forcedLine,
-      maxPly: args['max-ply'] ? Number(args['max-ply']) : undefined,
-      minPly: args['min-ply'] ? Number(args['min-ply']) : undefined,
-      deepNodes: args.nodes ? Number(args.nodes) : undefined,
-      massTarget: args.mass ? Number(args.mass) : undefined,
-      trapThreshold: args.trap ? Number(args.trap) : undefined,
-      tacticGap: Boolean(args['tactic-gap']),
-      maxEvalPerNode: args['max-eval'] ? Number(args['max-eval']) : undefined,
-      minNodeGames: args['min-node-games'] ? Number(args['min-node-games']) : undefined,
-      maxOpponentMoves: args['max-replies'] ? Number(args['max-replies']) : undefined,
+      ...options,
     })
 
     await mkdir(dirname(outBase), { recursive: true })
@@ -950,7 +1041,7 @@ async function main() {
         provenance: {
           // Basename only — the full path leaks a home directory into a file
           // that is meant to be shareable.
-          engine: basename(args.engine ? String(args.engine) : DEFAULT_ENGINE_PATH),
+          engine: basename(enginePath ?? DEFAULT_ENGINE_PATH),
           nodes: result.options.deepNodes,
           threads: 1,
           minDepth: Number.isFinite(result.report.minDepth) ? result.report.minDepth : undefined,

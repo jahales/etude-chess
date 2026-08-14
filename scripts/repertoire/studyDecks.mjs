@@ -25,7 +25,8 @@ import { createEvalDb } from './evalDb.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { studyOrder } from './studyOrder.mjs'
 import { orientationOf } from './readRepertoirePgn.mjs'
-import { mergePgn, parseArgs, stringFlag } from './build.mjs'
+import { mergePgn } from './build.mjs'
+import { parseArgs, stringFlag } from './args.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')

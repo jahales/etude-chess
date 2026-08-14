@@ -47,7 +47,7 @@ import {
   keyFor,
   packRecord,
 } from './evalKey.mjs'
-import { parseArgs, numberFlag, stringFlag } from './build.mjs'
+import { parseArgs, numberFlag, stringFlag } from './args.mjs'
 
 // Re-exported so callers can keep treating the builder as the home of the
 // layout, without the reader having to import it.
