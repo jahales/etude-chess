@@ -18,7 +18,13 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "verify": "npm run typecheck && npm run lint && npm test",
-    "review": "node scripts/review/game.mjs"
+    "review": "node scripts/review/game.mjs",
+    "rep:build": "node scripts/repertoire/build.mjs --book db/book-band-2026-07.json --canon-book db/book-otb.json --eval-index db/eval-index --nodes 4000000 --trap 0.01 --out out/v2-main",
+    "rep:build:e4": "node scripts/repertoire/build.mjs --book db/book-band-2026-07.json --canon-book db/book-otb.json --eval-index db/eval-index --nodes 4000000 --trap 0.01 --manifest scripts/repertoire/manifest.e4.json --out out/v2-e4",
+    "rep:decks": "node scripts/repertoire/studyDecks.mjs --pgn out/v2-main/repertoire-white.pgn,out/v2-main/repertoire-black.pgn,out/v2-e4/repertoire-white.pgn --sizes 150,500 --book db/book-band-2026-07.json --out repertoire/v2",
+    "rep:audit": "node scripts/repertoire/auditRepertoire.mjs",
+    "rep:study": "node scripts/repertoire/studyOrder.mjs --book db/book-band-2026-07.json",
+    "rep:verify": "node scripts/repertoire/verifyEvalDb.mjs"
   },
   "dependencies": {
     "chess.js": "^1.4.0",

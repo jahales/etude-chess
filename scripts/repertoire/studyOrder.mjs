@@ -1,6 +1,6 @@
 // What to learn first.
 //
-//   node scripts/repertoire/studyOrder.mjs --pgn repertoire/etude-repertoire-v1-white.pgn
+//   npm run rep:study
 //
 // A repertoire is a list of decisions in manifest order, which is an accident of
 // how it was crawled. It is not a study plan: the QGD Exchange main line and a
@@ -143,9 +143,8 @@ async function main() {
   const pgnPaths = (
     stringFlag(args, 'pgn') ??
     [
-      'repertoire/etude-repertoire-v1-white.pgn',
-      'repertoire/etude-repertoire-v1-white-e4.pgn',
-      'repertoire/etude-repertoire-v1-black.pgn',
+      'repertoire/v2/etude-white-complete.pgn',
+      'repertoire/v2/etude-black-complete.pgn',
     ].join(',')
   )
     .split(',')

@@ -21,10 +21,20 @@ feature is a **hidden-mode mixed queue**. Read [docs/vision.md](docs/vision.md) 
   now engine-reviews a finished game end to end. That is a **CLI tool serving the P1 own-game
   review loop in [docs/development-focus.md](docs/development-focus.md), not the in-app loop
   itself** — v0.3.0 is still the target and is still unbuilt.
-- **Live thread, and the most interesting open question**: repertoire moves are gated on a
-  local 400k-node search, which is likely too shallow — Lichess's cloud evaluations cover 100%
-  of the shipped repertoire at median depth 50. Diagnosis, evidence and method are in
-  **issue #106**; how many lines actually fail is not yet measured.
+- **Repertoire v2 shipped 2026-08-11** (#106, #102 closed). Moves are gated on a **local
+  index of Lichess's 401M-position evaluation dump** at median depth 34–50, not on the
+  crawl's own search — ADR [0024](docs/decisions/0024-gate-on-a-local-evaluation-index.md),
+  98% coverage. #106's audit found **6 of 585 v1 moves conceding more than the 5 win% gate,
+  all Tier B, no blunders**: the old 120k-node gate held up. Curated lines now run to ply 16
+  and reach the middlegame structure (ADR
+  [0025](docs/decisions/0025-curated-lines-run-to-the-structure.md)), and the tactic-gap
+  filter is off by default because at 4M nodes it decided nothing across 412 assessed
+  positions (ADR [0026](docs/decisions/0026-retire-the-tactic-gap-at-high-node-budgets.md)).
+  Output is **staged decks** in [repertoire/v2](repertoire/v2/) — core 150 / standard 500 /
+  complete 2,299 — not one flat repertoire.
+- **The one thing left undone there**: `replicate.mjs` has not run against the June book, so
+  the **trap annotations are provisional**. The moves are gated and sound; a `?` does not yet
+  mean refuted. The June dump is downloaded and waiting.
 - The design is still **living**; every doc except the constitution is revisable.
 
 ## Read these before proposing anything

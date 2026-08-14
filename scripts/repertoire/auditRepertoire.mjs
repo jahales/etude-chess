@@ -48,9 +48,8 @@ const repoRoot = join(here, '..', '..')
  * own namespace.
  */
 export const DECKS = [
-  { id: 'white-d4', file: 'repertoire/etude-repertoire-v1-white.pgn' },
-  { id: 'white-e4', file: 'repertoire/etude-repertoire-v1-white-e4.pgn' },
-  { id: 'black', file: 'repertoire/etude-repertoire-v1-black.pgn' },
+  { id: 'white', file: 'repertoire/v2/etude-white-complete.pgn' },
+  { id: 'black', file: 'repertoire/v2/etude-black-complete.pgn' },
 ]
 
 const negate = (s) => ({ type: s.type, value: -s.value })

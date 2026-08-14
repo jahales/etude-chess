@@ -210,9 +210,8 @@ function checkSignConvention(db) {
 function checkRepertoireCoverage(db) {
   process.stdout.write('\ncoverage of our own repertoire\n')
   const files = [
-    'repertoire/etude-repertoire-v1-white.pgn',
-    'repertoire/etude-repertoire-v1-white-e4.pgn',
-    'repertoire/etude-repertoire-v1-black.pgn',
+    'repertoire/v2/etude-white-complete.pgn',
+      'repertoire/v2/etude-black-complete.pgn',
   ]
 
   let total = 0
