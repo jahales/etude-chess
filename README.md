@@ -5,11 +5,13 @@ system organized around the *decision type* a position demands, with the mode
 deliberately hidden in a mixed queue so it trains the one skill every other
 trainer gives away for free: *noticing what kind of position you're in.*
 
-> **Status: v0.2.0 released (2026-07-18).** Two modes, both fully client-side: coached
-> **guess-the-move** on master games, and **play vs Maia** — a human-like opponent running in
-> your browser — with a coach on every move, accuracy, and a post-game review. What exists:
+> **Status: v0.3.0 released (2026-08-14).** Three modes, all fully client-side: coached
+> **guess-the-move** on master games, **play vs Maia** — a human-like opponent running in
+> your browser — with a coach on every move, and **review your own games**: a library of
+> everything you've played, replay with the coach's verdict on each move, and a whole-game
+> analysis that shows where the game actually turned. What exists:
 > [docs/architecture.md](docs/architecture.md) and [CHANGELOG.md](CHANGELOG.md).
-> Next: v0.3 — learn from your own games. Design docs live in [docs/](docs/).
+> Next: attach your own game database. Design docs live in [docs/](docs/).
 
 ## Running it
 
@@ -17,7 +19,7 @@ trainer gives away for free: *noticing what kind of position you're in.*
 npm install
 node scripts/setup-maia.mjs   # fetch the Maia nets (needed to play vs Maia)
 npm run dev                   # http://localhost:5173
-npm run verify                # typecheck + lint + 153 unit tests
+npm run verify                # typecheck + lint + unit tests
 npm run build                 # typecheck + production build
 ```
 

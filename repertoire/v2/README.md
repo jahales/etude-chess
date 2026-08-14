@@ -7,7 +7,7 @@ the repertoire trainer at whichever side you are drilling.
 | file | games | decisions |
 |---|---|---|
 | `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | **525** — start here |
-| `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2 · 8 | 2,299 |
+| `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2 · 8 | 2,298 |
 
 **Import the two colours separately.** En Croissant trains from one side's point
 of view, so a file holding both is importable as neither — it would drill you as
@@ -31,8 +31,8 @@ six games because its roots are *White's* first moves, which really are separate
 entry points.
 
 Every manifest branch is grafted into these, rather than shipping one game per
-branch: the core White deck was otherwise 26 games for 144 decisions, seventeen
-of them five moves or fewer. A branch is the unit the *build* needs — it is what
+branch: the since-dropped `core` White deck was otherwise 26 games for 144
+decisions, seventeen of them five moves or fewer. A branch is the unit the *build* needs — it is what
 makes branch ownership work — and the wrong unit for drilling.
 
 ## How the tiers were chosen
@@ -48,6 +48,12 @@ move 12 of the Carlsbad without moves 1 to 11, so a tier is a set of complete
 lines rather than a well-ranked list of positions.
 
 `tiers.json` records which decision landed in which tier.
+
+It lists **2,299** lines against the table's 2,298 decisions, and the extra one is
+not an error: `d4` and `e4` are two lines answering the same position — the start
+— and a decision is keyed by position, so they count once here and twice there.
+The same collapse is why the audit reports one position "answered two different
+ways" ([#114](https://github.com/jahales/etude-chess/issues/114)).
 
 ## What is in here
 
@@ -82,7 +88,12 @@ data, and one month cannot tell a real trap from a coin flip.
 is the *opponent's* move, so it never ranks in `studyOrder` — the value is in
 what they do, and the reach × cost of our reply understates it badly. Left to the
 ranking, the standard White deck held **2** trap comments out of 282 confirmed;
-it now holds 247. The highest-value trap in the whole repertoire is the Englund
+it now holds 247.
+
+235 and 282 count different things and neither is a typo for the other: 282 is
+the confirmed **traps**, 235 the distinct **replies** pinned to answer them. A
+refutation is keyed by our move, so several traps converging on one reply pin it
+once. The highest-value trap in the whole repertoire is the Englund
 (`d4 e5 dxe5 f6 e4 fxe5`, 4.51 across 2,292 games), which is also the owner's
 worst-scoring opening at 20% over 5 real games.
 

@@ -13,8 +13,12 @@ Import `v2/etude-white-standard.pgn` and `v2/etude-black-standard.pgn` into En C
 at whichever side you are drilling. Move up to `-complete` when that becomes automatic. Four files exist; two are ever in use.
 
 Everything else about the tiers is in [v2/README.md](v2/README.md), including
-the one caveat that matters: the moves are gated at depth 34–50 and sound, but
-the trap annotations are provisional until `replicate.mjs` has run.
+the two things to know before you drill. The moves are gated at depth 34–50 and
+sound. And the trap annotations have been **replicated** — `replicate.mjs` ran
+June 2026 against July 2026, so a `· trap ·` comment means two independent
+months agreed on the finding *and* its magnitude (98 of 149 for 1.d4 + Black,
+184 of 217 for 1.e4). Anything only one month saw now reads `· one month only ·`
+instead: its statistics still stand, but a `?` there is not a refutation.
 
 [v1/](v1/) is the 2026-08-07 generation, kept for comparison. It is shallower
 (deepest ply 13 against v2's 19–20) and was built from a 367k-game band book

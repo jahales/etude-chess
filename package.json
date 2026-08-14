@@ -1,12 +1,12 @@
 {
   "name": "etude-chess",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "engines": {
     "node": ">=24"
   },
-  "description": "A personal chess coach — v0.1.0: coached guess-the-move on master games.",
+  "description": "A personal chess coach — guess-the-move on master games, play vs Maia, and review your own games.",
   "license": "MIT",
   "scripts": {
     "dev": "vite",

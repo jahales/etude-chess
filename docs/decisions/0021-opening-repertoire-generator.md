@@ -1,6 +1,13 @@
 # 0021 — Generate an opening repertoire from explorer data + engine, terminating at quiet positions
 
-**Status:** Accepted · 2026-08-05
+**Status:** Accepted · 2026-08-05 · **amended three times by the v2 work** —
+[0024](0024-gate-on-a-local-evaluation-index.md) (the soundness gate, decision 5),
+[0025](0025-curated-lines-run-to-the-structure.md) (where a curated line stops, decision 2) and
+[0026](0026-retire-the-tactic-gap-at-high-node-budgets.md) (the tactic-gap half of the quiet
+test, decision 2). The shape below stands; three of its mechanisms have moved, and the
+amendments are marked inline where they land.
+**Extended by:** ADR [0022](0022-repertoire-branch-ownership.md) (one repertoire from many
+crawls) · ADR [0023](0023-second-white-repertoire-1-e4.md) (a second White repertoire)
 **Relates to:** constitution §1 (train judgment, not memory of lines), §4 (distractors from human
 frequency), §6 (filter tactics wearing a trenchcoat) · ADR
 [0018](0018-games-corpus-and-annotations.md) (we ship no corpus) ·
@@ -38,6 +45,24 @@ Three things make this awkward against the current plan:
    *reaching* a position you can think in. A repertoire that ended on a single forced move would
    be the memorisation §1 rules out, and the quiet test is what mechanically prevents it.
 
+   > **Amended 2026-08-10 by ADR [0025](0025-curated-lines-run-to-the-structure.md) — where a
+   > curated line stops.** A `curated` branch no longer ends at the *first* quiet position: its
+   > floor is **ply 16**, because a Carlsbad, an IQP or a French chain does not form before
+   > roughly ply 16–25, and a line that stops earlier teaches which moves to play and nothing
+   > about the middlegame those moves are for. Sweepers stay at 8 and signposts at 6 — the
+   > roles are offsets, widened in step so the ordering could not invert. The quiet terminal is
+   > still the item; it is reached later, not abandoned. Depth is now floor 16 / cap 24, not
+   > the ~6/~10 stated above.
+   >
+   > **Amended 2026-08-10 by ADR
+   > [0026](0026-retire-the-tactic-gap-at-high-node-budgets.md) — the "no hidden tactic" half.**
+   > That shallow-versus-deep test is **off by default**. Measured on 412 positions the crawl
+   > genuinely assessed at 4M nodes it decided **none** of them, with observed gaps averaging
+   > 0.45 win% against a threshold of 5. `--tactic-gap` turns it back on, and it should be on
+   > below roughly 1M nodes. This is not a repeal of constitution §6: the filter tests whether
+   > the deep search is deep enough, and the answer changed when the budget did. The quiet test
+   > at default settings now rests on breadth and balance alone.
+
 3. **Two sources, two jobs.** The Lichess **masters** explorer supplies the main-line spine;
    the **amateur** explorer, filtered to the owner's rating band, supplies deviation coverage.
    This split is load-bearing: a master database contains almost no Englund, Wayward Queen or
@@ -59,6 +84,17 @@ Three things make this awkward against the current plan:
 5. **Our own moves are chosen partly by branching cost.** Among moves that pass a soundness
    gate, prefer the one that leaves fewer distinct replies to prepare. A repertoire's real cost
    is its branching factor, and optimising only for evaluation produces one nobody can learn.
+
+   > **Amended 2026-08-09 by ADR [0024](0024-gate-on-a-local-evaluation-index.md) — what the
+   > soundness gate consults.** The gate reads a local index of Lichess's 401M-position
+   > evaluation dump (median depth 34–50, CC0) first, and falls back to the crawl's own search
+   > only where a position is absent or shallower than depth 25. Both halves of the comparison
+   > must come from one source, or the swing is manufactured out of depth disagreement.
+   > Candidates still come from human frequency (ADR
+   > [0003](0003-human-frequency-not-engine-topn.md)) — an index scores positions, it never
+   > proposes a move — and trap scoring and the quiet test stay on the engine. Re-grading all
+   > 585 v1 moves under the index found 6 conceding more than the 5 win% gate, all Tier B: the
+   > old 120k-node gate held up, so this removes a weak basis rather than rescuing a bad one.
 
 6. **Output is dual: PGN-with-variations and annotated JSON.** The PGN imports into En
    Croissant's SRS today; the JSON becomes etude-chess content when `epic:opening` comes up.

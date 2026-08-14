@@ -1,16 +1,22 @@
 # Development focus — where the leverage is
 
-> Forward-looking companion to [backlog.md](backlog.md). The roadmap says *what* ships in
+> Forward-looking companion to [backlog.md](backlog.md). The backlog says *what* ships in
 > what order; this says *why these and not the tempting alternatives*, and what the one
 > real bottleneck is. Written 2026-07-18 alongside the rev. 2 research update
 > ([research/effectiveness.md §7–8](research/effectiveness.md)). Treat as a standing
 > "read this before adding a mode" note.
+>
+> **Status, 2026-08-14: P1 shipped in v0.3.0, P0 has not started.** The priority order below
+> is unchanged and still binding — read the P0 section as the live one. The "next slot"
+> language in P1 predates ADR [0020](decisions/0020-backlog-of-epics.md); versions are cuts
+> now, so the ordering here is an argument about epics, not about release numbers.
 
 ## The one-line version
 
 **Depth over breadth. Build the "why" engine before any new mode. Then close the
-produce→review loop inside one app.** Two modes shipped is enough surface area; the value
-now is in making those two teach, not in adding a third.
+produce→review loop inside one app.** Three modes now ship — and the third, reviewing your own
+games, is P1 below rather than a breadth addition, which is the distinction this note exists to
+hold. The value now is in making those three teach, not in adding a fourth.
 
 ## Why not "add more modes"
 
@@ -40,17 +46,35 @@ anywhere ([§7](research/effectiveness.md)). This is the moat.
 - Honesty gate: an explanation must be *checkable* (against the engine line and the ontology)
   before it's shown. A confidently wrong "why" is worse than none.
 
-### P1 — The v0.3 own-game review loop
-Already next on the roadmap; keep it there. It is the highest-yield *activity*
-([effectiveness.md §0](research/effectiveness.md), 4.4 pts/hr) **and** the unlock for the
-dependency chain below. Import → auto-surface 2–4 decisive moments → commit-a-move before
-reveal → "why" (P0 feeds this).
+### P1 — The own-game review loop — **shipped in v0.3.0, 2026-08-14**
+It is the highest-yield *activity* ([effectiveness.md §0](research/effectiveness.md), 4.4
+pts/hr) **and** the unlock for the dependency chain below, which is why it outranked
+everything except the "why" layer.
 
-### P2 — Wire produce→review into a single in-app cycle
+**Shipped in-app:** every game is stored, the library opens it, replay steps through it, a
+whole-game pass scores every position, and the worst moves are listed as buttons that jump to
+the position (#39, #46, #47, #67, #68). Off-app, `npm run review` does the same for a real
+chess.com game.
+
+**Two parts of the shape above did not ship**, and neither is an oversight to quietly close:
+*commit-a-move-before-reveal on your own games* — replay is read-only, you step through it,
+you don't re-decide — and *the "why"*, which is P0 and still unbuilt. So the loop now surfaces
+the decisive moments; it does not yet make you re-decide them or explain them. The first is
+`epic:review-loop` in [backlog.md](backlog.md) (#48, #49, #65); the second is P0 above.
+
+### P2 — Wire produce→review into a single in-app cycle — **half shipped**
 The feature that fits a time-constrained user's life: a **timed Maia game that flows
 directly into the review loop with no import/export step.** "Generate a reviewable game and
 review it in the same place" removes the friction that kills every other tool's review habit.
 Closing this loop inside one app is a bigger differentiator than mode count.
+
+**The no-import-step half shipped with P1**: a finished Maia game is already in the library and
+already reviewable, with nothing to export. **The *timed* half has not** — the app has no
+clock, so what it produces is untimed practice. Worth flagging rather than leaving implicit,
+because [backlog.md](backlog.md)'s "what done is not" holds clock *management* out of scope as
+a thing we train, which is not the same as deciding never to run one. Nobody has decided;
+`npm run review`'s phase-vs-clock split reads clocks from imported PGNs, so the appetite is
+there. Pressure errors are what an untimed game cannot generate (§8 below).
 See [effectiveness.md §8](research/effectiveness.md) for the timed / correspondence / real-rated
 distinction — timed Maia is the sustainable default; keep the occasional real rated game in
 the user's mental model as the calibration Maia can't provide (pressure errors).
@@ -89,7 +113,7 @@ Attack it as its own workstream, not as a side effect of feature work:
 - **Puzzle rating will climb faster and will lie** about improvement ([effectiveness.md §2](research/effectiveness.md)).
   Do not use it as a success metric.
 - **Leading indicator worth logging:** the user's own **blunder rate per game** from the review
-  loop. It's the earliest honest signal, and — because the maintainer is dogfooding at ~1400,
+  loop. It's the earliest honest signal, and — because the maintainer is dogfooding at ~1355,
   the band where the P0 "why" layer matters most — it doubles as the project's only cheap
   validation data. Instrument it from the start.
 

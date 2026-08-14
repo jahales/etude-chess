@@ -5,8 +5,13 @@ import { join } from 'node:path'
 /**
  * The layering rule from ADR 0015, enforced instead of merely documented.
  *
- * Dependencies point one way: `domain` ← `app` ← adapters (`engine`, `persist`)
- * ← `ui`. This existed only as prose until an adapter (`persist/db.ts`) started
+ * Dependencies point one way: `domain` ← adapters (`engine`, `persist`) ← `app`
+ * ← `ui`. Read the arrows as "is imported by": the adapters import the domain,
+ * `app` imports the domain and the adapters, `ui` imports everything. Nothing
+ * points back up — an adapter importing `app` is exactly the violation the
+ * ALLOWED table below forbids and the cycle test at the bottom pins down.
+ *
+ * This existed only as prose until an adapter (`persist/db.ts`) started
  * importing reducer types, which made the on-disk schema depend on the
  * application layer and produced an app ⇄ persist cycle. Prose didn't catch it;
  * this does.

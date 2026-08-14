@@ -6,12 +6,18 @@
 > (game review ≫ tactics puzzles per hour), the concrete first release is now the
 > **personalized game-review loop** in [v0.1.0-plan.md](v0.1.0-plan.md) (ADR
 > [0011](decisions/0011-game-review-first.md)). This document remains the picture of the
-> **three drill modes** — they're still built, as v0.2–v0.4, and *fed by* the review loop
-> (drills sourced from your own mistakes). Read v0.1.0-plan.md first; read this for where the
-> modes are heading.
+> **three drill modes** — they're still intended, and *fed by* the review loop (drills sourced
+> from your own mistakes). Read v0.1.0-plan.md first; read this for where the modes are
+> heading.
+>
+> **The "as v0.2–v0.4" that used to stand here is withdrawn** (ADR
+> [0020](decisions/0020-backlog-of-epics.md), 2026-07-19): the modes are epics in
+> [backlog.md](backlog.md), not release slots, and none of them is committed to a version. As
+> of v0.3.0 (2026-08-14) the shipped modes are guess-the-move, play vs Maia, and review your
+> own games; the drill modes below are all still ahead.
 
 ## Who it's for
-**You: a USCF ~1200 player.** Not a generic audience. That focuses v0 hard: below
+**You: a USCF ~1355 player.** Not a generic audience. That focuses v0 hard: below
 ~1800, results are dominated by a short list of skills, so v0 trains exactly those and
 nothing else. This also means v0 is *band-fixed* (~1000–1400) — no skill model, no
 adaptivity, just the right curriculum for this band.

@@ -1,8 +1,12 @@
 // Review one finished game of your own, move by move.
 //
-//   npm run review -- --me quiet_etude --last
-//   npm run review -- --me quiet_etude https://www.chess.com/game/live/172720428582
-//   npm run review -- --me quiet_etude --pgn some-game.pgn
+//   npm run review -- --me <chess.com handle> --last
+//   npm run review -- --me <chess.com handle> https://www.chess.com/game/live/<id>
+//   npm run review -- --me <chess.com handle> --pgn some-game.pgn
+//
+// Set CHESSCOM_USER instead and --me can be dropped. The handle is deliberately
+// not written down here: this repo is public, and it is the owner's to publish
+// or not.
 //
 // The grading rule is the trainer's, not a second one invented here: win% swing
 // with Tier A for engine-equal (src/domain/gameReview.ts, ADR 0010). This file

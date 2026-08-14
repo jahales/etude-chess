@@ -4,6 +4,12 @@
 > branch `spike/games-database`. **The blocker here is legal, not technical** — the corpus
 > question decides the product shape, so it was settled first. Outcome: **GO, with one honest
 > reframing** (below). Mirrors the [maia-onnx](maia-onnx.md) spike structure.
+>
+> **Still live, and now due.** The work this de-risked is `epic:database`, which since v0.3.0
+> shipped (2026-08-14) is the **top of [backlog.md](../backlog.md)** — #53, #54, #55 and #70.
+> Nothing here has been overtaken; the build designs it feeds are
+> [v0.3.0-plan.md §9–11](../v0.3.0-plan.md). It did not ship in v0.3.0 despite the numbering
+> there: that release was re-cut as hardening.
 
 ## The question
 Can we ship a searchable database of **master games**, with **annotations**, in a fully
@@ -195,8 +201,8 @@ table (brotli-11 is 1.49× better than gzip-9 there). **Precompress static text 
 generating the legal move list at every ply, and with `chess.js` that measured at **~12
 games/sec** — a 100k-game import would take **over two hours**. Storage was never the binding
 constraint; **CPU is**. At 765 B/game, 100k games is ~76 MB of raw PGN, comfortably inside
-Chrome's per-origin quota (60% of disk) and Firefox's (10 GiB). So for v0.3 we **store the
-PGN text** and keep the byte encoding documented as the escape hatch if storage ever bites.
+Chrome's per-origin quota (60% of disk) and Firefox's (10 GiB). So the import **stores the
+PGN text** and keeps the byte encoding documented as the escape hatch if storage ever bites.
 
 **Streaming matters more than encoding.** [chessops](https://github.com/niklasf/chessops)
 (by the Lichess author) ships an **asynchronous streaming PGN parser** that preserves
@@ -222,7 +228,7 @@ content loop exists.
 per-position W/D/L counts, not games**. If the eventual feature is "what do strong players
 play here", that is a completely different and far smaller artifact than a game database.
 Worth settling which one we're building before optimizing bytes-per-game — it bears on the
-deferred position-search work, not on v0.3.
+deferred position-search work, not on the import itself.
 
 ## What this means for the product
 "Master games database" becomes, honestly stated: **a searchable database of strong-player

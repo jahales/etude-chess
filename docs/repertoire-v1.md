@@ -1,5 +1,25 @@
 # Repertoire v1 — the curated base
 
+> **Status, 2026-08-14 — this file still specifies, but no longer describes what is shipped.**
+> **Repertoire v2 shipped 2026-08-11** and is what you drill:
+> [repertoire/v2/README.md](../repertoire/v2/README.md). v1 is kept for comparison
+> ([repertoire/v1/](../repertoire/v1/)); do not import it.
+>
+> What still holds: the branch list, the structural argument for Caro-Kann + Slav, the
+> rejection of the London, and the two-sources table — `manifest.v1.json` is still built from
+> this file. What does not: **every measurement below is a v1 number**, from a 367k-game band
+> book gated by a 120k-node search. v2 was built from an 8M-game book gated on a local index of
+> 401M Lichess evaluations at median depth 34–50: 1,331 decisions and 423 quiet targets for
+> 1.d4 + Black, 934 and 195 for 1.e4, against v1's 551 and 266 in total — deepest ply 13
+> against 19–20.
+>
+> Two rules stated below have been amended since. Depth: curated lines now run to **ply 16**,
+> not 10, so they reach a pawn structure (ADR
+> [0025](decisions/0025-curated-lines-run-to-the-structure.md)). The quiet test's "no hidden
+> tactic" half is off by default above ~1M nodes (ADR
+> [0026](decisions/0026-retire-the-tactic-gap-at-high-node-budgets.md)). Both are marked inline
+> in ADR [0021](decisions/0021-opening-repertoire-generator.md).
+
 > The **input spec** for the repertoire generator (`scripts/repertoire/`, issues #88 and #92). It
 > says *which* openings we build; the generator decides *how deep* and *which deviations* from
 > data. Rationale for building openings at all, at this point in the backlog: ADR
@@ -10,7 +30,7 @@
 > **Change them together.** Build the whole thing with
 > [`build.mjs`](../scripts/repertoire/README.md#building-the-whole-repertoire--buildmjs).
 >
-> Target player: the owner, USCF ~1400. Last updated 2026-08-06.
+> Target player: the owner, USCF ~1355. Last updated 2026-08-06.
 
 ## The shape of the thing
 
@@ -173,7 +193,10 @@ to play; using master data to predict theirs would prepare us for opponents who 
    engine budget, and roughly a dozen defects in the pipeline that produced them.
 2. ~~Rest of the 1.d4 White repertoire.~~ Done 2026-08-06 (#92).
 3. ~~Caro-Kann, then Slav.~~ Done 2026-08-06 (#92).
-4. **1.e4 as White** — the next cut, and deliberately not part of v1. One first move at a time.
+4. ~~**1.e4 as White** — the next cut, and deliberately not part of v1. One first move at a
+   time.~~ Done 2026-08-07 (#97, ADR
+   [0023](decisions/0023-second-white-repertoire-1-e4.md)) — as a **separate** deck with its
+   own manifest, not folded into the 1.d4 file.
 
 Also not covered, and worth stating rather than discovering across the board: **irregular White
 first moves** (1.b3, 1.f4, 1.g3, 1.Nc3) have no Black branch. They are rare enough at this band
@@ -191,10 +214,13 @@ said we would have. `build.mjs` counts, per branch and in total:
 - **quiet targets** — terminal positions that pose a judgment. The items actually worth
   training, and the reason this is a repertoire rather than a deck.
 
-**v1, built 2026-08-06: 25 branches, 361 positions, `ourDecisions` = 132, answering 213 replies,
-with 136 quiet positions to train.** Full numbers in
-[`repertoire/summary.json`](../repertoire/summary.json); the built repertoire is
-[`repertoire/`](../repertoire/README.md).
+**v1, first measured 2026-08-06: 25 branches, 361 positions, `ourDecisions` = 132, answering 213
+replies, with 136 quiet positions to train.** That reading predates the same week's depth and
+transposition amendments to ADR [0022](decisions/0022-repertoire-branch-ownership.md); v1 as
+finally shipped is **551 decisions and 266 quiet targets** across both White decks and Black.
+Full numbers in [`repertoire/v1/summary.json`](../repertoire/v1/summary.json) and
+[`summary-e4.json`](../repertoire/v1/summary-e4.json); v2's are in
+[`repertoire/v2/`](../repertoire/v2/README.md).
 
 Read `ourDecisions` first: if it ever climbs past what one person can hold, the answer is to cut
 branches from this file, not to crawl shallower. A shallower crawl buys the same repertoire with
