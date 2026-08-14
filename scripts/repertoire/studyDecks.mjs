@@ -169,6 +169,20 @@ export function mergeByRoot(text, headers) {
   return out.join('\n')
 }
 
+/**
+ * Names for `count` tiers, last one always `complete`.
+ *
+ * Keyed on how many there are rather than fixed, because the names are what
+ * appears in a filename you pick at drilling time and a two-tier split labelled
+ * `core` / `standard` would leave the *complete* repertoire called "standard".
+ */
+export function tierNames(count) {
+  if (count <= 1) return ['complete']
+  if (count === 2) return ['standard', 'complete']
+  if (count === 3) return ['core', 'standard', 'complete']
+  return [...Array(count - 1).keys()].map((i) => `tier${i + 1}`).concat('complete')
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2), ['pgn', 'index', 'book', 'sizes', 'out'])
   const pgnPaths = (stringFlag(args, 'pgn') ?? '').split(',').filter(Boolean).map((p) => p.trim())
@@ -184,7 +198,7 @@ async function main() {
 
   const ranked = await studyOrder({ pgnPaths, db, band })
   const tier = assignTiers(ranked, sizes)
-  const names = ['core', 'standard', 'complete']
+  const names = tierNames(sizes.length + 1)
 
   mkdirSync(outDir, { recursive: true })
   process.stdout.write(`\n${ranked.length} decisions across ${pgnPaths.length} file(s)\n\n`)

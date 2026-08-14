@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assignTiers, mergeByRoot, mergeGames, prunePgn } from './studyDecks.mjs'
+import { assignTiers, mergeByRoot, mergeGames, prunePgn, tierNames } from './studyDecks.mjs'
 import { parsePgn } from 'chessops/pgn'
 import { walkRepertoire } from './readRepertoirePgn.mjs'
 
@@ -166,5 +166,23 @@ describe('mergeByRoot', () => {
       '[Event "b"]\n[Orientation "white"]\n[Result "*"]\n\n1. d4 Nf6 2. c4 g6 *\n'
     const lines = [...walkRepertoire(mergeByRoot(text, headers))].map((n) => n.line.join(' '))
     for (const want of ['d4 d5 c4 e6', 'd4 Nf6 c4 g6']) expect(lines).toContain(want)
+  })
+})
+
+describe('tierNames', () => {
+  it('always ends at complete, so the whole repertoire is never called something else', () => {
+    for (const n of [1, 2, 3, 5]) expect(tierNames(n).at(-1)).toBe('complete')
+  })
+
+  it('drops the core label when there are only two tiers', () => {
+    // Labelling a two-way split core/standard would leave the *complete*
+    // repertoire named "standard" — the names are what you pick at drilling
+    // time, so they have to mean what they say.
+    expect(tierNames(2)).toEqual(['standard', 'complete'])
+    expect(tierNames(3)).toEqual(['core', 'standard', 'complete'])
+  })
+
+  it('gives one name per tier', () => {
+    for (const n of [1, 2, 3, 4, 6]) expect(tierNames(n)).toHaveLength(n)
   })
 })
