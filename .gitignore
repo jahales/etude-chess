@@ -65,6 +65,14 @@ scratch/
 !/repertoire/v1/*.pgn
 !/repertoire/v2/*.pgn
 
+# ...and the PGN import fixture (#53). A few KB of public-domain game *scores*,
+# which are facts and not a corpus (ADR 0018), deliberately built to exercise the
+# filters: one classical game, one blitz, one stub, one line of junk. Without this
+# line the global *.pgn rule swallows it silently, `e2e/pgn-import.spec.ts` skips
+# itself for a missing fixture, and the import path goes unverified behind a green
+# check — the same failure mode as the ECO table and the repertoire decks above.
+!/e2e/fixtures/*.pgn
+
 # Downloaded game databases (Lumbra's Gigabase, Caissabase, Lichess dumps…).
 # Third-party data: never committed, always re-downloadable, and CC BY-NC-SA in
 # Lumbra's case. 89 GB as of 2026-08-14 — this comment previously said

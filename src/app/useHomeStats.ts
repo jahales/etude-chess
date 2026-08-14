@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { countAttempts, countGames, listGames, type StoredGame } from '../persist/db'
+import { countDbGames } from '../persist/dbGames'
 import { accuracyReport } from './gameAnalysis'
 
 /**
@@ -13,9 +14,11 @@ export interface HomeStats {
   lastAccuracy?: number
   /** Committed guesses across all study sessions. */
   decisions: number
+  /** Games in the attached PGN database, if one has been attached (#53). */
+  dbGames: number
 }
 
-const EMPTY: HomeStats = { gamesPlayed: 0, decisions: 0 }
+const EMPTY: HomeStats = { gamesPlayed: 0, decisions: 0, dbGames: 0 }
 
 /**
  * How many recent games to scan for the last *graded* accuracy. Ungraded games
@@ -41,13 +44,14 @@ export function useHomeStats(reloadKey: unknown = 0): HomeStats {
       // The count comes from the index and the accuracy from a handful of rows.
       // Loading every game to derive two numbers would deserialize each one's
       // whole coachLog and evalByPly — hundreds of KB, on every visit Home.
-      const [gamesPlayed, recent, decisions] = await Promise.all([
+      const [gamesPlayed, recent, decisions, dbGames] = await Promise.all([
         countGames(),
         listGames(RECENT_SCAN),
         countAttempts(),
+        countDbGames(),
       ])
       if (cancelled) return
-      setStats({ gamesPlayed, lastAccuracy: lastAccuracyOf(recent), decisions })
+      setStats({ gamesPlayed, lastAccuracy: lastAccuracyOf(recent), decisions, dbGames })
     })()
     return () => {
       cancelled = true

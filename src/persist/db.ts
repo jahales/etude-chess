@@ -1,6 +1,9 @@
 import Dexie, { type Table } from 'dexie'
 import type { Attempt } from '../domain/session'
 import type { CoachEntry, PositionEval } from '../domain/gameRecord'
+// Type-only, so this stays a one-way runtime dependency: dbGames.ts imports
+// `getDb` from here, and nothing here imports it back.
+import type { DbGame, DbSource } from './dbGames'
 import { ensurePersistence } from './storage'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
@@ -58,19 +61,40 @@ export function gameKind(g: StoredGame): StoredGameKind {
   return g.kind ?? 'game'
 }
 
-class EtudeDb extends Dexie {
+export class EtudeDb extends Dexie {
   attempts!: Table<StoredAttempt, number>
   games!: Table<StoredGame, number>
+  // v0.3 (#53): an attached PGN database, kept deliberately apart from `games`
+  // above. Those are games *you played* and carry the coach's verdicts; these
+  // are games you *imported* and carry someone else's annotations. Declared
+  // here because the schema for the whole database lives in one place.
+  dbGames!: Table<DbGame, string>
+  dbSources!: Table<DbSource, string>
   constructor() {
     super('etude-chess')
     this.version(1).stores({ attempts: '++id, gameId, sessionId, tier, createdAt' })
     this.version(2).stores({ games: '++id, gameId, outcome, level, createdAt' })
+    // `key` is the primary key — the dedup key of docs/v0.3.0-plan.md §9 — so a
+    // re-import overwrites rather than duplicates. The rest are the filters item
+    // 10 will query on; adding one later is a version bump, not a rewrite.
+    // Fields are documented on `DbGame` in dbGames.ts.
+    this.version(3).stores({
+      dbGames: 'key, white, black, year, eco, result, speed, minElo, source, [white+year], [black+year]',
+      dbSources: 'name, importedAt',
+    })
   }
 }
 
 let db: EtudeDb | null | undefined
 
-function getDb(): EtudeDb | null {
+/**
+ * The one Dexie connection, or `null` where IndexedDB isn't available.
+ *
+ * Exported for the rest of `persist/` — `dbGames.ts` is a second adapter over
+ * the same database, and two connections to one IndexedDB is a way to get two
+ * schemas. Nothing outside this directory should call it.
+ */
+export function getDb(): EtudeDb | null {
   if (db !== undefined) return db
   if (typeof indexedDB === 'undefined') {
     db = null

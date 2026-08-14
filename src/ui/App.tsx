@@ -12,6 +12,7 @@ import type { MaiaLevel } from '../engine/maia/opponent'
 import { useAnalyser } from '../app/useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
 import { Library, Replay } from './Library'
+import { GameDatabase } from './Database'
 import {
   STRENGTH_PRESETS,
   MULTIPV_OPTIONS,
@@ -43,7 +44,15 @@ const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '
 // Home is a chooser; each mode gets a focused setup screen before it starts
 // (docs/v0.3.0-plan.md §2). Screens are a flat union rather than nested state
 // because there is no back-stack to model — everything returns to Home.
-type Mode = 'home' | 'maia-setup' | 'maia' | 'guess-pick' | 'guess' | 'library' | 'replay'
+type Mode =
+  | 'home'
+  | 'maia-setup'
+  | 'maia'
+  | 'guess-pick'
+  | 'guess'
+  | 'library'
+  | 'replay'
+  | 'database'
 
 /** Analysis settings configure guess-mode grading, so the gear only belongs there. */
 const SETTINGS_MODES: Mode[] = ['guess-pick', 'guess']
@@ -96,9 +105,10 @@ export function App() {
   }
 
   const showSettingsGear = SETTINGS_MODES.includes(mode)
-  // Replay analyses on request, so it counts; home/library/setup never touch an engine
-  // and shouldn't report one as loading.
-  const showEnginePill = mode !== 'home' && mode !== 'library' && !mode.endsWith('-setup')
+  // Replay analyses on request, so it counts; home/library/database/setup never touch
+  // an engine and shouldn't report one as loading.
+  const showEnginePill =
+    mode !== 'home' && mode !== 'library' && mode !== 'database' && !mode.endsWith('-setup')
   const enginePill =
     mode === 'maia'
       ? play.maiaError
@@ -156,6 +166,7 @@ export function App() {
             onPlay={() => setMode('maia-setup')}
             onStudy={() => setMode('guess-pick')}
             onLibrary={() => setMode('library')}
+            onDatabase={() => setMode('database')}
           />
         )}
         {mode === 'maia-setup' && (
@@ -204,6 +215,11 @@ export function App() {
         {mode === 'library' && (
           <Screen title="Your games" onBack={goHome}>
             <Library onOpen={(g) => openReplay(g)} onPlay={() => setMode('maia-setup')} />
+          </Screen>
+        )}
+        {mode === 'database' && (
+          <Screen title="Your game database" onBack={goHome}>
+            <GameDatabase />
           </Screen>
         )}
         {mode === 'replay' && replaying && (
@@ -274,11 +290,13 @@ function Home({
   onPlay,
   onStudy,
   onLibrary,
+  onDatabase,
 }: {
   stats: HomeStats
   onPlay: () => void
   onStudy: () => void
   onLibrary: () => void
+  onDatabase: () => void
 }) {
   return (
     <section className="home">
@@ -306,6 +324,15 @@ function Home({
           cta="Browse your games"
           stat={stats.gamesPlayed > 0 ? `${stats.gamesPlayed} saved` : undefined}
           onClick={onLibrary}
+        />
+        <ModeCard
+          title="Your game database"
+          pitch="Attach a PGN file of your own. It is parsed and indexed on this device — we ship no database of someone else's games."
+          cta="Attach a PGN file"
+          stat={
+            stats.dbGames > 0 ? `${stats.dbGames.toLocaleString()} games attached` : undefined
+          }
+          onClick={onDatabase}
         />
       </ul>
     </section>

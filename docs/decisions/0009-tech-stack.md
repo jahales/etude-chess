@@ -26,7 +26,10 @@ Build v0.1.0 as a **client-side browser app, no backend**, so "runs on my laptop
   (private, relicense, monetize, or open-source). Going permissive→GPL later is trivial;
   GPL→permissive is impossible without ripping components out.
 - Therefore **avoid** the GPL Lichess ecosystem for UI (chessground, chessops) and the
-  **CC-BY-NC** / GPL Lichess piece sets.
+  **CC-BY-NC** / GPL Lichess piece sets. *(The chessops half of this is amended by ADR
+  [0028](0028-chessops-for-streaming-pgn.md): its streaming PGN parser is admitted to the app
+  for PGN import, because nothing permissive can read a file bigger than memory. chessground
+  and the piece sets stand.)*
 - **Stockfish is GPL-3 and actively enforced** (ChessBase suit/settlement). Keep it
   **arm's-length in a Web Worker** (UCI/postMessage only, no in-process linking) so our bundle
   is not a combined work; comply by shipping Stockfish's license text + a link to the exact

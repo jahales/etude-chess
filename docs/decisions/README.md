@@ -35,5 +35,6 @@ Status values: **Accepted** · **Proposed** · **Superseded** · **Deferred**.
 | [0025](0025-curated-lines-run-to-the-structure.md) | Curated lines run to the structure, not to the first quiet position | Accepted (amends 0021) |
 | [0026](0026-retire-the-tactic-gap-at-high-node-budgets.md) | The tactic-gap filter is off by default, and why that is not a repeal | Accepted (amends 0021) |
 | [0027](0027-blunder-rate-as-the-leading-indicator.md) | Blunder rate per game: a stated figure with its sample, not a dashboard | Accepted |
+| [0028](0028-chessops-for-streaming-pgn.md) | chessops (GPL) enters the app, for streaming PGN only | Accepted (amends 0009) |
 
 > These are provisional. This is an exploratory project; expect amendments.

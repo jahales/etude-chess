@@ -142,6 +142,40 @@ extension reads as an untidiness someone will otherwise tidy away.
 `openings.ts` (longest-prefix opening detection; not a full ECO database). Consumed by `app` and
 `ui`. Note that the layering test does not police this directory — keep it data-shaped.
 
+`pgnImport.ts` is the exception to "data-shaped": it is the **streaming reader** for an attached
+PGN database (#53), and the only module in `src/` that imports **chessops** (GPL — ADR
+[0028](decisions/0028-chessops-for-streaming-pgn.md)). It exists because a user's database can
+be larger than memory, so the file is consumed through `stream()` and never `text()`, games are
+handed on in batches, and each batch is **awaited** before reading continues. Its test asserts
+all three — including that a game is delivered before the last chunk is pulled — because a
+refactor that reintroduced the whole-file read would otherwise pass every other test in the repo.
+
+### PGN import — `domain/pgnImport.ts` + `content/pgnImport.ts` + `app/pgnImportWorker.ts`
+We ship **no** corpus; the user attaches their own file and it is parsed, filtered and indexed
+locally (ADR [0018](decisions/0018-games-corpus-and-annotations.md), plan §9). The split is the
+usual one: `domain/pgnImport.ts` holds the pure rules — normalising a parse tree to our own
+`ImportedGame`, the derived `GameFacts`, the ingest filters and the dedup key — and declares the
+parse tree it consumes **structurally**, so the domain has no chessops in it at all.
+
+Three things about this that are easy to get wrong on a later edit:
+
+- **Nothing replays a move.** Movetext is stored as *text*. One byte per move is 5× smaller but
+  needs legal-move generation at every ply — ~12 games/sec, over two hours for a 100k-game
+  import. CPU is the binding constraint, not storage ([spike](spikes/games-corpus.md) §5). The
+  byte encoding stays a documented escape hatch.
+- **Unknown is never a guess.** A game whose time control or rating the file doesn't state is
+  kept and marked unknown; a filter may only reject on what the file actually says (ADR 0018 §4).
+- **A malformed game is skipped with a reason, never fatal.** chessops' budget guard is terminal
+  once it fires, so the driver feeds the parser *line at a time* and replaces it on error — a
+  whole-chunk feed would cost every game after a pathological one.
+
+`app/pgnImportWorker.ts` runs the parse and filter off the main thread and hands back batches;
+`app/usePgnImport.ts` writes them via `persist/dbGames.ts` and **acknowledges each batch after
+it is stored**, which is what stops the parser buffering a whole database ahead of the writer.
+`navigator.storage.persist()` is asked for from the hook rather than the worker: it is a window
+API, and being refused is reported rather than assumed. `ui/Database.tsx` is the screen.
+Browsing and searching what has been attached is #54 and lands separately.
+
 ### Application — `src/app/**`
 Orchestration: **pure reducers/derivations** plus the hooks that bind them to async work.
 
@@ -215,11 +249,21 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
   than replaces — the play session and the analysis pass write from separate snapshots, so a full
   `put` had each silently reverting the other's fields (#82). `saveAnalysis` re-reads inside the
   transaction and writes only its own fields.
+- `src/persist/dbGames.ts` — the **attached PGN database** (#53): a `dbGames` table kept
+  deliberately apart from the played-`games` table above, plus `dbSources` for what has been
+  attached. The **dedup key is the primary key**, so re-importing a file overwrites row for row
+  instead of doubling the database — which is what makes re-attaching after an eviction free
+  rather than a merge problem. Writes are chunked (`BULK_CHUNK`, 500/tx) and, unlike the rest of
+  persistence, a failed *write* is **reported**: an import that hits the quota at 40k of 100k
+  games has to say so. Reads still degrade quietly. The schema lives in db.ts with every other
+  table (version 3); the indexes declared there are the ones #54 will query.
 
 ### UI — `src/ui/**`
 React adapter. `App.tsx` routes `home | maia-setup | maia | guess-pick | guess | library |
-replay` — Home is a card chooser, each mode gets a focused setup screen (`Screen` supplies the
-title + back). `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
+replay | database` — Home is a card chooser, each mode gets a focused setup screen (`Screen`
+supplies the title + back). `Database.tsx` is the attach-a-PGN screen (#53): filters shown
+*before* the import runs, per-reason skip counts after it, what is attached, and the note that an
+import is never the only copy. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
 material strip and engine lines; `Library.tsx` is the stored-game table **and** the replay
 screen — replay reads stored data by default but can drive the engine on request (one position,
 or the whole-game pass). It also renders the **blunder rate** (#65) above the table, with its
