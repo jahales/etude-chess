@@ -658,10 +658,15 @@ function parseArgs(argv) {
 const HELP = `
 Build a local opening book from the Lichess database dumps (issue #88).
 
-  node scripts/repertoire/buildBook.mjs --month 2024-01 --out out/book.json \\
-       --ratings 1600-2000 --speeds blitz,rapid --max-games 400000
+The command the shipped band book was built with — 1300–1800, ply 20, 8M games:
 
-  --month     2024-01           which monthly dump to stream       (required unless --file)
+  node scripts/repertoire/buildBook.mjs --month 2026-07 --out db/book-band-2026-07.json \\
+       --ratings 1300-1800 --speeds blitz,rapid --max-ply 20 --max-games 8000000
+
+None of those are the defaults below; the defaults are what this script does
+when you say nothing, not what the repertoire was built from.
+
+  --month     2026-07           which monthly dump to stream       (required unless --file)
   --file      games.pgn         a local file instead: .pgn, .pgn.gz or .pgn.zst
                                 (format is sniffed, not taken from the name).
                                 This is the route for a PGN exported from En
@@ -669,12 +674,12 @@ Build a local opening book from the Lichess database dumps (issue #88).
                                 match that database's strength.
   --out       out/book.json     where to write                     (required)
   --ratings   1600-2000         both players must fall in this band
-  --speeds    blitz,rapid       time controls to include
+  --speeds    blitz,rapid       time controls  (default: blitz,rapid,classical)
   --max-ply   16                plies recorded per game
   --max-games 200000            stop (and abort the download) after this many
   --min-games 5                 drop moves seen fewer times than this
---one-pass              skip the counting pass (uses far more memory)
---filter-bits 26        counting-table width; memory is 2^bits bytes
+  --one-pass                    skip the counting pass (uses far more memory)
+  --filter-bits 26              counting-table width; memory is 2^bits bytes
   --cache     db/cache          keep downloaded dump bytes here and reuse them
                                 next run (only what --max-games actually reads)
   --no-cache                    stream without keeping anything on disk

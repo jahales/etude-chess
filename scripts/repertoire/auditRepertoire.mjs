@@ -35,7 +35,7 @@ import { winPercent } from '../../src/domain/winPercent.ts'
 import { createEvalDb } from './evalDb.mjs'
 import { MIN_INDEX_DEPTH } from './soundness.mjs'
 import { ourDecisions } from './readRepertoirePgn.mjs'
-import { parseArgs, stringFlag } from './build.mjs'
+import { parseArgs, stringFlag } from './args.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')

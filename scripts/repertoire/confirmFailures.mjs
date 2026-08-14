@@ -20,7 +20,7 @@ import { SOUNDNESS_MAX_SWING } from '../../src/domain/repertoire.ts'
 import { tierForSwing } from '../../src/domain/grade.ts'
 import { winPercent } from '../../src/domain/winPercent.ts'
 import { createEngine } from './engine.mjs'
-import { parseArgs, numberFlag, stringFlag } from './build.mjs'
+import { parseArgs, numberFlag, stringFlag } from './args.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')

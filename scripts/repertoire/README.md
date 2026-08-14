@@ -385,9 +385,11 @@ unknown flag is now a hard error rather than a silent default. That rejection is
 dropped `--trap 0.01` ran a whole build at the default, found nothing, and reported success.
 `--trap` and friends take a value for the same reason — `parseArgs` marks a bare flag `true`,
 `Number(true)` is 1, and `--trap --nodes 120000` once ran the build at a trap threshold of 1.
-Both hardenings — `numberFlag` and the unknown-flag rejection — are **`build.mjs`'s alone**;
-`crawl.mjs` has neither, which is [#115](https://github.com/jahales/etude-chess/issues/115) and
-is spelled out under its options below.
+Both hardenings — `numberFlag` and the unknown-flag rejection — were **`build.mjs`'s alone**
+until [#115](https://github.com/jahales/etude-chess/issues/115); they now live in
+[`args.mjs`](args.mjs) and every entry point uses them, `crawl.mjs` included. Each script keeps
+its own list of known flags and passes it in, and a test asserts that list matches what its own
+`--help` prints, in both directions.
 
 ### Why a manifest rather than a shell loop
 
@@ -574,18 +576,26 @@ blitz/rapid band, against a USCF of roughly 1355. It was 1500–1900 in v1, whic
 and prepared for opponents who do not turn up — the club traps that matter (Englund, Wayward
 Queen, Fried Liver) have largely died out by 1800.
 
-Unlike `build.mjs`, this script **ignores flags it does not recognise** rather than rejecting
-them, so a typo here fails silently. It never adopted `numberFlag` either, so a bare `--trap`
-arrives as `Number(true)` = **1** and the run finds nothing — the same failure this file
-describes as fixed [above](#building-the-whole-repertoire--buildmjs), which it is, in `build.mjs`
-only. Both are issue [#115](https://github.com/jahales/etude-chess/issues/115).
+This script used to **ignore flags it did not recognise** while `build.mjs` rejected them, so
+`--nodez 4000000` crawled for hours at the default budget and wrote a summary indistinguishable
+from the one you wanted. It never adopted `numberFlag` either, so a bare `--trap` arrived as
+`Number(true)` = **1** — a threshold 100× the intended 0.01, which reports no traps at all.
+Both are fixed in [#115](https://github.com/jahales/etude-chess/issues/115): one parser in
+[`args.mjs`](args.mjs), one answer, and the numeric flags validated before a book is opened or
+an engine started.
 
-**Check a flag against the table above, not against `--help`.** That issue also covers the help
-text, which has drifted from the code in both scripts: `crawl.mjs`'s omits `--tactic-gap`
-entirely, though the flag is real and read at `crawl.mjs:912`, and `build.mjs`'s still says
-`--min-ply 10` with −2/−4 role offsets when the base floor is 16 and the offsets −8/−10. A flag
-missing from `--help` on a script that ignores what it does not recognise reads as a flag that
-does not exist.
+`--trap 0` still means 0, not the default — argv values arrive as strings, so `'0'` is truthy
+and passes through. There is a test on that, because it read like a bug twice.
+
+The third symptom the same fix closes: a flag the command line did **not** give is now left out
+of the options object rather than passed as `undefined`. `crawl()` merges with
+`{ ...DEFAULTS, ...config }`, and a spread overwrites with an explicit `undefined` instead of
+skipping it — so a plain `crawl.mjs --color white --out x` ran with no depth cap, no floor, no
+`--min-node-games` and no trap threshold: an unbounded crawl that terminated nothing and found
+nothing, reported as a successful one.
+
+**`--help` and the table above now agree, and a test keeps them agreeing.** Every number in
+`--help` is interpolated from the constant it describes, so neither can drift again.
 
 ## Reading the output
 

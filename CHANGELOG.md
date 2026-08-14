@@ -30,6 +30,41 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   we have not measured that this number moving means anything about your chess, and drawing it as
   something to fill in would claim exactly what §12 forbids. Over no analysed games it reports no
   rate at all, rather than a 0.00 that reads as a perfect record.
+### Tooling (off-app)
+
+Nothing here ships in the browser bundle — it is the offline repertoire pipeline under
+`scripts/repertoire/`. Closes the second half of #115; the first half (`studyOrder.mjs`
+defaulting to a superseded book) shipped in #117.
+
+- **`crawl.mjs` rejects a flag it does not know, instead of running for hours without it.**
+  It had its own argument parser that took anything, so `--nodez 4000000` crawled at the
+  default node budget and wrote a summary indistinguishable from the one you asked for —
+  while `build.mjs`, the same pipeline entered a different way, threw on the identical typo.
+  There is one parser now, in `scripts/repertoire/args.mjs`, and one answer. Every script that
+  had been importing it from `build.mjs` still gets the same function; `crawl.mjs` could not,
+  because `build.mjs` imports the crawler and reading a flag would have closed a module cycle
+  that killed `node crawl.mjs` before it parsed anything.
+- **A numeric flag with its value dropped is an error, not a 1.** `--trap` on its own became
+  `Number(true)` = 1 — a trap threshold 100× the intended 0.01, which finds nothing and looks
+  exactly like a clean run. Every numeric flag `crawl.mjs` reads now goes through the same
+  `numberFlag` `build.mjs` has had since the equivalent build ran an afternoon at a threshold
+  of 1, and they are all read before a book is opened or an engine started. `--trap 0` still
+  means 0.
+- **A flag you did not pass no longer overrides its own default.** `crawl()` merges with
+  `{ ...DEFAULTS, ...config }`, and a spread overwrites with an explicit `undefined` rather
+  than skipping it — so the crawler's CLI, which passed every option unconditionally, ran a
+  plain `crawl.mjs --color white --out x` with no depth cap, no floor, no `--min-node-games`
+  and no trap threshold. An unbounded crawl that terminated nothing and found nothing,
+  reported as a successful one.
+- **`--help` describes the code again, on both scripts.** `--tactic-gap` was parsed by
+  `crawl.mjs` and `build.mjs` and documented by neither; `build.mjs` still advertised
+  `--min-ply 10` with −2/−4 role offsets three ADRs after the base moved to 16 and the offsets
+  to −8/−10; both called the evaluation index "median depth 50" where it is 34–50; and
+  `buildBook.mjs`'s example was a band and a game count that never shipped. Every number in
+  both help texts is now interpolated from the constant it describes, and a test asserts each
+  script's `--help` and its list of known flags name exactly the same set — in both
+  directions, since a flag documented but unparsed turns a correct invocation into a hard
+  error.
 
 ## [0.3.0] — 2026-08-14
 

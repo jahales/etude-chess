@@ -50,7 +50,7 @@ import { createLocalBook } from './localBook.mjs'
 import { createSoundnessGate } from './soundness.mjs'
 import { ourDecisions } from './readRepertoirePgn.mjs'
 import { DECKS } from './auditRepertoire.mjs'
-import { parseArgs, numberFlag, stringFlag } from './build.mjs'
+import { parseArgs, numberFlag, stringFlag } from './args.mjs'
 import { Chess } from 'chess.js'
 
 const here = dirname(fileURLToPath(import.meta.url))

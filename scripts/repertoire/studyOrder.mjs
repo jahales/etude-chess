@@ -38,7 +38,7 @@ import { createEvalDb } from './evalDb.mjs'
 import { createLocalBook } from './localBook.mjs'
 import { MIN_INDEX_DEPTH } from './soundness.mjs'
 import { ourDecisions } from './readRepertoirePgn.mjs'
-import { parseArgs, numberFlag, stringFlag } from './build.mjs'
+import { parseArgs, numberFlag, stringFlag } from './args.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')
