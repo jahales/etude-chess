@@ -166,9 +166,8 @@ describe('ourDecisions', () => {
 
 describe('the shipped repertoire files', () => {
   const files = [
-    'etude-repertoire-v1-white.pgn',
-    'etude-repertoire-v1-white-e4.pgn',
-    'etude-repertoire-v1-black.pgn',
+    'v2/etude-white-complete.pgn',
+    'v2/etude-black-complete.pgn',
   ]
 
   it.each(files)('%s parses, and every move is legal', (name) => {
@@ -187,7 +186,7 @@ describe('the shipped repertoire files', () => {
   })
 
   it('finds the variations that make this file worth a real parser', () => {
-    const text = readFileSync(join(repertoireDir, 'etude-repertoire-v1-white-e4.pgn'), 'utf8')
+    const text = readFileSync(join(repertoireDir, 'v2/etude-white-complete.pgn'), 'utf8')
     const nodes = [...walkRepertoire(text)]
     // The e4 deck opens with five sibling replies to 1.e4 alone.
     const repliesToE4 = nodes.filter((n) => n.ply === 2)
