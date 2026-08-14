@@ -31,6 +31,43 @@ const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..', '..')
 
 /**
+ * Lines of traps that survived cross-month replication.
+ *
+ * `replicate.mjs` splits its findings three ways and only `confirmed` means
+ * two independent months agreed on both the finding and its magnitude. A trap
+ * seen in one month is one month's evidence, which for a statistic over noisy
+ * human data is close to none.
+ */
+export function confirmedTraps(replications) {
+  const lines = new Set()
+  for (const r of replications) for (const c of r?.confirmed ?? []) lines.add(c.line)
+  return lines
+}
+
+/**
+ * Decisions that answer a confirmed trap, with the trap line that earned them.
+ *
+ * A trap is the *opponent's* move, so it is never a decision itself and never
+ * ranks. Our refutation is the ply after it, and that is what has to be in the
+ * deck — otherwise pruning removes the whole subtree and the highest-value
+ * content in the repertoire is the part you never drill. Measured: the standard
+ * White deck contained **two** trap comments out of 282 confirmed.
+ */
+export function trapRefutations(ranked, confirmed) {
+  const pinned = new Map()
+  for (const trap of confirmed) {
+    // The shortest decision below the trap is the reply to it.
+    let best = null
+    for (const r of ranked) {
+      if (!r.line.startsWith(`${trap} `)) continue
+      if (!best || r.line.length < best.line.length) best = r
+    }
+    if (best) pinned.set(best.line, trap)
+  }
+  return pinned
+}
+
+/**
  * Assign every decision to a tier, prefix-closed.
  *
  * Greedy by value, but a decision costs its whole unadmitted ancestry: a
@@ -39,10 +76,11 @@ const repoRoot = join(here, '..', '..')
  * lines rather than a list of positions.
  *
  * @param {{line: string, value?: number, skipped?: string}[]} ranked  from studyOrder
- * @param {number[]} sizes  cumulative budgets, e.g. [150, 500]; the rest is the last tier
+ * @param {number[]} sizes  cumulative budgets; the rest is the last tier
+ * @param {Set<string>} [pin]  lines admitted to the first tier regardless of rank
  * @returns {Map<string, number>} line -> tier index
  */
-export function assignTiers(ranked, sizes) {
+export function assignTiers(ranked, sizes, pin = new Set()) {
   const byLine = new Map(ranked.map((r) => [r.line, r]))
   const tier = new Map()
 
@@ -61,8 +99,17 @@ export function assignTiers(ranked, sizes) {
   // the ones we know least about — so they go last rather than being dropped.
   const order = [...ranked].sort((a, b) => (b.value ?? -1) - (a.value ?? -1))
 
+  // Pinned lines go in first and over budget. A confirmed trap is the one thing
+  // `studyOrder` cannot rank: its value is in what the *opponent* does, so the
+  // reach × cost of our reply understates it badly — the Englund refutation is
+  // the highest-value trap in the repertoire and the owner's worst-scoring
+  // opening, and it ranked nowhere near the top.
   let current = 0
-  let used = 0
+  for (const line of pin) {
+    for (const need of closure(line)) tier.set(need, 0)
+  }
+  let used = tier.size
+
   for (const row of order) {
     if (tier.has(row.line)) continue
     const need = closure(row.line)
@@ -88,16 +135,29 @@ export function assignTiers(ranked, sizes) {
  * beneath them survives — a deck that dropped them would be a deck that answers
  * moves it never shows you.
  */
-export function prunePgn(text, keep) {
+export function prunePgn(text, keep, confirmed = null) {
   const games = []
   for (const game of parsePgn(text)) {
     const walk = (node, line) => {
       node.children = node.children.filter((child) => {
         const next = [...line, child.data.san]
         const path = next.join(' ')
-        // Keep a node if it is retained itself, or if anything under it is.
+
+        // A `trap` label has to mean *replicated*, or it means nothing: one
+        // month's data cannot tell a real trap from a coin flip, and 51 of 366
+        // did not survive a second month. The statistics stay — they are still
+        // true of the month they came from — but the word that invites you to
+        // trust them is removed.
+        if (confirmed && !confirmed.has(path)) {
+          child.data.comments = (child.data.comments ?? []).map((c) =>
+            c.includes(' trap ') ? c.replace(' trap ·', ' one month only ·') : c,
+          )
+        }
+
+        // Keep a node if it is retained itself, if a confirmed trap sits here,
+        // or if anything under it survives.
         const survives = walk(child, next)
-        return keep.has(path) || survives
+        return keep.has(path) || confirmed?.has(path) || survives
       })
       return node.children.length > 0
     }
@@ -184,7 +244,7 @@ export function tierNames(count) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2), ['pgn', 'index', 'book', 'sizes', 'out'])
+  const args = parseArgs(process.argv.slice(2), ['pgn', 'index', 'book', 'sizes', 'out', 'replicated'])
   const pgnPaths = (stringFlag(args, 'pgn') ?? '').split(',').filter(Boolean).map((p) => p.trim())
   if (!pgnPaths.length) throw new Error('--pgn is required (comma-separated repertoire PGNs)')
 
@@ -197,7 +257,22 @@ async function main() {
   })
 
   const ranked = await studyOrder({ pgnPaths, db, band })
-  const tier = assignTiers(ranked, sizes)
+
+  // Traps that survived cross-month replication are pinned into the first tier:
+  // studyOrder cannot rank them, because a trap's value lies in what the
+  // *opponent* does and our reply's reach x cost understates it badly.
+  const replicated = (stringFlag(args, 'replicated') ?? '')
+    .split(',').filter(Boolean)
+    .map((p) => JSON.parse(readFileSync(join(repoRoot, p.trim()), 'utf8')))
+  const confirmed = confirmedTraps(replicated)
+  const pinned = trapRefutations(ranked, confirmed)
+  if (confirmed.size) {
+    process.stdout.write(
+      `\n${confirmed.size} replicated trap(s) · ${pinned.size} refutation(s) pinned into the first tier\n`,
+    )
+  }
+
+  const tier = assignTiers(ranked, sizes, new Set(pinned.keys()))
   const names = tierNames(sizes.length + 1)
 
   mkdirSync(outDir, { recursive: true })
@@ -219,7 +294,7 @@ async function main() {
     const byColour = { white: [], black: [] }
     for (const path of pgnPaths) {
       const text = readFileSync(path, 'utf8')
-      const pruned = prunePgn(text, keep)
+      const pruned = prunePgn(text, keep, confirmed.size ? confirmed : null)
       if (!pruned.trim()) continue
       const colour = orientationOf([...parsePgn(text)][0]) === 'w' ? 'white' : 'black'
       byColour[colour].push(pruned)
