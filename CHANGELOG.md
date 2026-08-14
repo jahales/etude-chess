@@ -6,6 +6,18 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.3.0] — 2026-08-14
+
+**Your own games became something you can go back to.** This was scoped as a hardening cut —
+no new mode, just make what already shipped trustworthy: numbers that agree with the analysis
+printed beside them, storage that survives, long games that stay navigable, failures that say
+so. In practice it also shipped a game library, replay and whole-game analysis, which is a
+third thing to do in the app and the reason the own-game review loop now closes *here* rather
+than in the `npm run review` CLI.
+Milestone: 12 issues — #39, #46, #47, #67, #68, #74, #77, #78, #79, #80, #81, #82.
+
 ### Added
 - **Saved games ask to stay saved (#78).** The app now requests persistent storage the first
   time a game is saved, and the library states plainly whether it was granted. Browsers may
@@ -90,6 +102,79 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - A tier badge showed white-on-white when its tier class sat on the badge itself rather than
   on a parent element.
 
+### Engineering
+- **CI now runs the whole e2e suite, and fails rather than skips (#77).** Four spec files need
+  the Maia nets, which are too large to commit and so `test.skip` when absent — and in CI they
+  were always absent. Merges were gated on a green check that had never run those four, since
+  a skipped spec and a passing one are the same check mark. CI now caches and fetches the nets
+  and runs with `REQUIRE_MAIA_NETS=1`, which turns "nets missing → skip" into "nets missing →
+  fail the run", loudly and before any test. Locally nothing changes: run
+  `node scripts/setup-maia.mjs` once, or accept the skips.
+- **The failure paths are now exercised, not just handled (#80).** They were written and never
+  run, which is not the same as knowing they work. A stored game whose moves stop replaying
+  partway now has a test that it shows what it could reconstruct and says how much ("2 of 4
+  moves") instead of vanishing or claiming to be whole; a Stockfish worker that never loads
+  has one that the buttons needing it are hidden rather than dead, in replay and in guess
+  mode both; and storage that opens and *then* fails — quota exceeded, a blocked origin —
+  has five, because `db.ts` is best-effort by contract and only its "no IndexedDB at all"
+  branch had ever been tested.
+
+### Tooling (off-app)
+
+None of this ships in the browser bundle. It is the offline repertoire pipeline under
+`scripts/repertoire/`, run from the command line, and its output is committed PGNs — no UI,
+no bytes in the app. It was merged to `main` alongside the v0.3.0 work (PRs #108–#113,
+closing #106 and #102) and is recorded here because it was missing from this file entirely.
+
+- **Every prescribed move is now gated on a local index of Lichess's evaluation dump** —
+  401,283,893 positions at median depth 34–50 — instead of on the crawl's own 120,000-node
+  search (ADR [0024](docs/decisions/0024-gate-on-a-local-evaluation-index.md)). The index
+  covers 97.4% of the shipped repertoire (2,239 of 2,298 decisions, measured 2026-08-14);
+  where a position is absent or shallower than depth 25 the
+  engine still decides. Both halves of the comparison always come from the same source, since
+  a depth-50 best against a depth-15 candidate manufactures swings out of depth disagreement
+  rather than measuring anything.
+- **The audit of the shipped v1 repertoire cleared it.** Re-grading all 585 prescribed moves
+  found **6 conceding more than the 5 win% gate, all Tier B, no blunders** — the old gate held
+  up. The change is therefore not a rescue; it removes a weak basis for a decision that gets
+  baked into a repertoire and then drilled for months. The audit only re-grades moves we
+  prescribe — it cannot see candidates the shallow gate wrongly rejected.
+- **The shipped v2 decks were then audited the same way, and came back clean.** All 2,298
+  prescribed moves re-graded against the index: **none fail the 5 win% gate — zero Tier B
+  concessions, zero Tier C** (2026-08-14), against v1's six. 2,239 of them (97.4%) were found
+  in the dump; the remainder sit in lines indexed shallower than depth 25, which the gate
+  refuses rather than guesses at. The same run reports one position answered two ways, which
+  is [#114](https://github.com/jahales/etude-chess/issues/114) — the start position, answered
+  `d4` and `e4`, both deliberate and both sound.
+- **Curated lines now run to ply 16 and reach the middlegame structure** — deepest line ply 19
+  for 1.d4 + Black, ply 20 for 1.e4, against v1's deepest ply 13 (ADR
+  [0025](docs/decisions/0025-curated-lines-run-to-the-structure.md)). A Carlsbad or an IQP
+  does not exist until roughly ply 16, so v1 taught which moves to play and nothing about the
+  middlegame those moves are for.
+- **The band book grew from 367k to 8M games** (Lichess 1300–1800 blitz + rapid, ply 20),
+  against a canon book of 2.82M Lumbra OTB games. The band book answers what will actually be
+  played at you; the canon book answers what is principled.
+- **The tactic-gap filter is off by default.** At 4M nodes it changed nothing across 412
+  positions the crawler genuinely assessed — observed gaps averaging 0.45 win% against a
+  threshold of 5 (ADR
+  [0026](docs/decisions/0026-retire-the-tactic-gap-at-high-node-budgets.md)). It is a default,
+  not a repeal: `--tactic-gap` turns it back on, and at lower node budgets it may well decide
+  something again.
+- **Trap annotations are now replicated across two independent months** — June and July 2026,
+  8M games each: 98 of 149 confirmed for 1.d4 + Black (66%), 184 of 217 for 1.e4 (85%). What
+  one month could not confirm is relabelled `one month only` rather than deleted: the
+  statistics are still true of the month they came from, but the word inviting you to trust
+  them is gone. `trapValue` is a statistic over noisy human data, and one month cannot tell a
+  real trap from a coin flip.
+- **Output is staged study decks in [repertoire/v2](repertoire/v2/)** — `standard` (525
+  decisions) first, then `complete` (2,298), ranked by reach × cost-of-not-knowing and made
+  prefix-closed, so moving up never means relearning anything. Four PGNs in the repo, two
+  colours × two tiers; import one colour at a time.
+- **A variation-aware repertoire PGN reader (#102)**, because chess.js silently drops
+  variations on parse and a repertoire PGN is mostly variations — reading one back looked like
+  it had worked. Plus `studyOrder.mjs`, which ranks what to learn first: a decision where the
+  natural move is already the right one is worth nothing to study however common.
+
 ## [0.2.0] — 2026-07-18
 
 **Play vs Maia, coached on every move.** A second mode alongside guess-the-move: play a full
@@ -152,6 +237,7 @@ no-backend React app.
 - **CI** (typecheck → lint → test → build + Playwright E2E), fast `npm run verify`, ESLint.
 - ~100 unit tests + an end-to-end smoke test.
 
-[Unreleased]: https://github.com/jahales/etude-chess/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jahales/etude-chess/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jahales/etude-chess/releases/tag/v0.3.0
 [0.2.0]: https://github.com/jahales/etude-chess/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jahales/etude-chess/releases/tag/v0.1.0

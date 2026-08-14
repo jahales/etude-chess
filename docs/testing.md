@@ -6,21 +6,30 @@
 ## The layers of the test pyramid
 1. **Unit tests (Vitest)** — the bulk. Cover the **pure domain core** (`src/domain/**`) and the
    pure engine parsers (`src/engine/uci.ts`), plus orchestration behind fakes (`grading.ts` with
-   a fake `Analyser`). No browser, no real engine → the whole suite runs in **~2s**. This is
-   where TDD happens.
+   a fake `Analyser`). No browser, no real engine → these are milliseconds apiece, which is what
+   makes TDD viable here. The full `npm test` run is slower — **979 tests across 63 files, ~13s
+   wall clock** as of 2026-08-14 — because it also covers `scripts/**/*.test.mjs`, roughly half
+   the tests, several of which deliberately exercise retry and timeout paths against real
+   delays. That cost is in the scripts, not in the domain.
 2. **Content checks** — `src/content/games.test.ts` replays every pack PGN and asserts it's legal
    and produces quiz positions. The correctness net for game data.
-3. **E2E smoke (Playwright, headless)** — drives the *real* app in a real browser, including the
+3. **E2E (Playwright, headless)** — drives the *real* app in a real browser, including the
    Stockfish WASM Worker: load → start a game → play a move → commit → assert the graded reveal,
    eval bar, and engine lines. This is the only layer that exercises the Worker + board + React
-   wiring together.
+   wiring together. It is no longer one smoke spec: `e2e/` covers navigation, the guess smoke
+   flow, Maia play, the Maia probe, library + replay, whole-game analysis, a long game, and
+   degraded startup. **Four of those need the Maia nets** — see the section at the bottom
+   before adding or debugging one.
 
 ## Fail-fast local flow
 Run before every commit (cheapest checks first, so it fails fast):
 
 ```
-npm run verify        # tsc --noEmit → eslint . → vitest run   (~4s)
+npm run verify        # tsc --noEmit → eslint . → vitest run
 ```
+
+No wall-clock figure here on purpose: the `vitest run` leg alone is the ~13s above, and
+typecheck and lint sit on top of it.
 
 `npm run build` and the Playwright E2E run in CI (and locally when touching the engine/UI).
 CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build on every PR and push to main.
