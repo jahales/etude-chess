@@ -1319,3 +1319,92 @@ button {
   line-height: 1.45;
   color: var(--ink-faint);
 }
+
+/* ---------- Attach your own game database (#53) ---------- */
+
+.import-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: flex-end;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.import-filters legend {
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.import-filters label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+.import-filters input[type='number'] {
+  width: 7rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.import-filters label.check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.import-filters .settings-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.import-filters:disabled {
+  opacity: 0.55;
+}
+
+.drop-zone {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.drop-hint {
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+/* The input is visually hidden but still focusable, so the label it drives has to
+   show the focus ring — otherwise keyboard users reach an invisible control. */
+.drop-zone input[type='file']:focus-visible + label {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.import-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+.import-progress-label {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+}
+.import-summary {
+  margin-top: 0.9rem;
+}
+.import-summary .table-note {
+  margin-top: 0.4rem;
+}
+
+.section-title {
+  margin: 1.6rem 0 0.5rem;
+  font-size: 1rem;
+}

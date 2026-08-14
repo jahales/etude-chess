@@ -7,6 +7,32 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Attach your own game database (#53).** A new Home card takes a PGN file you already have,
+  parses it and indexes it on this device. Nothing is uploaded and nothing is redistributed —
+  which is the point: étude ships no corpus, so the licensing question that hangs over every
+  bundled games database never arises (ADR 0018). Large files are read as a **stream**, so a
+  few hundred megabytes is a progress bar rather than a frozen tab, and the parsing runs in a
+  Web Worker so the rest of the app stays responsive while it works.
+  - **The filters are shown before the import runs, not explained after it.** Defaults aim at
+    strong, standard time controls: no blitz, rapid or bullet, at least ten moves, both players
+    rated 2200 or better. Every one of them is editable, and the summary says exactly how many
+    games each rejected — "3,412 skipped: 2,900 blitz, rapid or bullet · 512 too short" beats a
+    number that appeared from nowhere.
+  - **A game whose rating or time control the file doesn't state is kept and marked unknown.**
+    Guessing one in order to filter on it would silently drop games on the strength of an
+    invention.
+  - **A game we can't read is skipped with a reason, never fatal.** A malformed record, a
+    header-only stanza or a line of junk in the middle of a file costs that game and nothing
+    else; the games after it still import.
+  - **Re-attaching the same file updates it instead of duplicating it.** Games are keyed on
+    players, date, result and opening, so importing twice is a no-op rather than a mess. This
+    matters more than it sounds: browsers evict script-written storage — Safari after about a
+    week without a visit — so the app asks for persistent storage the moment you attach a
+    database, says whether it was granted, and tells you to keep the PGN file either way. An
+    import is never the only copy of anything.
+  - Annotations that came with the file (`{...}` comments and NAGs) are kept rather than
+    stripped: it's your own copy, and showing them locally is personal use.
+  - Browsing and searching what you've attached, and studying a game from it, are #54 and #55.
 - **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
   instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
   why: rated game rating is the only real metric and it moves in months, puzzle rating moves in
@@ -30,6 +56,15 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   we have not measured that this number moving means anything about your chess, and drawing it as
   something to fill in would claim exactly what §12 forbids. Over no analysed games it reports no
   rate at all, rather than a 0.00 that reads as a perfect record.
+
+### Changed
+- Home gained a fourth card, **Your game database**, with a live count of the games attached.
+- **chessops joins the app for PGN parsing only** (ADR 0028, amending ADR 0009). It is GPL, and
+  ADR 0009 set out to avoid it — but it ships the only JavaScript PGN parser that doesn't need
+  the whole file in memory, and the project is AGPL, so the "keep our options open" argument
+  that clause rested on was already spent. It is confined to one module, and the rules it feeds
+  don't know it exists.
+
 ### Tooling (off-app)
 
 Nothing here ships in the browser bundle — it is the offline repertoire pipeline under
