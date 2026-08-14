@@ -4,11 +4,11 @@ Six files, of which **two are ever in use**. Import the pair for the tier you ar
 on, one per colour, into En Croissant (Files → Add New → from PGN) and point the
 repertoire trainer at whichever side you are drilling.
 
-| file | decisions |
-|---|---|
-| `etude-white-core.pgn` · `etude-black-core.pgn` | **150** — start here |
-| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 500 |
-| `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2,299 |
+| file | games | decisions |
+|---|---|---|
+| `etude-white-core.pgn` · `etude-black-core.pgn` | 2 · 6 | **150** — start here |
+| `etude-white-standard.pgn` · `etude-black-standard.pgn` | 2 · 6 | 500 |
+| `etude-white-complete.pgn` · `etude-black-complete.pgn` | 2 · 8 | 2,299 |
 
 **Import the two colours separately.** En Croissant trains from one side's point
 of view, so a file holding both is importable as neither — it would drill you as
@@ -19,9 +19,15 @@ anything. When you do move up, remove the previous tier's import first: keeping
 both means every core line is drilled twice and the scheduler treats them as
 separate items.
 
-White holds **both** first moves. 1.d4 and 1.e4 are alternatives at the board,
-not separate things to drill, so they live in one file — whether to play both is
-a repertoire decision rather than a drilling one.
+White holds **both** first moves as two games — 1.d4 and 1.e4 are alternatives
+at the board, so they sit in one file and you drill whichever you play. Black is
+six games because its roots are *White's* first moves, which really are separate
+entry points.
+
+Every manifest branch is grafted into these, rather than shipping one game per
+branch: the core White deck was otherwise 26 games for 144 decisions, seventeen
+of them five moves or fewer. A branch is the unit the *build* needs — it is what
+makes branch ownership work — and the wrong unit for drilling.
 
 ## How the tiers were chosen
 
