@@ -6,6 +6,7 @@ import {
   studySides,
   studyPgn,
   studyTitle,
+  yourSide,
   type DatabaseGame,
 } from './studyGame'
 import { parseGame } from './harness'
@@ -90,6 +91,65 @@ describe('whose side you take', () => {
     expect(studySides('1/2-1/2')).toEqual(['w', 'b'])
     expect(studySides('*')).toEqual(['w', 'b'])
     expect(studySides('')).toEqual(['w', 'b'])
+  })
+
+  it('puts your own side first, and still offers the other one', () => {
+    expect(studySides('1-0', 'b')).toEqual(['b', 'w'])
+    expect(studySides('0-1', 'w')).toEqual(['w', 'b'])
+    expect(studySides('1/2-1/2', 'b')).toEqual(['b', 'w'])
+  })
+
+  it('keeps the winner rule for a game nobody claimed', () => {
+    // A name that matched nothing has to leave the curated behaviour exactly as
+    // it was — this is an added case, not a replaced rule.
+    expect(studySides('1-0', null)).toEqual(['w'])
+    expect(studySides('1/2-1/2', null)).toEqual(['w', 'b'])
+  })
+})
+
+describe('recognising a game you played', () => {
+  it('matches a name on either side, ignoring case', () => {
+    expect(yourSide(row(), ['paul MORPHY'])).toBe('w')
+    expect(yourSide(row(), ['duke karl / count isouard'])).toBe('b')
+  })
+
+  it('takes a list, because your handle is not the name on a PGN you exported by hand', () => {
+    const online = row({ white: 'quiet_etude' })
+    const otb = row({ white: 'Hales, Jacob' })
+    const names = ['quiet_etude', 'Hales, Jacob']
+    expect(yourSide(online, names)).toBe('w')
+    expect(yourSide(otb, names)).toBe('w')
+  })
+
+  it('sees through the spacing a hand-edited tag picks up', () => {
+    expect(yourSide(row({ black: '  Duke  Karl / Count Isouard ' }), ['duke karl / count isouard'])).toBe('b')
+  })
+
+  it('matches a whole name rather than part of one', () => {
+    // A substring rule would hand you Morphy's side of every game he played
+    // against a Morphy-something, and a two-letter name would claim the database.
+    expect(yourSide(row(), ['Morphy'])).toBeNull()
+    expect(yourSide(row(), ['a'])).toBeNull()
+  })
+
+  it('claims nothing when you have recorded no names, and nothing for a blank one', () => {
+    // The blank case is the dangerous one: a name of "" against a row whose
+    // White tag the file never filled in would claim a stranger's game as yours.
+    expect(yourSide(row(), [])).toBeNull()
+    expect(yourSide(row({ white: '' }), ['   '])).toBeNull()
+  })
+
+  it('takes neither side of a game you played against yourself', () => {
+    // Both sides are yours, so neither is *the* one — which puts the game back
+    // under the ordinary rule instead of guessing.
+    expect(yourSide(row({ white: 'quiet_etude', black: 'Quiet_Etude' }), ['quiet_etude'])).toBeNull()
+  })
+
+  it('offers your side of a game you lost, which is the one the winner rule hid', () => {
+    // The whole point of #130: before this, importing a loss quizzed you as the
+    // player who beat you.
+    const lost = row({ white: 'quiet_etude', result: '0-1' })
+    expect(studySides(lost.result, yourSide(lost, ['quiet_etude']))).toEqual(['w', 'b'])
   })
 })
 

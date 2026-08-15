@@ -18,6 +18,11 @@
  *   winner's, and every pack game is decisive. A database is full of draws and
  *   of games whose file recorded no result, so `studySides` offers both sides
  *   rather than falling back to White — see the note on it.
+ * - **Your own game inverts the winner rule.** The side worth taking in curated
+ *   content is the winner's; in a game you played it is yours, including — and
+ *   especially — the ones you lost, which are the games most worth reviewing.
+ *   `yourSide` matches the names you play under against the row's players, and
+ *   `studySides` puts that side first (#130).
  * - **Annotations belong to whoever wrote them.** The file's comments travel
  *   with the name of the file, in one value, so a reveal cannot show someone
  *   else's prose without saying whose it is (constitution §9, §12).
@@ -172,6 +177,38 @@ export function studyPgn(game: DatabaseGame): string {
 
 // ---------- whose side ----------
 
+/** A name as it compares: case, surrounding space and doubled space don't count. */
+const sameName = (a: string): string => a.trim().replace(/\s+/g, ' ').toLowerCase()
+
+/**
+ * The side you played, if one of your names is on the game (#130).
+ *
+ * A list rather than a field, because the name on a game is whatever the file
+ * that recorded it wrote down: a site exports your handle, a game you exported
+ * by hand carries "Lastname, Firstname", and a club's file may carry a third
+ * spelling. Comparison is case-insensitive and whole-name — a substring rule
+ * would hand you the wrong side of every game against someone whose name
+ * contains yours, and a short name would claim the database.
+ *
+ * `null` means "not yours, as far as anything recorded here knows": no names
+ * given, no match, or **both** sides matched, which is a game you played against
+ * yourself and has no side that is more yours than the other.
+ */
+export function yourSide(game: DatabaseGame, names: readonly string[]): Color | null {
+  const mine = names.map(sameName).filter(Boolean)
+  if (mine.length === 0) return null
+  // A blank tag must not match a blank name: the file simply didn't say who
+  // played, and claiming it as yours would take a stranger's game.
+  const isMine = (player: string): boolean => {
+    const name = sameName(player)
+    return name.length > 0 && mine.includes(name)
+  }
+  const white = isMine(game.white)
+  const black = isMine(game.black)
+  if (white === black) return null
+  return white ? 'w' : 'b'
+}
+
 /**
  * The sides a game can be studied from, most obvious first.
  *
@@ -182,8 +219,18 @@ export function studyPgn(game: DatabaseGame): string {
  * The alternative is the fallback the pack can afford and a database cannot:
  * defaulting to White would quietly quiz you as White for every drawn game in
  * the file, and in a strong database that is most of them.
+ *
+ * **A game you played is the case that rule gets backwards** (#130). Both of the
+ * above are about content someone else made, where the winner is the player
+ * worth imitating. In your own game you are the player being trained, so `yours`
+ * — from `yourSide` — comes first and the other side is still offered. Nothing
+ * is being conceded about grading: `planStudy` grades against the engine, not
+ * against the move played (`engine/grading.ts`), so the losing side of your own
+ * game is a session about your decisions rather than a re-run of them, and a
+ * better move than the one you found is still Tier A.
  */
-export function studySides(result: string): Color[] {
+export function studySides(result: string, yours?: Color | null): Color[] {
+  if (yours) return [yours, yours === 'w' ? 'b' : 'w']
   const winner = heroColorFromResult(result)
   return winner ? [winner] : ['w', 'b']
 }

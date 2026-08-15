@@ -1578,6 +1578,42 @@ button {
   font-size: 0.88rem;
   color: var(--ink-soft);
 }
+/* The names that make a game yours (#130). Folded away: it is answered once and
+   then never again, so it must not compete with the button it sits under. */
+.study-you {
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+.study-you summary {
+  cursor: pointer;
+}
+.study-you form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.study-you label {
+  flex-basis: 100%;
+  color: var(--ink-soft);
+}
+.study-you textarea {
+  flex: 1 1 16rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  resize: vertical;
+}
+.study-you .study-note {
+  flex-basis: 100%;
+  margin: 0;
+}
 
 /* An annotation from the file, marked as the file's rather than as ours. */
 .db-comment {
