@@ -417,14 +417,24 @@ function SidePicker({
 }) {
   return (
     <div className="review-side">
+      {/* Three situations, not two. A game with your name on it reviews your
+          side; a *decisive* game without it has exactly one side worth taking,
+          the winner's, and telling the reader to "pick one" there is a lie —
+          there is nothing to pick from (#130, `studyGame.studySides`). Only a
+          draw or an unfinished game actually offers a choice. */}
       {yours ? (
         <p className="playing-as">
           You played <b>{sideName(yours)}</b> here, so that is the side being reviewed.
         </p>
+      ) : sides.length === 1 ? (
+        <p className="playing-as">
+          No name of yours is on this game, so it is reviewed as the winner —{' '}
+          <b>{sideName(heroColor)}</b>. Everything below is about their decisions, not yours.
+        </p>
       ) : (
         <p className="playing-as">
-          Nothing on this game says which side was yours, so pick one. Every figure below is about{' '}
-          <b>{sideName(heroColor)}</b>&apos;s decisions.
+          Nothing on this game says which side was yours and it has no winner either, so pick one.
+          Every figure below is about <b>{sideName(heroColor)}</b>&apos;s decisions.
         </p>
       )}
       {sides.length > 1 && (
