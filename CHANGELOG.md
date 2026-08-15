@@ -168,6 +168,33 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 - The search index now records *which* games it was built over, not just how many, so it
   cannot be reused across a swap of one file for another of the same size.
 
+### Engineering
+- **The rule for which positions in a game are worth re-deciding (#132).** Studying an imported
+  game quizzes *every* move you made past the opening: on the owner's session of 2026-08-14 that
+  was ~30 questions a game, ~26 of them Tier A — moves with nothing to learn, asked at the same
+  weight as the move that lost the game. `domain/keyMoments.ts` picks the handful that decided it
+  instead, each carrying **why** it was picked: a blunder, a mistake, or a **missed punish** — a
+  mistake made on the move right after the opponent handed something over, which is a different
+  lesson from an unprovoked one and so gets its own label rather than a bigger number. Ranked by
+  what the move cost, capped at six by default, and no reason weights the ranking: the thresholds
+  are the tier boundaries the coach and the `??` glyphs already use, because a second grading
+  scale would let one move be a mistake on this screen and fine on the next (constitution §9,
+  ADR [0010](docs/decisions/0010-engine-architecture.md)). The swing arithmetic itself now
+  lives in `domain/winPercent.ts`, so the whole-game pass and this cannot come to differ about
+  what a move cost.
+
+  Two things it refuses to do. **A move it cannot measure is skipped, never scored as 0 swing** —
+  evaluations are sparse while a pass is still running, and reading a gap as "unchanged" is the
+  easiest way to produce a confident, wrong "you played this perfectly". And **"no moments" is
+  never reported bare**: the result carries how many of your moves were measured, because "you
+  played clean" and "we haven't looked yet" are the same empty list and mean opposite things. It
+  also does not offer "the critical position where you found the only move" — telling that from
+  one of six good moves needs the breadth of a multi-line search the whole-game pass doesn't do,
+  so it waits, the same way `!` does.
+
+  **Nothing renders this yet**, which is intended: the rule and its tests ship first, and the
+  screen that uses it is a later issue.
+
 ### Tooling (off-app)
 
 Nothing here ships in the browser bundle — it is the offline repertoire pipeline under
