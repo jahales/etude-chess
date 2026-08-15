@@ -80,6 +80,8 @@ export interface DatabaseGame {
   result: string
   /** Mainline SAN, space-separated, exactly as it was stored. */
   movetext: string
+  /** The position the game begins from, when it is not the standard one. */
+  startFen?: string
   /** The file's own comments, by 0-based ply. */
   comments?: Record<number, string>
   /** The file this game was imported from. */
@@ -149,6 +151,17 @@ export function studyPgn(game: DatabaseGame): string {
     ['White', game.white],
     ['Black', game.black],
     ['Result', game.result],
+    // A game that does not start from move 1 must say so, and `SetUp` is the
+    // flag chess.js's `loadPgn` looks for before it reads the FEN. Without the
+    // pair the movetext replays from the standard position: usually illegal at
+    // the first move and reported as unreadable, occasionally legal and quietly
+    // a different game.
+    ...(game.startFen
+      ? ([
+          ['SetUp', '1'],
+          ['FEN', game.startFen],
+        ] as [string, string][])
+      : []),
   ]
   const header = tags
     .filter(([, value]) => value)
@@ -225,7 +238,14 @@ export function planStudy(game: DatabaseGame, heroColor: Color): StudyPlan {
   try {
     // Exactly the path the reducer takes, so a game that plans is a game that runs.
     const parsed = parseGame(studyGame.pgn)
-    positions = buildQuiz(parsed.sanMoves, { heroColor, startPly: DEFAULT_START_PLY }).length
+    positions = buildQuiz(parsed.sanMoves, {
+      heroColor,
+      startPly: DEFAULT_START_PLY,
+      // Taken from the parse rather than the row, so this plans against exactly
+      // what the reducer will run — the two cannot disagree about where the
+      // game starts.
+      ...(parsed.startFen ? { startFen: parsed.startFen } : {}),
+    }).length
   } catch {
     return { ok: false, reason: 'unreadable' }
   }

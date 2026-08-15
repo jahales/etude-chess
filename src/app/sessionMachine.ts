@@ -149,7 +149,13 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       // be a draw or unfinished, and then the side is a choice the caller made
       // rather than a fact of the game (#55, `domain/studyGame.studySides`).
       const heroColor = action.game.heroColor ?? heroColorFromResult(parsed.result) ?? 'w'
-      const quiz = buildQuiz(parsed.sanMoves, { heroColor, startPly: OPENING_CUTOFF_PLY })
+      const quiz = buildQuiz(parsed.sanMoves, {
+        heroColor,
+        startPly: OPENING_CUTOFF_PLY,
+        // An imported study or endgame does not begin from the initial position;
+        // without this the replay throws on its first move, inside the reducer.
+        ...(parsed.startFen ? { startFen: parsed.startFen } : {}),
+      })
       const opening = detectOpening(parsed.sanMoves)
       return {
         ...initialState,

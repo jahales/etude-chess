@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEDUP_PLIES,
   DEFAULT_IMPORT_FILTERS,
   dedupKey,
   describeGame,
@@ -320,13 +319,38 @@ describe('dedupKey', () => {
     expect(dedupKey(a)).not.toBe(dedupKey(b))
   })
 
-  it('treats two games identical through the opening but not beyond as the same', () => {
-    // The documented trade (§9: "first ~10 plies"). Stated as a test so the
-    // limitation is visible rather than surprising.
-    const prefix = LONG_GAME.slice(0, DEDUP_PLIES)
+  it('separates two games identical through the opening but not beyond', () => {
+    // This used to be the documented trade — the key ended at ten plies, so
+    // these two collided and one silently overwrote the other. That reasoning
+    // leaned on the *date* to discriminate, and an undated corpus has none.
+    const prefix = LONG_GAME.slice(0, 10)
     const a = game(CLASSIC, [...prefix, 'Qh5'])
     const b = game(CLASSIC, [...prefix, 'Qf3'])
-    expect(dedupKey(a)).toBe(dedupKey(b))
+    expect(dedupKey(a)).not.toBe(dedupKey(b))
+  })
+
+  it('separates undated games of the same players out of the same opening', () => {
+    // The case that made the old key lose games: a match collection with no
+    // dates, one opening, several games. `normalizeGame` strips `????.??.??`,
+    // so the date contributed nothing and the key was players + result + first
+    // ten plies for every one of them.
+    const undated = { White: 'Steinitz', Black: 'Zukertort', Result: '1-0' }
+    const prefix = LONG_GAME.slice(0, 10)
+    const keys = new Set(
+      [['Qh5'], ['Qf3'], ['Be2'], ['O-O']].map((tail) => dedupKey(game(undated, [...prefix, ...tail]))),
+    )
+    expect(keys.size).toBe(4)
+  })
+
+  it('still treats the same game imported twice as one', () => {
+    // The property the key exists for: re-attaching a file after an eviction
+    // overwrites row for row rather than doubling the database.
+    expect(dedupKey(game(CLASSIC, LONG_GAME))).toBe(dedupKey(game(CLASSIC, LONG_GAME)))
+  })
+
+  it('separates two games that differ only by event', () => {
+    const base = dedupKey(game({ ...CLASSIC, Event: 'Hastings' }))
+    expect(dedupKey(game({ ...CLASSIC, Event: 'London' }))).not.toBe(base)
   })
 
   it('separates games that differ in players, date or result', () => {

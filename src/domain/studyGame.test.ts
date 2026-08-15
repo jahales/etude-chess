@@ -189,3 +189,41 @@ describe('annotations that came with the file', () => {
     expect(annotationAt({ annotations: { byPly: { 8: '   ' }, source: 'f.pgn' } }, 8)).toBeNull()
   })
 })
+
+describe('a game that does not start from move 1', () => {
+  // Studies, endgame collections and puzzle sets carry a SetUp/FEN pair, and
+  // many carry no Variant tag at all — so the variant check never sees them and
+  // they import like any other game. Discarding the position made the movetext
+  // replay from the standard start: usually illegal at once and reported as
+  // "unreadable", occasionally legal and quietly a different game.
+  const ENDGAME = '8/8/8/4k3/8/8/4KP2/8 w - - 0 1'
+  const ENDGAME_MOVES = 'Ke1 Ke6 Ke2 Ke5 Ke1 Ke6 Ke2 Ke5 f4+ Kd5 f5 Ke5 f6 Kxf6'
+  const fromFen = (patch: Partial<DatabaseGame> = {}) =>
+    row({ startFen: ENDGAME, movetext: ENDGAME_MOVES, ...patch })
+
+  it('writes SetUp and FEN, which is the pair chess.js reads', () => {
+    const pgn = studyPgn(fromFen())
+    expect(pgn).toContain('[SetUp "1"]')
+    expect(pgn).toContain(`[FEN "${ENDGAME}"]`)
+  })
+
+  it('replays from that position rather than from the initial one', () => {
+    // Every one of these moves is illegal from the standard start, so parsing
+    // at all is the assertion — before the FEN was stored this threw.
+    const parsed = parseGame(studyPgn(fromFen()))
+    expect(parsed.sanMoves).toEqual(ENDGAME_MOVES.split(' '))
+    expect(parsed.headers.FEN).toBe(ENDGAME)
+  })
+
+  it('is studiable rather than refused', () => {
+    // Before the FEN was stored this failed as 'unreadable', blaming the file
+    // for what import had thrown away.
+    expect(planStudy(fromFen(), 'w').ok).toBe(true)
+  })
+
+  it('says nothing about a start position for an ordinary game', () => {
+    const pgn = studyPgn(row())
+    expect(pgn).not.toContain('SetUp')
+    expect(pgn).not.toContain('FEN')
+  })
+})

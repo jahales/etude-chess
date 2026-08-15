@@ -11,6 +11,15 @@ export interface ParsedGame {
   result: string
   white: string
   black: string
+  /**
+   * The position the moves start from, when the PGN named one.
+   *
+   * Surfaced here rather than left in `headers` so that `buildQuiz` can be
+   * given it without every caller remembering the tag exists. `parseGame`
+   * honours `[SetUp]`/`[FEN]` by itself; `buildQuiz` takes bare SAN and cannot,
+   * so the two had to be joined up somewhere and this is the seam.
+   */
+  startFen?: string
 }
 
 export interface QuizItem {
@@ -32,6 +41,15 @@ export interface QuizOptions {
   heroColor: Color
   /** Don't quiz before this ply — skips opening theory. Default 8 (after move 4). */
   startPly?: number
+  /**
+   * The position the moves start from, when it is not the standard one.
+   *
+   * `parseGame` reads a PGN and so honours `[SetUp]`/`[FEN]` on its own, but
+   * this takes bare SAN and replayed it from the initial position regardless —
+   * so an imported study or endgame threw `Invalid move` on its first move and
+   * the caller reported the file as unreadable (#55 follow-up).
+   */
+  startFen?: string
 }
 
 export const DEFAULT_START_PLY = 8
@@ -50,6 +68,7 @@ export function parseGame(pgn: string): ParsedGame {
     result: headers.Result ?? '*',
     white: headers.White ?? 'White',
     black: headers.Black ?? 'Black',
+    ...(headers.FEN ? { startFen: headers.FEN } : {}),
   }
 }
 
@@ -78,7 +97,7 @@ export function shouldQuiz(
 /** Replay the game, emitting a quiz item at each of the hero's non-trivial moves. */
 export function buildQuiz(sanMoves: string[], options: QuizOptions): QuizItem[] {
   const startPly = options.startPly ?? DEFAULT_START_PLY
-  const chess = new Chess()
+  const chess = options.startFen ? new Chess(options.startFen) : new Chess()
   const items: QuizItem[] = []
   for (let ply = 0; ply < sanMoves.length; ply++) {
     const san = sanMoves[ply]!

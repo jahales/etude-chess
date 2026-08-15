@@ -119,7 +119,33 @@ export interface StoredSearchIndex {
   stamp: string
   /** Games in the database when it was built. A mismatch means rebuild. */
   games: number
+  /**
+   * A fingerprint of the corpus, not just its size.
+   *
+   * `games` alone cannot tell "the same games" from "a different set of the same
+   * size" — detach a source of ten and attach another of ten and the count
+   * agrees. Both mutation paths do invalidate explicitly, so this has never had
+   * to catch anything, and that is the risk: a guard that looks like it checks
+   * freshness while every future write path has to remember to do it instead.
+   */
+  corpus: string
   builtAt: number
+}
+
+/**
+ * What the index was built over, cheaply enough to compute on every check.
+ *
+ * The source names and their import stamps: adding, replacing or detaching a
+ * file moves one of them, and nothing else can change which games are present.
+ */
+export async function corpusStamp(): Promise<string> {
+  const d = getDb()
+  if (!d) return ''
+  const sources = await d.dbSources.toArray()
+  return sources
+    .map((s) => `${s.name}@${s.importedAt}:${s.games}`)
+    .sort()
+    .join('|')
 }
 
 export const SEARCH_INDEX_ID = 'names'
@@ -193,6 +219,7 @@ async function build(): Promise<MiniSearch<TermDoc> | null> {
       json: JSON.stringify(index),
       stamp: INDEX_STAMP,
       games: await d.dbGames.count(),
+      corpus: await corpusStamp(),
       builtAt: Date.now(),
     })
   } catch (e) {
@@ -215,13 +242,24 @@ async function build(): Promise<MiniSearch<TermDoc> | null> {
 async function ensureIndex(): Promise<MiniSearch<TermDoc> | null> {
   if (cached) return cached
   if (building) return building
-  building = (async () => {
+  // Cleared through the promise rather than in the body's `finally`. A body that
+  // returns without ever awaiting — `getDb()` null is one — runs to completion
+  // *before* the assignment below lands, so its own `finally` cleared a variable
+  // that had not been set yet and `building` stayed pinned to a resolved promise
+  // for the life of the page, making the build unretryable by construction.
+  const run = (async () => {
     const d = getDb()
     if (!d) return null
     try {
       const stored = await d.dbSearch.get(SEARCH_INDEX_ID)
       const games = await d.dbGames.count()
-      if (stored && stored.stamp === INDEX_STAMP && stored.games === games) {
+      const corpus = await corpusStamp()
+      if (
+        stored &&
+        stored.stamp === INDEX_STAMP &&
+        stored.games === games &&
+        stored.corpus === corpus
+      ) {
         try {
           cached = load(stored.json)
           return cached
@@ -237,11 +275,15 @@ async function ensureIndex(): Promise<MiniSearch<TermDoc> | null> {
     } catch (e) {
       console.warn('etude-chess: could not open the search index', e)
       return null
-    } finally {
-      building = null
     }
   })()
-  return building
+  building = run
+  void run.finally(() => {
+    // Only clear the slot if it is still ours: a later `invalidateSearchIndex`
+    // may have started a fresh build while this one was in flight.
+    if (building === run) building = null
+  })
+  return run
 }
 
 /** Build the index now, so the first search after an import is not the one that waits. */

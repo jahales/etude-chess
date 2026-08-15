@@ -79,6 +79,14 @@ export function useDbBrowse(reload = 0): DbBrowse {
     return () => clearTimeout(timer)
   }, [query])
 
+  // An import changes the result set as much as changing a filter does, and for
+  // the same reason `setField` resets the page: page 6 of the old results is not
+  // page 6 of the new ones. Landing on an empty page immediately after an import
+  // that reported success reads as "nothing was added".
+  useEffect(() => {
+    setPage(0)
+  }, [reload])
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -86,14 +94,29 @@ export function useDbBrowse(reload = 0): DbBrowse {
       queryDbGames(settled, page),
       countMatchingDbGames(settled),
       countDbGames(),
-    ]).then(([nextPage, nextTotal, nextStored]) => {
-      // A slower earlier query must not land on top of a faster later one.
-      if (cancelled) return
-      setResult(nextPage)
-      setTotal(nextTotal)
-      setStored(nextStored)
-      setLoading(false)
-    })
+    ])
+      .then(([nextPage, nextTotal, nextStored]) => {
+        // A slower earlier query must not land on top of a faster later one.
+        if (cancelled) return
+        setResult(nextPage)
+        setTotal(nextTotal)
+        setStored(nextStored)
+      })
+      // Those three report failure by returning an empty result rather than
+      // rejecting, so this should never fire — which is exactly why it is here.
+      // Without it, one rejection left `loading` true for the life of the screen
+      // and no filter change could clear it, because every later run took the
+      // same path. An empty table is a legible failure; a permanent spinner is
+      // not.
+      .catch((e: unknown) => {
+        if (cancelled) return
+        console.warn('etude-chess: could not read the attached database', e)
+        setResult({ rows: [], hasMore: false, order: 'none' })
+        setTotal({ count: 0, exact: true })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
     return () => {
       cancelled = true
     }

@@ -43,7 +43,7 @@ import { getDb, type EtudeDb } from './db'
 
 /** One imported game. Field names match `GameFacts` so the mapping stays boring. */
 export interface DbGame {
-  /** Primary key: White+Black+Date+Result+opening (`domain/pgnImport.dedupKey`). */
+  /** Primary key: White+Black+Date+Event+Result+a hash of the whole game. */
   key: string
   white: string
   black: string
@@ -63,6 +63,15 @@ export interface DbGame {
   plies: number
   /** Mainline SAN, space-separated. Text, not a move encoding — see above. */
   movetext: string
+  /**
+   * The position the game starts from, when it is not the standard one.
+   *
+   * Absent for the overwhelming majority. Without it a study or endgame
+   * collection replayed its movetext from move 1 — see `GameFacts.startFen`.
+   * Rows imported before this existed have no way to recover it; re-attaching
+   * the file fixes them.
+   */
+  startFen?: string
   /** The file's own comments, by ply. Item 11 shows these at the reveal. */
   comments?: Record<number, string>
   nags?: Record<number, number[]>
@@ -127,6 +136,7 @@ export function toDbGame(
     timeControl: facts.timeControl.raw,
     plies: facts.plies,
     movetext: game.sanMoves.join(' '),
+    startFen: facts.startFen,
     comments: game.comments,
     nags: game.nags,
     source: provenance.source,
@@ -277,9 +287,13 @@ export async function queryDbGames(
   pageSize = PAGE_SIZE,
 ): Promise<DbGamePage> {
   const d = getDb()
-  const plan = queryPlan(await resolve(query))
-  if (!d) return { rows: [], hasMore: false, order: plan.driver.index }
+  // `resolve` awaits `expandTerms`, which reaches into MiniSearch — so it has to
+  // be inside the guard, not in front of it. Outside, anything it threw escaped
+  // both this handler and the caller's, and `useDbBrowse` was left on its
+  // loading state permanently with only a console warning to show for it.
   try {
+    const plan = queryPlan(await resolve(query))
+    if (!d) return { rows: [], hasMore: false, order: plan.driver.index }
     const rows = await matching(d, plan)
       .offset(page * pageSize)
       .limit(pageSize + 1)
@@ -291,7 +305,9 @@ export async function queryDbGames(
     }
   } catch (e) {
     console.warn('etude-chess: could not search the attached database', e)
-    return { rows: [], hasMore: false, order: plan.driver.index }
+    // No plan to report an order from — it may be what failed. `key` is the
+    // order an unplanned walk would have used anyway.
+    return { rows: [], hasMore: false, order: 'none' }
   }
 }
 
@@ -309,8 +325,10 @@ export async function countMatchingDbGames(
 ): Promise<DbGameCount> {
   const d = getDb()
   if (!d) return { count: 0, exact: true }
-  const plan = queryPlan(await resolve(query))
   try {
+    // Inside the guard for the same reason as `queryDbGames`: `resolve` awaits
+    // term expansion, and a throw there used to escape this handler entirely.
+    const plan = queryPlan(await resolve(query))
     // No residual: the index range *is* the answer, and IndexedDB counts a range
     // without reading the records in it.
     if (plan.indexOnly) return { count: await matching(d, plan).count(), exact: true }
