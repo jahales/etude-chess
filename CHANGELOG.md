@@ -144,6 +144,30 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   that clause rested on was already spent. It is confined to one module, and the rules it feeds
   don't know it exists.
 
+### Fixed
+- **A game that starts from a set-up position is studiable, instead of being reported as a
+  broken file.** Studies, endgame collections and puzzle sets carry their starting position in
+  a `FEN` tag, and many carry no `Variant` tag at all — so nothing rejected them and nothing
+  kept the position either. Their moves were replayed from move 1: usually illegal at once, so
+  the game was refused as unreadable and the file blamed for what the import had discarded;
+  occasionally legal, and then quietly a different game, with the board, the grading and the
+  file's own notes all describing positions you weren't looking at. Games already imported
+  can't recover what was dropped — re-attach the file and they come back.
+- **Two games are no longer stored as one when a file gives no dates.** The key that decides
+  whether two records are the same game ended at the first ten moves, which leaned on the date
+  to tell the rest apart. Undated collections have none, so a match between the same players
+  out of the same opening imported as a *single* game while the summary still counted them
+  all. The key now covers the whole game. An attached database is rekeyed the first time you
+  open it, so re-attaching a file still updates it rather than duplicating it.
+- **The database screen can no longer hang on a spinner that never stops.** A failure while
+  expanding a search term escaped every handler around it and left the screen loading for
+  good, with no filter change able to clear it.
+- **Importing while paged deep into the results takes you back to the first page**, instead of
+  to a page of a result set that no longer exists — which reads as "nothing was added" right
+  after an import that said it worked.
+- The search index now records *which* games it was built over, not just how many, so it
+  cannot be reused across a swap of one file for another of the same size.
+
 ### Tooling (off-app)
 
 Nothing here ships in the browser bundle — it is the offline repertoire pipeline under

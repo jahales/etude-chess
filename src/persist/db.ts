@@ -1,7 +1,12 @@
 import Dexie, { type Table } from 'dexie'
+
+/** Rows rekeyed per transaction step by the v6 upgrade. */
+const REKEY_CHUNK = 500
+
 import type { Attempt } from '../domain/session'
 import type { CoachEntry, PositionEval } from '../domain/gameRecord'
 import { nameTokens } from '../domain/dbQuery'
+import { keyFrom } from '../domain/pgnImport'
 // Type-only, so this stays a one-way runtime dependency: dbGames.ts imports
 // `getDb` from here, and nothing here imports it back.
 import type { DbGame, DbSource } from './dbGames'
@@ -122,6 +127,45 @@ export class EtudeDb extends Dexie {
     // index gets built on the next search, which is exactly what a database
     // attached before this version needs to happen.
     this.version(5).stores({ dbSearch: 'id' })
+    // v0.4 (#53 follow-up): the dedup key stopped ending at the first ten plies
+    // and now hashes the whole game, because an undated corpus made the old key
+    // collapse distinct games into one row (`domain/pgnImport.dedupKey`).
+    //
+    // The key is the primary key, so every existing row has to be rewritten
+    // under the new shape. Skipping this would not lose anything today — it
+    // would go wrong later, when re-attaching a file wrote a second copy of
+    // every game beside the first instead of overwriting it, which is the one
+    // property §9 leans on.
+    //
+    // No index list is declared: this changes values, not the schema. Rows are
+    // rekeyed in chunks rather than read into one array, because "a hundred
+    // thousand games is a normal import" and an upgrade is the worst moment to
+    // find that out.
+    this.version(6)
+      .stores({})
+      .upgrade(async (tx) => {
+        const table = tx.table<DbGame, string>('dbGames')
+        const keys = (await table.toCollection().primaryKeys()) as string[]
+        for (let i = 0; i < keys.length; i += REKEY_CHUNK) {
+          const slice = keys.slice(i, i + REKEY_CHUNK)
+          const rows = await table.bulkGet(slice)
+          const rekeyed: DbGame[] = []
+          const stale: string[] = []
+          rows.forEach((row, n) => {
+            if (!row) return
+            const key = keyFrom(row)
+            if (key === row.key) return
+            rekeyed.push({ ...row, key })
+            stale.push(slice[n]!)
+          })
+          if (!rekeyed.length) continue
+          // Write first, then drop the old keys: interrupted the other way round
+          // loses games, and interrupted this way leaves duplicates that the
+          // next import overwrites.
+          await table.bulkPut(rekeyed)
+          await table.bulkDelete(stale)
+        }
+      })
   }
 }
 

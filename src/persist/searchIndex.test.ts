@@ -26,6 +26,7 @@ import {
   invalidateSearchIndex,
   resetSearchIndex,
   warmSearchIndex,
+  corpusStamp,
   type StoredSearchIndex,
 } from './searchIndex'
 import { putDbGames, toDbGame } from './dbGames'
@@ -192,11 +193,37 @@ describe('a database attached before the search index existed', () => {
       json: 'not json',
       stamp: INDEX_STAMP,
       games: CORPUS.length,
+      // Whatever the corpus stamp is, this row must be replaced for its
+      // unreadable JSON — so make it match rather than let a stale-corpus
+      // rebuild pass the test for the wrong reason.
+      corpus: await corpusStamp(),
       builtAt: 1,
     } satisfies StoredSearchIndex)
     resetSearchIndex()
 
     expect(await expand('alekhine')).toContain('aljechin')
     expect((await d.dbSearch.get(SEARCH_INDEX_ID))?.json).not.toBe('not json')
+  })
+})
+
+describe('the corpus fingerprint', () => {
+  it('rebuilds when one source is swapped for another of the same size', async () => {
+    // A row count cannot tell "the same games" from "a different set of the same
+    // size". Both mutation paths invalidate explicitly, so this guard has never
+    // had to catch anything — which is the risk it exists for: every future
+    // write path would otherwise have to remember to do it instead.
+    const d = getDb()!
+    await d.dbSources.put({ name: 'a.pgn', importedAt: 1, games: CORPUS.length, parsed: 6, skipped: 0 })
+    await warmSearchIndex()
+    expect(await expand('alekhine')).toContain('aljechin')
+
+    // Same number of games, different games — and no invalidation call.
+    await d.dbGames.clear()
+    await putDbGames([row('Tal, Mikhail', 'Botvinnik, Mikhail')])
+    await d.dbSources.put({ name: 'b.pgn', importedAt: 2, games: 1, parsed: 1, skipped: 0 })
+    await d.dbSources.delete('a.pgn')
+    resetSearchIndex()
+
+    expect(await expand('botvinnik')).toContain('botvinnik')
   })
 })

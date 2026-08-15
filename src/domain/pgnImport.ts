@@ -99,6 +99,17 @@ export interface GameFacts {
   timeControl: TimeControl
   /** The `Variant` tag, if the file carried one. */
   variant?: string
+  /**
+   * The position the game starts from, when it is not the standard one.
+   *
+   * Studies, endgame collections and puzzle sets routinely carry `[SetUp "1"]`
+   * and `[FEN …]`, and many of them carry no `[Variant]` tag at all — so the
+   * variant check never sees them and they import like any other game. Dropping
+   * this made the movetext replay from move 1, which usually fails as
+   * "unreadable" (blaming the file for what import discarded) and occasionally
+   * succeeds against a different game entirely.
+   */
+  startFen?: string
   plies: number
   fullMoves: number
 }
@@ -167,6 +178,28 @@ const toYear = (raw: string | undefined): number | undefined => {
   return match ? Number(match[1]) : undefined
 }
 
+/** A FEN's board field: eight ranks of pieces and digits. Enough to reject prose. */
+const FEN_SHAPE = /^([1-8pnbrqkPNBRQK]+\/){7}[1-8pnbrqkPNBRQK]+ [wb] /
+
+/**
+ * The starting position, when the file names one and it is usable.
+ *
+ * `[SetUp "1"]` is the standard's flag, but real files omit it far more often
+ * than they omit the `[FEN]` beside it, so the FEN is what we go on. It is
+ * shape-checked rather than trusted: a malformed tag stored as the start
+ * position would fail at replay time, deep inside a study session, instead of
+ * here where the game can simply be treated as starting from move 1.
+ */
+function startFen(headers: Record<string, string>): string | undefined {
+  const fen = headers.FEN?.trim()
+  if (!fen || !FEN_SHAPE.test(fen)) return undefined
+  // The standard start needs no recording, and saying so keeps the common case
+  // out of the storage and out of the PGN we rebuild.
+  return fen.startsWith(STANDARD_START) ? undefined : fen
+}
+
+const STANDARD_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -'
+
 export function describeGame(game: ImportedGame): GameFacts {
   const h = game.headers
   const whiteElo = toElo(h.WhiteElo)
@@ -189,6 +222,7 @@ export function describeGame(game: ImportedGame): GameFacts {
     minElo: whiteElo != null && blackElo != null ? Math.min(whiteElo, blackElo) : undefined,
     timeControl: parseTimeControl(h.TimeControl, h.Event),
     variant: h.Variant,
+    startFen: startFen(h),
     plies,
     fullMoves: Math.ceil(plies / 2),
   }
@@ -362,13 +396,20 @@ export function filterGame(facts: GameFacts, filters: ImportFilters): FilterVerd
 // ---------- dedup ----------
 
 /**
- * How much of the opening goes into the dedup key (§9: "first ~10 plies").
+ * FNV-1a over a string, as eight hex digits.
  *
- * The trade: two games between the same players, on the same day, with the same
- * result, diverging only after ply 10, collide. Rare enough to be worth a key
- * short enough to compute without replaying anything.
+ * Only ever used to shorten the movetext inside a key, and it is consulted last:
+ * the players, date, event and result all have to match before it decides
+ * anything.
  */
-export const DEDUP_PLIES = 10
+function hash32(text: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
 
 /** Unit separator — a delimiter that cannot occur inside a player's name. */
 const FIELD_SEP = '\u001f'
@@ -377,18 +418,59 @@ const canonical = (value: string | undefined): string =>
   (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 
 /**
- * White + Black + Date + Result + the opening, as one string.
+ * White + Black + Date + Event + Result + the whole game, as one string.
  *
  * Used as the **primary key** of the games table, so importing the same file
  * twice overwrites rather than duplicates — which is what makes §9's
  * re-import-after-eviction path free instead of a merge problem.
+ *
+ * It used to end at the first ten plies, on the reasoning that two games between
+ * the same players, on the same day, with the same result, diverging only after
+ * ply 10, are rare. That quietly assumed the *date* was there to discriminate —
+ * and `normalizeGame` strips `????.??.??` as the placeholder it is, which
+ * undated corpora (scraped collections, match books) are full of. For those the
+ * key degenerated to players + result + opening, so a match collection of the
+ * same two players out of one opening imported as a **single row**: `bulkPut`
+ * overwrites by key without complaint, and the summary still reports every game
+ * as written.
+ *
+ * Hashing the whole movetext removes the class rather than narrowing it — two
+ * games agreeing on all of this *are* the same game. `Event` joins it because it
+ * is already a column and costs nothing.
  */
 export function dedupKey(game: ImportedGame): string {
+  return keyFrom({
+    white: game.headers.White,
+    black: game.headers.Black,
+    date: game.headers.Date,
+    event: game.headers.Event,
+    result: game.headers.Result,
+    movetext: game.sanMoves.join(' '),
+  })
+}
+
+/**
+ * The same key from already-stored columns.
+ *
+ * `persist/db.ts`'s upgrade needs this: a row written under the old key shape
+ * has to be rewritten under the new one, or re-importing its file would land
+ * beside it instead of on top of it. Every input is a column already, which is
+ * what makes the key changeable at all.
+ */
+export function keyFrom(row: {
+  white?: string
+  black?: string
+  date?: string
+  event?: string
+  result?: string
+  movetext: string
+}): string {
   return [
-    canonical(game.headers.White),
-    canonical(game.headers.Black),
-    canonical(game.headers.Date),
-    canonical(game.headers.Result),
-    game.sanMoves.slice(0, DEDUP_PLIES).join(' '),
+    canonical(row.white),
+    canonical(row.black),
+    canonical(row.date),
+    canonical(row.event),
+    canonical(row.result),
+    hash32(row.movetext),
   ].join(FIELD_SEP)
 }
