@@ -40,9 +40,9 @@ describe('analysis settings', () => {
 
 describe('the names you play under', () => {
   it('takes one name per line, trimmed, and ignores the blank ones', () => {
-    expect(parsePlayerNames('  quiet_etude \n\n  Hales, Jacob\n  ')).toEqual([
-      'quiet_etude',
-      'Hales, Jacob',
+    expect(parsePlayerNames('  test_player \n\n  Morphy, Paul\n  ')).toEqual([
+      'test_player',
+      'Morphy, Paul',
     ])
   })
 
@@ -50,17 +50,17 @@ describe('the names you play under', () => {
     // Splitting on commas is the obvious shortcut and it is wrong: it would turn
     // the single name written in every OTB export into two names that match
     // nothing.
-    expect(parsePlayerNames('Hales, Jacob')).toEqual(['Hales, Jacob'])
+    expect(parsePlayerNames('Morphy, Paul')).toEqual(['Morphy, Paul'])
   })
 
   it('drops a repeat that differs only in case, keeping what you typed first', () => {
     // Matching ignores case, so these are one name; keeping both would show the
     // same name twice in the field it was typed into.
-    expect(parsePlayerNames('Quiet_Etude\nquiet_etude')).toEqual(['Quiet_Etude'])
+    expect(parsePlayerNames('Test_Player\ntest_player')).toEqual(['Test_Player'])
   })
 
   it('round-trips through the field it was typed into', () => {
-    const names = ['quiet_etude', 'Hales, Jacob']
+    const names = ['test_player', 'Morphy, Paul']
     expect(parsePlayerNames(formatPlayerNames(names))).toEqual(names)
     expect(formatPlayerNames([])).toBe('')
   })
@@ -96,12 +96,12 @@ describe('remembering the names between sessions', () => {
   })
 
   it('reads back what was saved', () => {
-    savePlayerNames(['quiet_etude', 'Hales, Jacob'])
-    expect(loadPlayerNames()).toEqual(['quiet_etude', 'Hales, Jacob'])
+    savePlayerNames(['test_player', 'Morphy, Paul'])
+    expect(loadPlayerNames()).toEqual(['test_player', 'Morphy, Paul'])
   })
 
   it('forgets rather than leaving an empty list behind', () => {
-    savePlayerNames(['quiet_etude'])
+    savePlayerNames(['test_player'])
     savePlayerNames([])
     expect(loadPlayerNames()).toEqual([])
     expect(localStorage.getItem(PLAYER_NAMES_KEY)).toBeNull()
@@ -113,10 +113,10 @@ describe('remembering the names between sessions', () => {
     // asks who you are again.
     localStorage.setItem(PLAYER_NAMES_KEY, 'not json at all')
     expect(loadPlayerNames()).toEqual([])
-    localStorage.setItem(PLAYER_NAMES_KEY, '{"you":"quiet_etude"}')
+    localStorage.setItem(PLAYER_NAMES_KEY, '{"you":"test_player"}')
     expect(loadPlayerNames()).toEqual([])
-    localStorage.setItem(PLAYER_NAMES_KEY, '["quiet_etude", 7, "  "]')
-    expect(loadPlayerNames()).toEqual(['quiet_etude'])
+    localStorage.setItem(PLAYER_NAMES_KEY, '["test_player", 7, "  "]')
+    expect(loadPlayerNames()).toEqual(['test_player'])
   })
 
   it('survives storage being unavailable, in both directions', () => {
@@ -128,12 +128,12 @@ describe('remembering the names between sessions', () => {
     }
     vi.stubGlobal('localStorage', { getItem: refuses, setItem: refuses, removeItem: refuses })
     expect(loadPlayerNames()).toEqual([])
-    expect(() => savePlayerNames(['quiet_etude'])).not.toThrow()
+    expect(() => savePlayerNames(['test_player'])).not.toThrow()
     expect(() => savePlayerNames([])).not.toThrow()
 
     vi.stubGlobal('localStorage', undefined)
     expect(loadPlayerNames()).toEqual([])
-    expect(() => savePlayerNames(['quiet_etude'])).not.toThrow()
+    expect(() => savePlayerNames(['test_player'])).not.toThrow()
   })
 })
 

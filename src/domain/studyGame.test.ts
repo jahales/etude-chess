@@ -114,9 +114,9 @@ describe('recognising a game you played', () => {
   })
 
   it('takes a list, because your handle is not the name on a PGN you exported by hand', () => {
-    const online = row({ white: 'quiet_etude' })
-    const otb = row({ white: 'Hales, Jacob' })
-    const names = ['quiet_etude', 'Hales, Jacob']
+    const online = row({ white: 'test_player' })
+    const otb = row({ white: 'Morphy, Paul' })
+    const names = ['test_player', 'Morphy, Paul']
     expect(yourSide(online, names)).toBe('w')
     expect(yourSide(otb, names)).toBe('w')
   })
@@ -142,14 +142,14 @@ describe('recognising a game you played', () => {
   it('takes neither side of a game you played against yourself', () => {
     // Both sides are yours, so neither is *the* one — which puts the game back
     // under the ordinary rule instead of guessing.
-    expect(yourSide(row({ white: 'quiet_etude', black: 'Quiet_Etude' }), ['quiet_etude'])).toBeNull()
+    expect(yourSide(row({ white: 'test_player', black: 'Test_Player' }), ['test_player'])).toBeNull()
   })
 
   it('offers your side of a game you lost, which is the one the winner rule hid', () => {
     // The whole point of #130: before this, importing a loss quizzed you as the
     // player who beat you.
-    const lost = row({ white: 'quiet_etude', result: '0-1' })
-    expect(studySides(lost.result, yourSide(lost, ['quiet_etude']))).toEqual(['w', 'b'])
+    const lost = row({ white: 'test_player', result: '0-1' })
+    expect(studySides(lost.result, yourSide(lost, ['test_player']))).toEqual(['w', 'b'])
   })
 })
 

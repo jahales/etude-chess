@@ -41,7 +41,7 @@ test.describe('study your own side', () => {
     await expect(page.getByText(/You take White's side, the winner's/)).toBeVisible()
 
     await page.getByText('Is this one of your games?').click()
-    await page.getByLabel(/The names you play under/).fill(`quiet_etude\n${LOSER}`)
+    await page.getByLabel(/The names you play under/).fill(`test_player\n${LOSER}`)
     await page.getByRole('button', { name: 'Save' }).click()
 
     // Black is the side that lost, which is the side that is now offered first.
