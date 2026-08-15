@@ -9,7 +9,7 @@ import { nameTokens } from '../domain/dbQuery'
 import { keyFrom } from '../domain/pgnImport'
 // Type-only, so this stays a one-way runtime dependency: dbGames.ts imports
 // `getDb` from here, and nothing here imports it back.
-import type { DbGame, DbSource } from './dbGames'
+import type { DbGame, DbGameAnalysis, DbSource } from './dbGames'
 import type { StoredSearchIndex } from './searchIndex'
 import { ensurePersistence } from './storage'
 
@@ -82,6 +82,11 @@ export class EtudeDb extends Dexie {
   // queried. See searchIndex.ts for why it indexes the vocabulary rather than
   // the games (10.1 MB → 0.8 MB at 100k games).
   dbSearch!: Table<StoredSearchIndex, string>
+  // v0.4 (#133): the whole-game analysis pass over an *imported* game, one row
+  // per game, keyed by the game it is of. Beside `dbGames` rather than on it —
+  // the v7 comment below has the reasoning, and it is a decision about what an
+  // import costs, not a preference.
+  dbAnalysis!: Table<DbGameAnalysis, string>
   constructor() {
     super('etude-chess')
     this.version(1).stores({ attempts: '++id, gameId, sessionId, tier, createdAt' })
@@ -166,6 +171,37 @@ export class EtudeDb extends Dexie {
           await table.bulkDelete(stale)
         }
       })
+    // v0.4 (#133): somewhere to keep a whole-game analysis of an *imported*
+    // game, so key-moment selection (#132) has per-ply evaluations to read.
+    //
+    // **Why a table and not columns on `dbGames`.** The dedup key is that
+    // table's primary key, which is what makes re-attaching a file overwrite
+    // row for row instead of doubling the database — and `putDbGames` gets
+    // there by `bulkPut`ting rows built fresh from the file, knowing nothing
+    // about what was already stored. Evaluations on the row would therefore be
+    // wiped by the next re-import, and the only way to keep them would be to
+    // read every existing row back before writing it: a hundred thousand
+    // read-modify-writes to preserve the work of the handful of games anyone
+    // analyses by hand. Import speed is the constraint the whole of #53 was
+    // designed around, so the import path stays a blind write and the
+    // evaluations go beside it.
+    //
+    // Two smaller consequences, both in the same direction: browsing pages read
+    // whole rows out of `dbGames`, and they stay exactly as heavy as they were;
+    // and this table is read at one moment only — opening a game to review —
+    // by primary key, so it needs no secondary index at all.
+    //
+    // The cost we accept: detaching a source deletes its games and leaves their
+    // analyses behind (a few kB each, against ~76 MB of movetext for a 100k
+    // import). That is the same property read the other way — re-attaching the
+    // file restores minutes of engine work instead of discarding it, because
+    // the key it is filed under is derived from the game itself.
+    //
+    // A new table only, like v5's `dbSearch`: nothing existing is read or
+    // rewritten, so there is no upgrade function and no half-applied state an
+    // interrupted upgrade could leave. An absent row means "not analysed",
+    // which is what every database attached before this version has.
+    this.version(7).stores({ dbAnalysis: 'key' })
   }
 }
 

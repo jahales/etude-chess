@@ -313,6 +313,32 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
   **Nothing renders this yet**, which is intended: the rule and its tests ship first, and the
   screen that uses it is a later issue.
+- **A game you imported can be analysed, not just one you played (#133).** The whole-game pass
+  that scores every position of your own games (#68) now runs on a game out of your attached
+  database too, at the same single node budget — one pass at one budget is what makes the scores
+  within a game comparable to each other, and what the `?!`/`?`/`??` glyphs rest on. It is a
+  *widening*: the pass now asks for the two things it actually needs — the moves, and what an
+  earlier pass recorded — so a game you played and a game you imported both satisfy it, and every
+  existing caller is untouched. **Nothing renders it yet** either: this exists so that #132 above
+  has per-ply evaluations to choose its moments from.
+  - **It replays the game from the position the file recorded**, so a study, an endgame collection
+    or a puzzle set is scored in the positions it was actually played in rather than from move 1
+    (#128). The positions are rebuilt from the same row the analysis is filed against, which makes
+    losing the starting position impossible rather than merely unlikely — and the pass is filed
+    with the position it ran from, so a re-import that replaces a row can never be served
+    evaluations of a different game.
+  - **The evaluations are kept beside the game rather than on it**, and that is a decision about
+    what an import costs rather than about tidiness. Re-attaching a file overwrites row for row on
+    purpose — that is what makes re-attaching after an eviction free — so evaluations stored on the
+    row would be wiped by the next import, and keeping them would mean reading a hundred thousand
+    rows back before writing them, to preserve the work of the handful of games anyone analyses by
+    hand. Beside it, an import stays exactly as fast as it was, browsing reads exactly what it read
+    before, and detaching a database leaves the analyses behind — so re-attaching the file gives
+    you the engine time back instead of asking for it again. The schema bump adds a table and
+    rewrites nothing, which is the safest migration there is.
+  - **A pass the engine died partway through is not recorded as an analysis.** The positions it
+    managed are still worth keeping; calling that complete would be indistinguishable later from a
+    game where nothing went wrong.
 
 ### Tooling (off-app)
 
