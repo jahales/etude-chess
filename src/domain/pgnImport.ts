@@ -54,7 +54,9 @@ export interface ParsedPgnGame {
  * `sanMoves` is the **mainline only**. Variations are dropped: storing a tree
  * needs a tree-shaped record and nothing downstream reads one yet. Comments and
  * NAGs on the mainline *are* kept, because ADR 0018 §3 is explicit that a user's
- * own annotations are preserved rather than stripped.
+ * own annotations are preserved rather than stripped — with the one exception
+ * `stripPgnCommands` names: `[%clk …]` and its relatives are a program's data,
+ * not a person's note, and a file that carries only those carries no annotation.
  *
  * `comments` and `nags` are absent rather than empty when a game has none — at
  * 100k rows an empty object per game is 100k objects that say nothing.
@@ -120,6 +122,44 @@ export interface GameFacts {
 const PLACEHOLDER = /^[?.\s]*$/
 
 /**
+ * A machine-readable command inside a comment: `[%clk 0:15:09.9]`, `[%eval
+ * -0.34]`, `[%emt 0:00:05]`, `[%csl Gd4]`, `[%cal Gd1d4,Rf3g5]`.
+ *
+ * Matched on the `[%` syntax rather than on a list of names, because tools keep
+ * inventing commands — chess.com, Lichess and ChessBase all ship their own — and
+ * a name we haven't heard of would otherwise reach the reveal looking like
+ * something the annotator wrote. Nothing legitimately puts a `]` inside one, so
+ * the match stops at the first.
+ */
+const PGN_COMMAND = /\[%[^\]]*\]/g
+
+/**
+ * The prose in a comment, with the `%`-commands taken out — or **nothing**.
+ *
+ * Absent, not empty, and that is the whole point (#129). A chess.com export
+ * stamps `[%clk …]` on every ply and writes nothing else, so keeping the emptied
+ * string would leave a comment on all 55 plies of a 55-ply game. `studyGame`
+ * reads the presence of a comment map as "the file annotated this", and #55
+ * requires that a note carry the name of the file it came from (constitution
+ * §9/§12) — so an empty-string comment renders as an attributed blank under
+ * every reveal, crediting the file with prose it never contained.
+ *
+ * The eval commands go for a second reason: a `[%eval]` written by some other
+ * engine at some other budget is not our number, and comparing evals recorded at
+ * two different budgets is exactly the mistake that put a `?!` beside a move the
+ * coach had called good.
+ *
+ * **An unterminated command is left alone** — `Down to seconds [%clk 0:00` keeps
+ * its stray text. Running to the end of the comment on a bare `[%` would swallow
+ * a real annotation, and a discarded note is not recoverable while a visible
+ * fragment is merely untidy.
+ */
+export function stripPgnCommands(comment: string): string | undefined {
+  // A space, not '', so two prose fragments a command sat between stay separate.
+  return comment.replace(PGN_COMMAND, ' ').replace(/\s+/g, ' ').trim() || undefined
+}
+
+/**
  * A parse tree → our own type. Total: it never throws, whatever the file holds.
  */
 export function normalizeGame(game: ParsedPgnGame): ImportedGame {
@@ -137,11 +177,12 @@ export function normalizeGame(game: ParsedPgnGame): ImportedGame {
     const ply = sanMoves.length
     sanMoves.push(node.data.san)
     // A comment before a move and one after it are both *about* that move as far
-    // as a reader is concerned, so they land on the same ply.
-    const text = [...(node.data.startingComments ?? []), ...(node.data.comments ?? [])]
-      .map((c) => c.trim())
-      .filter(Boolean)
-      .join(' ')
+    // as a reader is concerned, so they land on the same ply. Stripping happens
+    // here, at the one door into storage, so no later reader has to know that
+    // `[%clk …]` was ever a thing a comment could be.
+    const text = stripPgnCommands(
+      [...(node.data.startingComments ?? []), ...(node.data.comments ?? [])].join(' '),
+    )
     if (text) {
       comments ??= {}
       comments[ply] = text
@@ -358,6 +399,39 @@ export const DEFAULT_IMPORT_FILTERS: ImportFilters = {
   excludeFastSpeeds: true,
   minElo: 2200,
   minFullMoves: 10,
+}
+
+/**
+ * The same filters aimed at **your own games** (#129).
+ *
+ * A preset *beside* the defaults, never a replacement for them: ADR 0018 §4
+ * chose those for the master corpus and they stay. But measured against a real
+ * chess.com account on 2026-08-15, the defaults kept **0 of 280 games** — 247
+ * rejected as fast, 19 below the rating floor, 14 as too short. Every one of
+ * those four numbers is editable on the import screen, so this was never a wall;
+ * it was four fields to get right before your own games would import at all, and
+ * the epic this serves is reviewing your own games.
+ *
+ * Each relaxation is a different claim:
+ *
+ * - **The clock rules go entirely.** Club players play online rapid and blitz.
+ *   Excluding them here would exclude the material, which is the opposite of the
+ *   defaults' purpose, where a blitz game is a weak sample of a strong player.
+ * - **The rating floor goes to zero.** Your own rating is not a reason to skip
+ *   your own game.
+ * - **`minFullMoves` drops to where a game stops being studiable**, not to zero.
+ *   The quiz starts at ply 8 (`harness.DEFAULT_START_PLY`), so under 5 full moves
+ *   there is no position to ask about for either colour, and importing one only
+ *   stores a row that #55 can refuse later. Stubs are still stubs.
+ *
+ * What a game **is** is untouched: a variant is still rejected, because whose
+ * game it is has no bearing on whether we can replay it.
+ */
+export const MY_GAMES_FILTERS: ImportFilters = {
+  minBaseSeconds: 0,
+  excludeFastSpeeds: false,
+  minElo: 0,
+  minFullMoves: 5,
 }
 
 export type FilterVerdict = { keep: true } | { keep: false; reason: SkipReason }

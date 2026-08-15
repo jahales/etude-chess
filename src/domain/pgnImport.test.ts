@@ -1,16 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_IMPORT_FILTERS,
+  MY_GAMES_FILTERS,
   dedupKey,
   describeGame,
   filterGame,
   normalizeGame,
   parseTimeControl,
+  stripPgnCommands,
   SKIP_REASON_LABEL,
   type ImportedGame,
   type ParsedPgnGame,
   type ParsedPgnNodeData,
 } from './pgnImport'
+import { planStudy } from './studyGame'
 
 // ---------- fixtures ----------
 //
@@ -54,6 +57,43 @@ const LONG_GAME: string[] = Array.from({ length: 40 }, (_, i) => (i % 2 ? 'e5' :
 function game(headers: Record<string, string> = CLASSIC, sanMoves = LONG_GAME): ImportedGame {
   return { headers, sanMoves }
 }
+
+/**
+ * A rated rapid game off chess.com, with the handles replaced by neutral ones.
+ *
+ * The rest is faithful to what the public API returns (measured 2026-08-15,
+ * #129): "Live Chess" as the event, a `900+10` control, and club ratings. Under
+ * `DEFAULT_IMPORT_FILTERS` every one of the 280 games in that account was
+ * skipped — 247 as fast, 19 below the rating floor, 14 as too short.
+ */
+const CHESSCOM = {
+  Event: 'Live Chess',
+  Site: 'Chess.com',
+  Date: '2026.08.15',
+  White: 'club_player',
+  Black: 'their_opponent',
+  Result: '1/2-1/2',
+  WhiteElo: '1118',
+  BlackElo: '1284',
+  TimeControl: '900+10',
+  ECO: 'D06',
+  Termination: 'Game drawn by agreement',
+}
+
+/**
+ * Clock stamps exactly as chessops hands them over — braces already removed.
+ *
+ * Verbatim from that game, where **every** ply carried one of these and nothing
+ * else. That is the measurement behind #129: 55 of 55 plies annotated, so the
+ * reveal showed an attributed clock reading at every position in the session.
+ */
+const CLOCKS = ['[%clk 0:15:09]', '[%clk 0:15:05.1]', '[%clk 0:14:52.4]']
+
+/** A real, legal QGD long enough to reach the quiz cutoff at ply 8. */
+const QGD = ['d4', 'd5', 'Nf3', 'Nf6', 'c4', 'e6', 'Nc3', 'Be7', 'Bg5', 'O-O', 'e3', 'h6']
+
+const withClocks = (sanMoves: string[]): ParsedPgnNodeData[] =>
+  sanMoves.map((san, ply) => ({ san, comments: [CLOCKS[ply % CLOCKS.length]!] }))
 
 // ---------- normaliser ----------
 
@@ -113,6 +153,100 @@ describe('normalizeGame — chessops parse tree → our own type', () => {
   it('survives a game with no moves at all', () => {
     const g = normalizeGame(parsed(CLASSIC, []))
     expect(g.sanMoves).toEqual([])
+  })
+})
+
+// ---------- %-commands inside comments (#129) ----------
+
+describe('stripPgnCommands', () => {
+  it('reports nothing left, not an empty string, for a comment that was only a clock', () => {
+    // The distinction the whole change turns on. `''` is still a comment as far
+    // as every reader downstream is concerned, and it is the shape a chess.com
+    // export produces at every single ply.
+    expect(stripPgnCommands('[%clk 0:15:09.9]')).toBeUndefined()
+  })
+
+  it('drops each of the commands real files carry, and several at once', () => {
+    for (const command of [
+      '[%clk 0:15:09.9]',
+      '[%emt 0:00:05]',
+      '[%eval -0.34]',
+      '[%csl Gd4,Re5]',
+      '[%cal Gd1d4,Rf3g5]',
+    ]) {
+      expect(stripPgnCommands(command)).toBeUndefined()
+    }
+    expect(stripPgnCommands('[%eval 0.21] [%clk 0:01:02.5] [%cal Ge2e4]')).toBeUndefined()
+  })
+
+  it('keeps the prose around a command, closing the gap it left', () => {
+    expect(stripPgnCommands('Better was Nf3. [%clk 0:01:02] Now Black is fine.')).toBe(
+      'Better was Nf3. Now Black is fine.',
+    )
+    expect(stripPgnCommands('[%eval -0.34] The pawn is loose.')).toBe('The pawn is loose.')
+  })
+
+  it('strips a command it has never heard of, because the syntax is the signal', () => {
+    // `[%name …]` is the convention for machine-readable data, and tools keep
+    // inventing new ones — ChessBase and Lichess both do. Matching the five we
+    // have seen would leak the sixth into a reveal as if the annotator wrote it.
+    expect(stripPgnCommands('[%c_effect e4;square;e4;type;Mistake] Oops')).toBe('Oops')
+  })
+
+  it('leaves an ordinary bracketed aside alone', () => {
+    // Only `[%` is a command. A file that writes "[diagram]" means the word.
+    expect(stripPgnCommands('[diagram] A key moment.')).toBe('[diagram] A key moment.')
+  })
+
+  it('leaves an unterminated command as prose rather than eating the rest', () => {
+    // Deliberate, and it is a trade: running to the end of the comment on a
+    // stray "[%" would silently swallow a real note. A truncated stamp shown as
+    // written is ugly; a discarded annotation is not recoverable.
+    expect(stripPgnCommands('Down to seconds [%clk 0:00')).toBe('Down to seconds [%clk 0:00')
+  })
+
+  it('reports nothing for a comment that was only whitespace', () => {
+    expect(stripPgnCommands('   ')).toBeUndefined()
+    expect(stripPgnCommands('')).toBeUndefined()
+  })
+})
+
+describe('normalizeGame — %-commands never reach storage (#129)', () => {
+  it('omits the comment map entirely when every comment was a clock', () => {
+    const g = normalizeGame(parsed(CHESSCOM, withClocks(QGD)))
+    expect(g.sanMoves).toEqual(QGD)
+    expect(g.comments).toBeUndefined()
+  })
+
+  it('keeps a real note on a game that also stamps every move with a clock', () => {
+    const moves = withClocks(QGD)
+    moves[8] = { san: 'Bg5', comments: ['[%clk 0:12:30]', 'Pinning the knight.'] }
+    const g = normalizeGame(parsed(CHESSCOM, moves))
+    expect(g.comments).toEqual({ 8: 'Pinning the knight.' })
+  })
+
+  it('leaves a clock-stamped game with no annotations to attribute at all', () => {
+    // Stated where it is observable rather than only where it is implemented.
+    // #55 shows a file's note beside our own engine-derived "why", attributed to
+    // the file — and `studyGame` keys that off the comment map being *present*.
+    // A map of empty strings would have put an attributed blank under every
+    // reveal of every chess.com game, which is the reveal #55's test pins as
+    // byte-for-byte unchanged when there is no note.
+    const g = normalizeGame(parsed(CHESSCOM, withClocks(QGD)))
+    const plan = planStudy(
+      {
+        key: 'k',
+        white: g.headers.White!,
+        black: g.headers.Black!,
+        result: g.headers.Result!,
+        movetext: g.sanMoves.join(' '),
+        source: 'my-games.pgn',
+        ...(g.comments ? { comments: g.comments } : {}),
+      },
+      'w',
+    )
+    expect(plan.ok).toBe(true)
+    expect(plan.ok && plan.game.annotations).toBeUndefined()
   })
 })
 
@@ -298,6 +432,75 @@ describe('filterGame — defaults from docs/v0.3.0-plan.md §9', () => {
     for (const reason of Object.keys(SKIP_REASON_LABEL)) {
       expect(SKIP_REASON_LABEL[reason as keyof typeof SKIP_REASON_LABEL]).toBeTruthy()
     }
+  })
+})
+
+describe('MY_GAMES_FILTERS — the preset for your own games (#129)', () => {
+  const keep = (g: ImportedGame, filters = MY_GAMES_FILTERS) =>
+    filterGame(describeGame(g), filters)
+
+  it('keeps the rated club rapid game the defaults reject', () => {
+    // The measurement in #129: this exact shape is `fast-time-control` under the
+    // defaults, and it is every game in the owner's account.
+    const mine = game(CHESSCOM)
+    expect(filterGame(describeGame(mine), DEFAULT_IMPORT_FILTERS)).toEqual({
+      keep: false,
+      reason: 'fast-time-control',
+    })
+    expect(keep(mine)).toEqual({ keep: true })
+  })
+
+  it('keeps bullet and blitz, which is most of what an online account holds', () => {
+    expect(keep(game({ ...CHESSCOM, TimeControl: '60+0' }))).toEqual({ keep: true })
+    expect(keep(game({ ...CHESSCOM, TimeControl: '180+2', Event: 'Live Chess' }))).toEqual({
+      keep: true,
+    })
+  })
+
+  it('has no rating floor, because your own rating is not a reason to skip your game', () => {
+    expect(keep(game({ ...CHESSCOM, WhiteElo: '600', BlackElo: '640' }))).toEqual({ keep: true })
+  })
+
+  it('still drops what a relaxed filter has no answer for', () => {
+    // The preset relaxes the *conditions* a game was played under. What the game
+    // **is** — a variant, a stub, an empty record — is unchanged by whose game
+    // it is, so those refusals stay.
+    expect(keep(game({ ...CHESSCOM, Variant: 'Crazyhouse' }))).toEqual({
+      keep: false,
+      reason: 'variant',
+    })
+    expect(keep(game(CHESSCOM, []))).toEqual({ keep: false, reason: 'no-moves' })
+    expect(keep(game(CHESSCOM, ['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#']))).toEqual({
+      keep: false,
+      reason: 'too-short',
+    })
+  })
+
+  it('sets its length floor exactly where a game stops being studiable', () => {
+    // Not a taste call: the quiz starts at ply 8 (`harness.DEFAULT_START_PLY`),
+    // so a game under 5 full moves cannot produce a single position for either
+    // colour. Importing one stores a row that #55 can only ever refuse.
+    expect(MY_GAMES_FILTERS.minFullMoves).toBe(5)
+    const nine = QGD.slice(0, 9)
+    expect(keep(game(CHESSCOM, nine))).toEqual({ keep: true })
+    expect(keep(game(CHESSCOM, nine.slice(0, 8)))).toEqual({ keep: false, reason: 'too-short' })
+
+    const plan = planStudy(
+      { key: 'k', white: 'a', black: 'b', result: '1-0', movetext: nine.join(' '), source: 'f' },
+      'w',
+    )
+    expect(plan.ok && plan.positions).toBe(1)
+  })
+
+  it('leaves the defaults exactly as ADR 0018 §4 set them', () => {
+    // #129 adds a preset beside the defaults; it does not move them. The master
+    // corpus this trainer is built on is what they are calibrated for.
+    expect(DEFAULT_IMPORT_FILTERS).toEqual({
+      minBaseSeconds: 600,
+      excludeFastSpeeds: true,
+      minElo: 2200,
+      minFullMoves: 10,
+    })
   })
 })
 
