@@ -26,6 +26,7 @@
  */
 
 import { dedupKey, type GameFacts, type GameResult, type ImportedGame, type Speed } from '../domain/pgnImport'
+import type { PositionEval } from '../domain/gameRecord'
 import {
   matchesQuery,
   nameTokens,
@@ -86,6 +87,49 @@ export interface DbGame {
    * a reader can never assume a migration ran.
    */
   names?: string[]
+}
+
+/**
+ * A whole-game analysis pass over an imported game (#133).
+ *
+ * One row per game, in its own table rather than as columns on `DbGame` —
+ * `db.ts`'s v7 comment has the reasoning, and it is about what a 100k-game
+ * import costs, not about tidiness. Field names match `StoredGame`'s so the one
+ * pure pass (`app/gameAnalysis.ts`) can serve both without a translation layer.
+ *
+ * Everything but the key is optional, in the same sense as everywhere else here:
+ * absent means "not recorded", never an error.
+ */
+export interface DbGameAnalysis {
+  /** Primary key: the `DbGame.key` this is an analysis of. */
+  key: string
+  /**
+   * Eval after each ply, White's perspective. Sparse — a gap is a position the
+   * pass could not score, and must stay distinguishable from a score of zero.
+   */
+  evalByPly?: (PositionEval | undefined)[]
+  /**
+   * Evaluation of the position *before* move 0. `evalByPly` is indexed by the
+   * move it follows, so without this the first move can never be scored (#74).
+   */
+  startEval?: PositionEval
+  /** When the pass completed. Absent ⇒ it was interrupted; the evals so far still stand. */
+  analysedAt?: number
+  /** Nodes per position, so a later pass can tell whether this work still counts. */
+  analysisNodes?: number
+  /**
+   * The position the pass started from — the game's `startFen`, absent for the
+   * standard start.
+   *
+   * Stored so a stale analysis can be spotted rather than served. The dedup key
+   * hashes the movetext but **not** the `[FEN]` tag (`domain/pgnImport.keyFrom`),
+   * and rows imported before #128 carry no `startFen` at all — so re-attaching a
+   * file can replace the row under a key an older analysis is still filed at,
+   * with every evaluation in it belonging to a different game. `getDbAnalysis`
+   * discards on a mismatch; the cost is one pass, and the alternative is scores
+   * that are quietly about positions the user is not looking at.
+   */
+  startFen?: string
 }
 
 /** One attached file, so the UI can list what is attached and offer to re-attach. */
@@ -386,7 +430,14 @@ export async function recordDbSource(source: DbSource): Promise<void> {
   }
 }
 
-/** Detach a file: remove its games and its record. Returns how many games went. */
+/**
+ * Detach a file: remove its games and its record. Returns how many games went.
+ *
+ * Analyses of those games are deliberately **left behind** — see `db.ts`'s v7
+ * comment. They are a few kB each, they are filed under a key derived from the
+ * game itself, and leaving them is what makes re-attaching the file give the
+ * user their engine time back instead of asking for it again.
+ */
 export async function deleteDbSource(name: string): Promise<number> {
   const d = getDb()
   if (!d) return 0
@@ -399,5 +450,53 @@ export async function deleteDbSource(name: string): Promise<number> {
   } catch (e) {
     console.warn('etude-chess: could not detach the database', e)
     return 0
+  }
+}
+
+// ---------- analysing an imported game (#133) ----------
+
+/**
+ * The stored pass for a game, or nothing.
+ *
+ * Takes the row rather than its key so it can check the one thing that can go
+ * wrong: that the pass was computed from the position this game actually starts
+ * from. A row can be replaced under a key an older analysis is still filed at
+ * (see `DbGameAnalysis.startFen`), and the evaluations would then describe
+ * positions the game was never in. Discarding a mismatch costs one pass and is
+ * the same answer `searchIndex`'s stamp gives to the same class of problem.
+ *
+ * Best-effort like every other read here: no storage, or a read that fails, is
+ * an unanalysed game rather than an error (ADR 0011).
+ */
+export async function getDbAnalysis(
+  game: Pick<DbGame, 'key' | 'startFen'>,
+): Promise<DbGameAnalysis | undefined> {
+  const d = getDb()
+  if (!d) return undefined
+  try {
+    const stored = await d.dbAnalysis.get(game.key)
+    if (!stored) return undefined
+    return stored.startFen === game.startFen ? stored : undefined
+  } catch (e) {
+    console.warn('etude-chess: could not load the analysis', e)
+    return undefined
+  }
+}
+
+/**
+ * Write a pass, replacing whatever was there.
+ *
+ * A plain `put`, unlike `db.ts`'s `saveAnalysis`, which merges: that row is
+ * written by two independent writers (the play session and the pass) from
+ * separate snapshots, and each was silently reverting the other's fields. This
+ * table has exactly one writer, and a pass supersedes the pass before it.
+ */
+export async function saveDbAnalysis(analysis: DbGameAnalysis): Promise<void> {
+  const d = getDb()
+  if (!d) return
+  try {
+    await d.dbAnalysis.put(defined(analysis))
+  } catch (e) {
+    console.warn('etude-chess: could not persist the analysis', e)
   }
 }

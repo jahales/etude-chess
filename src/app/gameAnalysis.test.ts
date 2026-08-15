@@ -7,6 +7,7 @@ import {
   evalSwingAt,
   accuracyReport,
   BATCH_NODES,
+  type AnalysableGame,
 } from './gameAnalysis'
 import type { StoredGame } from '../persist/db'
 import type { PositionEval } from '../domain/gameRecord'
@@ -54,6 +55,48 @@ describe('pliesNeedingAnalysis', () => {
 
   it('asks for nothing on a game with no moves', () => {
     expect(pliesNeedingAnalysis(game({ sanHistory: [] }))).toEqual([])
+  })
+})
+
+describe('the same pass over a game that was imported rather than played (#133)', () => {
+  // The widening. This module was typed against `StoredGame` throughout, and an
+  // imported row has none of a played game's fields — no colour of yours, no
+  // coach log, no `gameId`. What the pass actually needs is the move list plus
+  // whatever an earlier pass recorded, so that is what it asks for now, taken
+  // structurally the way `domain/studyGame.DatabaseGame` is.
+  const imported = (over: Partial<AnalysableGame> = {}): AnalysableGame => ({
+    sanHistory: ['d4', 'd5', 'c4'],
+    ...over,
+  })
+
+  it('asks for every move of an imported game', () => {
+    expect(pliesNeedingAnalysis(imported())).toEqual([0, 1, 2])
+  })
+
+  it('reads a pass recorded away from the game, since that is where an import keeps it', () => {
+    // An imported game's evaluations live in a table beside it rather than on
+    // the row (db.ts's v7 comment says why), so what reaches `isAnalysed` here
+    // is the two fields and nothing else.
+    expect(isAnalysed({ analysedAt: 5, analysisNodes: BATCH_NODES })).toBe(true)
+    expect(isAnalysed({ analysedAt: 5, analysisNodes: 40_000 })).toBe(false)
+    expect(pliesNeedingAnalysis(imported({ analysedAt: 5, analysisNodes: BATCH_NODES }))).toEqual([])
+  })
+
+  it('measures only the moves that replay, so a truncated game can still finish', () => {
+    // Far likelier here than for a game you played: an import stores movetext
+    // as text and never replays it, so this pass is the first thing that tries.
+    // Asking for plies past the break would leave it permanently short of 100%,
+    // never marked complete, and redoing every position on each attempt.
+    expect(
+      pliesNeedingAnalysis(imported({ sanHistory: ['d4', 'd5', 'c4', 'Nf6'] }), BATCH_NODES, 3),
+    ).toEqual([0, 1])
+  })
+
+  it('measures nothing when only the starting position could be rebuilt', () => {
+    // The #128 shape: a study whose `[FEN]` was dropped at import replays
+    // nothing legal from move 1. Analysing no positions beats scoring positions
+    // the game was never in.
+    expect(pliesNeedingAnalysis(imported(), BATCH_NODES, 1)).toEqual([])
   })
 })
 

@@ -1,4 +1,5 @@
 import { meanAccuracy } from '../domain/accuracy'
+import { swingFromWhitePercent } from '../domain/winPercent'
 import type { PositionEval } from '../domain/gameRecord'
 import type { StoredGame } from '../persist/db'
 
@@ -6,6 +7,12 @@ import type { StoredGame } from '../persist/db'
  * Batch-analysing a whole stored game: which positions still need work, and how
  * far along we are. Pure — the hook drives the engine, this decides what to ask
  * it and how to fold the answers back in.
+ *
+ * The pass is typed **structurally** (`AnalysableGame`), so the one pass covers
+ * a game you played against Maia and a game you imported (#133) — they live in
+ * different tables and share no field but the moves. The figures about *your
+ * play* below (`yourPlies`, `accuracyReport`) deliberately stay on `StoredGame`:
+ * a coach log and a side of yours are things only a game you played has.
  */
 
 /**
@@ -23,6 +30,38 @@ export interface AnalysisProgress {
 }
 
 /**
+ * What an earlier pass recorded: when it finished, and at what budget.
+ *
+ * Its own type, and taken structurally, because the two fields are kept in two
+ * places. A game you played carries them on its own row (`StoredGame`); a game
+ * you *imported* keeps them in a table beside the row (`persist/dbGames`'s
+ * `DbGameAnalysis`, and `db.ts`'s v7 comment says why). Neither is the pass's
+ * business — it only needs to know whether the stored work still counts.
+ *
+ * Both optional, and absent means "not recorded" rather than an error: v0.2
+ * records predate the fields entirely, and a game nobody has analysed simply
+ * has nothing to say.
+ */
+export interface AnalysisRecord {
+  /** When a full-game pass last completed. Absent ⇒ never analysed. */
+  analysedAt?: number
+  /** Nodes per position that pass used, so a later pass can tell if it must redo the work. */
+  analysisNodes?: number
+}
+
+/**
+ * A game this pass can walk: the moves, plus what an earlier pass recorded.
+ *
+ * `StoredGame` satisfies it, and so does an imported row once its movetext has
+ * been split — the same trick `domain/studyGame.DatabaseGame` uses, so one pass
+ * serves a game you played and a game you imported without either table
+ * learning about the other (#133).
+ */
+export interface AnalysableGame extends AnalysisRecord {
+  sanHistory: readonly string[]
+}
+
+/**
  * Plies still needing an evaluation.
  *
  * `evalByPly[p]` is the evaluation *after* move `p`, so a game of n moves needs
@@ -32,7 +71,7 @@ export interface AnalysisProgress {
  * derived from them) inconsistent across a single game for no visible reason.
  */
 export function pliesNeedingAnalysis(
-  game: StoredGame,
+  game: AnalysableGame,
   nodes = BATCH_NODES,
   /**
    * Positions actually reconstructable from the move list. A record whose SAN
@@ -48,8 +87,8 @@ export function pliesNeedingAnalysis(
 }
 
 /** Whether a completed pass at this budget already covers the game. */
-export function isAnalysed(game: StoredGame, nodes = BATCH_NODES): boolean {
-  return game.analysedAt != null && game.analysisNodes === nodes
+export function isAnalysed(record: AnalysisRecord, nodes = BATCH_NODES): boolean {
+  return record.analysedAt != null && record.analysisNodes === nodes
 }
 
 /** Which colour moved at this ply, for a game starting at move 1 with White. */
@@ -150,6 +189,11 @@ export function progressOf(done: number, total: number): AnalysisProgress {
  * position, which `evalByPly` cannot hold (it is indexed by the move each
  * evaluation follows) — hence `startEval`. Without it the first move of every
  * game is permanently unmeasurable.
+ *
+ * What this decides is *which two readings* to difference; the arithmetic itself
+ * is `domain/winPercent`'s, which `domain/keyMoments` (#132) also rests on. Two
+ * modules differencing evaluations under their own sign conventions is a bug
+ * that reads as a plausible number.
  */
 export function evalSwingAt(
   evals: (PositionEval | undefined)[] | undefined,
@@ -160,7 +204,5 @@ export function evalSwingAt(
   const before = ply === 0 ? startEval : evals?.[ply - 1]
   const after = evals?.[ply]
   if (!before || !after) return undefined
-  const delta = after.whitePct - before.whitePct
-  // whitePct is always White's perspective, so Black's losses are positive deltas.
-  return yourColor === 'w' ? -delta : delta
+  return swingFromWhitePercent(before.whitePct, after.whitePct, yourColor)
 }
