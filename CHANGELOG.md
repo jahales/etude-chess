@@ -127,6 +127,34 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   we have not measured that this number moving means anything about your chess, and drawing it as
   something to fill in would claim exactly what §12 forbids. Over no analysed games it reports no
   rate at all, rather than a 0.00 that reads as a perfect record.
+- **A "My own games" import preset, and clock stamps no longer masquerade as annotations
+  (#129).** Attaching your own games worked, in the sense that a wall you can walk around is not
+  a wall. Measured against a real chess.com account on 2026-08-15, the import defaults kept
+  **0 of 280 games** — 247 rejected as blitz/rapid/bullet, 19 under the 2200 rating floor, 14 as
+  too short — and every one of the account's plies carried a `{[%clk 0:15:09.9]}` comment, which
+  the reveal then showed as a note *attributed to your file*, at every single position of a
+  session.
+  - **One click now sets the four filters for your own games**, next to the fields that were
+    always editable: every time control kept, no rating floor, and a length floor of five moves.
+    Five is not a taste call — the quiz starts at ply 8, so a shorter game cannot produce a
+    single position to ask about for either colour, and importing one only stores a row that
+    study can refuse later. The **defaults are untouched**: ADR 0018 §4 chose them for the master
+    corpus this trainer is built on, a test now pins them, and this sits beside them rather than
+    replacing them. Neither button stays lit once you edit a field by hand, because at that point
+    the settings are yours and claiming otherwise would be a small lie on the screen.
+  - **`[%clk]`, `[%eval]`, `[%emt]`, `[%csl]` and `[%cal]` are stripped from imported comments,
+    and whatever prose was around them is kept.** These are a program's data wearing a comment's
+    clothes: a clock reading is not something a person wrote about the position, and an `[%eval]`
+    from someone else's engine at someone else's budget is exactly the kind of number that put a
+    `?!` beside a move our own coach had called good. Matching is on the `[%` syntax rather than
+    on the five names, since every tool invents its own and the sixth would otherwise reach a
+    reveal looking like an annotation.
+  - **A comment that was only commands ends up absent, not empty**, which is the whole of why
+    this is a change to the import rather than to the reveal. An empty-string comment is still a
+    comment to everything downstream, so it would have rendered as an attributed *blank* under
+    every reveal of every online game — the file credited with prose it never contained
+    (constitution §9/§12). A game with no real notes now reveals exactly as it did before, and a
+    test states that property rather than leaving it to be noticed.
 
 ### Changed
 - **The licence is AGPL-3.0, and `package.json` finally agrees (#121, ADR
