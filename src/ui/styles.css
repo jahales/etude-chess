@@ -1526,6 +1526,20 @@ button {
   opacity: 0.55;
 }
 
+/* Syncing your own games from chess.com (#145) — same panel, one text field. */
+.chesscom-sync input[type='text'] {
+  width: 12rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.chesscom-sync .btn {
+  align-self: flex-end;
+}
+
 .drop-zone {
   display: flex;
   align-items: center;

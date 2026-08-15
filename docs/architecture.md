@@ -154,13 +154,16 @@ holds only data now: `PackGame` is an alias for `domain/studyGame`'s `StudyGame`
 the pack stopped being the only source of a game to study and the session must not be able to
 tell one source from the other.
 
-`pgnImport.ts` is the exception to "data-shaped": it is the **streaming reader** for an attached
-PGN database (#53), and the only module in `src/` that imports **chessops** (GPL — ADR
-[0028](decisions/0028-chessops-for-streaming-pgn.md)). It exists because a user's database can
-be larger than memory, so the file is consumed through `stream()` and never `text()`, games are
-handed on in batches, and each batch is **awaited** before reading continues. Its test asserts
-all three — including that a game is delivered before the last chunk is pulled — because a
-refactor that reintroduced the whole-file read would otherwise pass every other test in the repo.
+`pgnImport.ts` and `chesscom.ts` are the exceptions to "data-shaped": they are the two readers
+that bring games in, and the only modules in `src/` that import **chessops** (GPL — ADR
+[0028](decisions/0028-chessops-for-streaming-pgn.md)). `pgnImport.ts` streams an attached PGN
+database (#53); `chesscom.ts` fetches your own games from chess.com (#145).
+
+`pgnImport.ts` streams because a user's database can be larger than memory, so the file is
+consumed through `stream()` and never `text()`, games are handed on in batches, and each batch is
+**awaited** before reading continues. Its test asserts all three — including that a game is
+delivered before the last chunk is pulled — because a refactor that reintroduced the whole-file
+read would otherwise pass every other test in the repo.
 
 ### PGN import — `domain/pgnImport.ts` + `content/pgnImport.ts` + `app/pgnImportWorker.ts`
 We ship **no** corpus; the user attaches their own file and it is parsed, filtered and indexed
@@ -186,6 +189,35 @@ Three things about this that are easy to get wrong on a later edit:
 it is stored**, which is what stops the parser buffering a whole database ahead of the writer.
 `navigator.storage.persist()` is asked for from the hook rather than the worker: it is a window
 API, and being refused is reported rather than assumed. `ui/Database.tsx` is the screen.
+
+### Syncing your own games — `domain/chesscom.ts` + `content/chesscom.ts` + `app/useChesscomSync.ts` (#145)
+The **second door into the same room**, not a second import path: it fetches your own games from
+chess.com's public read-only API (`Access-Control-Allow-Origin: *`, so no backend — ADR 0009) and
+takes every one of them through `normalizeGame` → `describeGame` → `filterGame` → `putDbGames`
+with `MY_GAMES_FILTERS`. That is what makes a synced game and the same game exported by hand land
+on **one row**: the dedup key is computed from the game, never from its provenance.
+
+Same split as above. `domain/chesscom.ts` is pure — which months are worth asking for, which
+games to keep before spending a parse on them, how a finished month is recorded.
+`content/chesscom.ts` does the fetching; `app/useChesscomSync.ts` stores what comes back and
+records the account.
+
+Four rules here exist because each has a specific failure behind it:
+
+- **A month is only "done" once it has ended *and* for the classes you asked for.** Recording the
+  month you are in would strand the rest of it; a bare done-flag would skip every month you had
+  already visited when you later add a second time class, and return nothing.
+- **The API is free and public, and we behave like it.** Index once, months serially with a pause
+  between them, each write awaited before the next request, one `Retry-After`-obeying retry on a
+  429 and then a reported failure. **Nothing syncs on load** — it is a button.
+- **A 404 is `no-such-user`, never an empty archive.** Falling through would end the run with "0
+  games imported", which reads as success.
+- **Time class is the user's pick with no default** (`coach` skill: pooling blitz with rapid and
+  daily describes a mixture of players), and **no `User-Agent`** — browsers forbid setting it.
+
+The handle is typed at runtime and kept in `localStorage` (`app/chesscomAccount.ts`), the same way
+#130 keeps the names you play under. There is no default and there will not be one: it is the
+owner's to publish and it appears nowhere in this repo.
 
 ### Browsing the attached database — `domain/dbQuery.ts` + `persist/dbGames.ts` + `persist/searchIndex.ts` (#54, plan §10)
 Same split again. `domain/dbQuery.ts` is pure: the query type, the `matchesQuery` predicate, and
@@ -486,6 +518,11 @@ Three things about this boundary:
   Worker into domain code.
 - New **screen / control** → `src/ui/**`, driven by hook state + handlers. Anything that belongs
   on "a board" → `BoardPanel.tsx`.
+- New **source of games** → the judgment about what to fetch and keep in `src/domain/**`, the
+  I/O in `src/content/**`, the storing in a hook — and then through the *existing*
+  `normalizeGame` → `describeGame` → `filterGame` → `putDbGames` path. A second way into
+  `dbGames` is a second set of rules about what a stored game is, and the dedup key stops
+  deduplicating across them.
 - New **offline/batch capability** → `scripts/**`, with any judgment it makes lifted into
   `src/domain` (runtime-import-free, or importing with an explicit `.ts` extension).
 

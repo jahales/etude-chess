@@ -354,6 +354,17 @@ export type SkipReason =
   | 'too-short'
   | 'fast-time-control'
   | 'below-min-rating'
+  /**
+   * Not one of the time classes the user asked for (#145).
+   *
+   * Distinct from `fast-time-control`, which is a *rule about strength* from ADR
+   * 0018 §4 — "a blitz game is a weak sample of a strong player". This one is
+   * only ever the user's own choice about their own games, and reporting the two
+   * under one label would make an explicit pick look like a default we imposed.
+   * Nothing in a PGN file produces it; it comes from a source that classifies
+   * games itself.
+   */
+  | 'time-class'
   /** The parser gave up on this game — it blew its complexity budget. */
   | 'malformed'
 
@@ -364,6 +375,7 @@ export const SKIP_REASON_LABEL: Record<SkipReason, string> = {
   'too-short': 'too short',
   'fast-time-control': 'blitz, rapid or bullet',
   'below-min-rating': 'below the rating minimum',
+  'time-class': 'in a time control you did not pick',
   malformed: 'could not be parsed',
 }
 
