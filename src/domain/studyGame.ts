@@ -28,7 +28,7 @@
  */
 
 import type { Color } from './types'
-import { buildQuiz, heroColorFromResult, parseGame, DEFAULT_START_PLY } from './harness'
+import { buildQuiz, heroColorFromResult, parseGame, DEFAULT_START_PLY } from './harness.ts'
 
 // ---------- the shapes ----------
 
