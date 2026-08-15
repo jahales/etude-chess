@@ -33,7 +33,13 @@ import {
   type SessionState,
 } from '../app/sessionMachine'
 import { BoardPanel, type Arrows } from './BoardPanel'
-import { LinesPanel } from './Analysis'
+import {
+  ExplorationBar,
+  ExplorationControls,
+  LinesPanel,
+  useExploration,
+} from './Analysis'
+import type { AnalyserState } from '../app/useAnalyser'
 import { Reveal } from './Reveal'
 import {
   ARROW_MASTER,
@@ -204,6 +210,7 @@ export function App() {
         {mode === 'guess' && gstate.screen === 'play' && gstate.session && (
           <Play
             state={gstate}
+            engine={engine}
             engineReady={guess.engineReady}
             onDropMove={guess.tryMove}
             onClickSquare={guess.clickSquare}
@@ -481,6 +488,7 @@ function GamePicker({
 
 function Play({
   state,
+  engine,
   engineReady,
   onDropMove,
   onClickSquare,
@@ -491,6 +499,7 @@ function Play({
   onNext,
 }: {
   state: SessionState
+  engine: AnalyserState
   engineReady: boolean
   onDropMove: (from: string, to: string) => boolean
   onClickSquare: (square: string) => void
@@ -503,14 +512,23 @@ function Play({
   const session = state.session!
   const { phase, pending, reason, result, lines, positionWhitePct, selected, index } = state
   const item = currentItem(state)!
-  const boardFen = selectDisplayFen(state)
 
-  const squareStyles = selected
-    ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
-    : undefined
+  // Walking the engine's lines (#131). Only offered at the reveal, where the
+  // lines are: during the guess the board is the question being asked.
+  const explore = useExploration(engine, phase === 'reveal' ? item.fen : null)
+  const boardFen = explore.fen ?? selectDisplayFen(state)
+
+  // One highlight, whichever selection is live: the guess board's during the
+  // guess, the exploration's once the answer is out.
+  const picked = phase === 'reveal' ? explore.selected : selected
+  const squareStyles = picked ? { [picked]: { background: 'rgba(53, 96, 73, 0.35)' } } : undefined
 
   const arrows: Arrows = useMemo(() => {
-    if (phase !== 'reveal') return [] as unknown as Arrows
+    // The reveal's arrows name squares in the *game* position. Left on screen
+    // they would point at whatever now happens to sit there — engine output
+    // drawn against a position it was not computed for, exactly what the
+    // cross-cutting rule forbids.
+    if (phase !== 'reveal' || explore.offGame) return [] as unknown as Arrows
     const out: string[][] = []
     const m = uciSquares(item.masterMoveUci)
     out.push([m.from, m.to, ARROW_MASTER])
@@ -522,7 +540,7 @@ function Play({
       out.push([pending.from, pending.to, ARROW_USER])
     }
     return out as unknown as Arrows
-  }, [phase, result, item, pending])
+  }, [phase, result, item, pending, explore.offGame])
 
   return (
     <section className="play">
@@ -530,15 +548,30 @@ function Play({
         id="board"
         fen={boardFen}
         orientedFor={session.heroColor}
-        whitePct={positionWhitePct}
-        arePiecesDraggable={phase === 'guess' && !pending && engineReady}
-        onPieceDrop={(from, to) => onDropMove(from, to)}
-        onSquareClick={onClickSquare}
+        // The session's eval was computed for the game position; while the board
+        // is somewhere else the bar reads the explored position or nothing.
+        whitePct={explore.offGame ? explore.whitePct : positionWhitePct}
+        offGame={
+          explore.offGame ? { label: 'Exploring — not the game', onLeave: explore.leave } : undefined
+        }
+        // At the reveal the answer is already out, so the board becomes a place
+        // to try things: playing a move branches instead of committing one.
+        arePiecesDraggable={phase === 'reveal' || (phase === 'guess' && !pending && engineReady)}
+        onPieceDrop={(from, to) =>
+          phase === 'reveal' ? explore.play(from, to) : onDropMove(from, to)
+        }
+        onSquareClick={phase === 'reveal' ? explore.clickSquare : onClickSquare}
         customArrows={arrows}
         customSquareStyles={squareStyles}
       >
-        <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
-        {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
+        {explore.exploration ? (
+          <ExplorationControls explore={explore} />
+        ) : (
+          <>
+            <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
+            {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
+          </>
+        )}
       </BoardPanel>
 
       <div className="side-col">
@@ -612,7 +645,17 @@ function Play({
               onNext={onNext}
               last={isLast(state)}
             />
-            <LinesPanel fen={item.fen} lines={lines} />
+            <ExplorationBar explore={explore} />
+            {/* One panel, and it always renders the lines *for the position on
+                the board*: the session's grading of the game position, or the
+                engine's answer for wherever the exploration has walked to. The
+                two are never mixed — `useExploration` withholds its lines
+                unless the board is off the game. */}
+            {explore.offGame ? (
+              <LinesPanel fen={explore.fen!} lines={explore.lines} onPickMove={explore.enter} />
+            ) : (
+              <LinesPanel fen={item.fen} lines={lines} onPickMove={explore.enter} />
+            )}
           </>
         )}
       </div>
