@@ -7,6 +7,27 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Walk the engine's lines on the board (#131).** The reveal's top lines were static text:
+  you could read "Rxh2+ Kxh2 Bxe5+ Rxe5 Rxd1" and still have no idea what the position at the
+  end of it looks like — which is exactly when a line is worth seeing. Now every move in a line
+  is a button. Click one and the board goes there; **← →** step through the variation; playing
+  your own move on the board branches off and truncates whatever was ahead; one control comes
+  back to the game. You can also just play a move from the game position without picking a line
+  first, which makes the reveal a small analysis board.
+  - **The engine follows the board.** While you are off the game the panel shows the engine's
+    answer for the position you are standing on, and it shows **nothing at all** until that
+    answer arrives — never the previous position's lines, which are legal moves with a
+    plausible score and every claim in them false. The eval bar, the score chip and the lines
+    all move together, all still from White's perspective.
+  - **You cannot mistake it for the game.** The board carries a ribbon and an outline, the side
+    panel says so in words, and the reveal's arrows — which name squares in the *game* position
+    — are taken down. None of it appears when you step back to the start of the line, because
+    there the board really is the game position and a warning that is sometimes false is one
+    people stop reading.
+  - Analysing the explored position waits **300 ms** for the cursor to settle: Stockfish runs
+    one search at a time, so asking on every keypress would queue a whole search per press and
+    land the answer you wanted seconds behind your last arrow.
+  - Known gap: a branch **auto-queens**. Underpromotion inside a variation is not reachable.
 - **Attach your own game database (#53).** A new Home card takes a PGN file you already have,
   parses it and indexes it on this device. Nothing is uploaded and nothing is redistributed —
   which is the point: étude ships no corpus, so the licensing question that hangs over every

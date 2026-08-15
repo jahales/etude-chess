@@ -175,6 +175,37 @@ describe('useExploration', () => {
     expect(result.current.fen).toBe(after('e4'))
   })
 
+  it('branches on click-to-move as well as drag, picking up either side', () => {
+    // An exploration is an analysis board: you play both colours, so a piece is
+    // pickable whenever it belongs to the side to move.
+    const { engine } = deferredEngine()
+    const { result } = renderHook(() => useExploration(engine, WHITE_TO_MOVE))
+
+    act(() => result.current.clickSquare('e2'))
+    expect(result.current.selected).toBe('e2')
+    act(() => result.current.clickSquare('e4'))
+    expect(result.current.fen).toBe(after('e4'))
+    expect(result.current.selected).toBeNull()
+
+    act(() => result.current.clickSquare('e7')) // Black's turn now
+    expect(result.current.selected).toBe('e7')
+    act(() => result.current.clickSquare('e5'))
+    expect(result.current.fen).toBe(after('e4', 'e5'))
+  })
+
+  it('ignores a click on a piece that is not to move, and drops a repeated pick', () => {
+    const { engine } = deferredEngine()
+    const { result } = renderHook(() => useExploration(engine, WHITE_TO_MOVE))
+
+    act(() => result.current.clickSquare('e7')) // Black, but White is to move
+    expect(result.current.selected).toBeNull()
+
+    act(() => result.current.clickSquare('e2'))
+    act(() => result.current.clickSquare('e2'))
+    expect(result.current.selected).toBeNull()
+    expect(result.current.exploration).toBeNull()
+  })
+
   it('steps with the arrow keys, and leaves them alone while you are typing', () => {
     const { engine } = deferredEngine()
     const { result } = renderHook(() => useExploration(engine, WHITE_TO_MOVE))

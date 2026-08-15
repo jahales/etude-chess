@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import type { AnalysisLine } from '../engine/analyser'
 import type { Material } from '../domain/material'
 import { pvToSan, whiteScoreLabel } from '../domain/notation'
@@ -8,6 +8,8 @@ import {
   explorationMoves,
   explorationReducer,
   isOffGame,
+  moveSan,
+  pieceColorAt,
   type Exploration,
   type ExploredMove,
 } from '../domain/exploration'
@@ -149,6 +151,10 @@ export interface ExplorationUi {
   enter: (fen: string, moves: string[], ply: number) => void
   /** Returns whether the move was legal, which is what the board drag needs. */
   play: (from: string, to: string) => boolean
+  /** Click-to-move, the other half of the affordance the guess board teaches. */
+  clickSquare: (square: string) => void
+  /** The square picked up, for the board's highlight. */
+  selected: string | null
   step: (delta: number) => void
   seek: (cursor: number) => void
   leave: () => void
@@ -204,6 +210,12 @@ export function useExploration(engine: AnalyserState, rootFen: string | null): E
     return () => window.removeEventListener('keydown', onKey)
   }, [active, lastCursor])
 
+  // The square picked up, remembered against the position it was picked up on.
+  // Deriving it away when the board moves beats clearing it in an effect: a
+  // highlight can never outlive the position that made sense of it.
+  const [pick, setPick] = useState<{ fen: string; square: string } | null>(null)
+  const selected = pick && pick.fen === boardFen ? pick.square : null
+
   const enter = useCallback(
     (lineFen: string, moves: string[], ply: number) =>
       dispatch({ type: 'ENTER', fen: lineFen, moves, ply }),
@@ -216,10 +228,28 @@ export function useExploration(engine: AnalyserState, rootFen: string | null): E
       // move you are committing, and a second picker on the exploration would be
       // another thing to get wrong for a case that is rare inside a six-ply PV.
       dispatch({ type: 'PLAY', fen: boardFen, from, to })
+      setPick(null)
       return true
     },
     [boardFen],
   )
+
+  const clickSquare = useCallback(
+    (square: string) => {
+      if (boardFen === null) return
+      // An exploration moves both sides, so a piece is pickable when it belongs
+      // to whoever is to move — there is no hero colour on an analysis board.
+      const own = pieceColorAt(boardFen, square) === sideToMoveOf(boardFen)
+      if (selected && square !== selected && moveSan(boardFen, selected, square)) {
+        dispatch({ type: 'PLAY', fen: boardFen, from: selected, to: square })
+        setPick(null)
+        return
+      }
+      setPick(own && square !== selected ? { fen: boardFen, square } : null)
+    },
+    [boardFen, selected],
+  )
+
   const step = useCallback((delta: number) => dispatch({ type: 'STEP', delta }), [])
   const seek = useCallback((cursor: number) => dispatch({ type: 'SEEK', cursor }), [])
   const leave = useCallback(() => dispatch({ type: 'LEAVE' }), [])
@@ -241,6 +271,8 @@ export function useExploration(engine: AnalyserState, rootFen: string | null): E
     analysing: fen !== null && analysis.analysing,
     enter,
     play,
+    clickSquare,
+    selected,
     step,
     seek,
     leave,

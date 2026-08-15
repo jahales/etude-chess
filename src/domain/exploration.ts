@@ -106,6 +106,17 @@ export function moveSan(fen: string, from: string, to: string, promotion = 'q'):
   }
 }
 
+/**
+ * The colour of the piece on `square`, or null if it is empty.
+ *
+ * Click-to-move needs it to decide whether a click is picking a piece up. An
+ * exploration moves **both** sides — it is an analysis board, not a game — so
+ * the caller compares against the side to move, never against a hero colour.
+ */
+export function pieceColorAt(fen: string, square: string): Color | null {
+  return new Chess(fen).get(square as Parameters<Chess['get']>[0])?.color ?? null
+}
+
 // ---------- reducer ----------
 
 function clamp(n: number, lo: number, hi: number): number {

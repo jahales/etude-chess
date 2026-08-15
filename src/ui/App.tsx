@@ -518,9 +518,10 @@ function Play({
   const explore = useExploration(engine, phase === 'reveal' ? item.fen : null)
   const boardFen = explore.fen ?? selectDisplayFen(state)
 
-  const squareStyles = selected
-    ? { [selected]: { background: 'rgba(53, 96, 73, 0.35)' } }
-    : undefined
+  // One highlight, whichever selection is live: the guess board's during the
+  // guess, the exploration's once the answer is out.
+  const picked = phase === 'reveal' ? explore.selected : selected
+  const squareStyles = picked ? { [picked]: { background: 'rgba(53, 96, 73, 0.35)' } } : undefined
 
   const arrows: Arrows = useMemo(() => {
     // The reveal's arrows name squares in the *game* position. Left on screen
@@ -559,7 +560,7 @@ function Play({
         onPieceDrop={(from, to) =>
           phase === 'reveal' ? explore.play(from, to) : onDropMove(from, to)
         }
-        onSquareClick={onClickSquare}
+        onSquareClick={phase === 'reveal' ? explore.clickSquare : onClickSquare}
         customArrows={arrows}
         customSquareStyles={squareStyles}
       >
