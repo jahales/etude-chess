@@ -234,11 +234,11 @@ function ImportFiltersPanel({
         Exclude blitz, rapid and bullet
       </label>
       <p className="settings-hint">
-        <b>Master games</b> is aimed at a strong OTB database — 2200 and up, no blitz, rapid or
-        bullet. <b>My own games</b> is aimed at your own export from chess.com or Lichess: it
-        keeps every time control, has no rating floor, and only drops games too short to ask a
-        question about. Either is a starting point — change any field and you are on your own
-        settings, which is fine.
+        <b>Master games</b> is aimed at a strong over-the-board database: 2200 and up, standard
+        time controls only. <b>My own games</b> is aimed at your own export from chess.com or
+        Lichess — every time control kept, no rating floor, and the only games dropped are the
+        ones with too few moves to ask a question about. Either is a starting point; change any
+        field and you are on your own settings, which is fine.
       </p>
       <p className="settings-hint">
         A game whose rating or time control the file doesn&apos;t state is <b>kept and marked
