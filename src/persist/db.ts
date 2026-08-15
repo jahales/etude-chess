@@ -5,6 +5,7 @@ import { nameTokens } from '../domain/dbQuery'
 // Type-only, so this stays a one-way runtime dependency: dbGames.ts imports
 // `getDb` from here, and nothing here imports it back.
 import type { DbGame, DbSource } from './dbGames'
+import type { StoredSearchIndex } from './searchIndex'
 import { ensurePersistence } from './storage'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
@@ -71,6 +72,11 @@ export class EtudeDb extends Dexie {
   // here because the schema for the whole database lives in one place.
   dbGames!: Table<DbGame, string>
   dbSources!: Table<DbSource, string>
+  // v0.3 (#54): the serialized MiniSearch index over the name vocabulary. One
+  // row, no secondary indexes — it is fetched by a constant key and never
+  // queried. See searchIndex.ts for why it indexes the vocabulary rather than
+  // the games (10.1 MB → 0.8 MB at 100k games).
+  dbSearch!: Table<StoredSearchIndex, string>
   constructor() {
     super('etude-chess')
     this.version(1).stores({ attempts: '++id, gameId, sessionId, tier, createdAt' })
@@ -111,6 +117,11 @@ export class EtudeDb extends Dexie {
             row.names = nameTokens(row)
           }),
       )
+    // v0.3 (#54): somewhere to keep the serialized search index. A new table
+    // only — nothing existing is touched, and an absent row simply means the
+    // index gets built on the next search, which is exactly what a database
+    // attached before this version needs to happen.
+    this.version(5).stores({ dbSearch: 'id' })
   }
 }
 

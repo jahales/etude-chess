@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Dexie from 'dexie'
 import { describeGame, type ImportedGame } from '../domain/pgnImport'
 import { PAGE_SIZE, type GameQuery } from '../domain/dbQuery'
+import { invalidateSearchIndex, resetSearchIndex } from './searchIndex'
 import {
   COUNT_CAP,
   countMatchingDbGames,
@@ -47,12 +48,14 @@ beforeEach(async () => {
   const d = new Dexie('etude-chess')
   try {
     await d.open()
-    await d.table('dbGames').clear()
+    await Promise.all([d.table('dbGames').clear(), d.table('dbSearch').clear()])
   } catch {
     // First run: db.ts hasn't created the database yet.
   } finally {
     d.close()
   }
+  // The vocabulary changed under the index; every test seeds its own games.
+  resetSearchIndex()
 })
 
 const CORPUS = [
@@ -111,6 +114,25 @@ describe('querying the attached database', () => {
     expect((await found({ text: 'championship' })).sort()).toEqual(
       ['Fischer, Robert James', 'Kasparov, Garry'].sort(),
     )
+  })
+
+  it('finds both spellings of a player a database transliterates two ways', async () => {
+    // End to end through the search index: the reason MiniSearch is a dependency
+    // (ADR 0018 §6). `aljechin` is not a typo and shares no prefix with
+    // `alekhine` — a corpus that spans publishers and eras simply contains both,
+    // and a player search that returns half their games is worse than useless.
+    await putDbGames([
+      row({ White: 'Alekhine, Alexander', Black: 'Capablanca, Jose Raul', Date: '1927.11.29' }),
+      row({ White: 'Aljechin, A.', Black: 'Bogoljubow, Efim', Date: '1929.09.24' }),
+    ])
+    await invalidateSearchIndex()
+
+    expect((await found({ text: 'alekhine' })).sort()).toEqual(
+      ['Alekhine, Alexander', 'Aljechin, A.'].sort(),
+    )
+    // And a structured filter still narrows the fuzzy result rather than being
+    // dropped by it.
+    expect(await found({ text: 'alekhine', yearFrom: 1929 })).toEqual(['Aljechin, A.'])
   })
 
   it('yields a game once even when two of its names share the prefix searched for', async () => {

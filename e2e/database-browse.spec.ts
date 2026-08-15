@@ -73,6 +73,20 @@ test.describe('browse the attached database', () => {
     await expect(page.getByRole('heading', { name: /^Browse/ })).toBeVisible()
   })
 
+  test('finds a player through a spelling the file does not use', async ({ page }) => {
+    // The fuzzy half, in a real browser against real IndexedDB: the search index
+    // is built from the vocabulary of the `*names` index and consulted through
+    // MiniSearch, and neither of those is exercised by fake-indexeddb.
+    //
+    // "Andersen" is how a good many databases spell Anderssen — the same class
+    // of variance as Alekhine / Aljechin, which the unit tests pin with real
+    // transliteration pairs. A prefix index cannot connect either.
+    await page.getByLabel('Player or event', { exact: true }).fill('andersen')
+    await expect(page.getByRole('heading', { name: 'Browse (1 of 2)' })).toBeVisible()
+    await expect(resultRow(page, ANDERSSEN)).toBeVisible()
+    await expect(resultRow(page, MORPHY)).toBeHidden()
+  })
+
   test('a filter matching nothing reads differently from an empty database', async ({ page }) => {
     await page.getByLabel('Player or event', { exact: true }).fill('nobody at all')
     await expect(page.getByText(/No games in this database match those filters/)).toBeVisible()

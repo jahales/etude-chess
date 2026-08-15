@@ -4,21 +4,26 @@
  * #53 stores the games; this decides which of them a browse screen is asking
  * for. Everything here is a pure function over data — the query the user typed,
  * the predicate that decides a row, and the *plan* that says which index should
- * drive the query. No Dexie, no React, no I/O.
+ * drive the query. No Dexie, no MiniSearch, no React, no I/O.
  *
- * Three things worth not re-deriving:
+ * Four things worth not re-deriving:
  *
  * - **The plan is a cost decision, never a correctness one.** `queryPlan` picks
  *   one index to walk and hands back everything it did not enforce as a
- *   `residual` query, re-checked with `matchesQuery`. Reorder the preferences,
- *   add an index, drop one — the results cannot change, only the work. A test
- *   pins exactly that, which is what makes the ordering free to be a heuristic.
- * - **Search is whole-token prefix matching, not substring matching.** A
- *   substring search needs every suffix in the index or a scan of every row, and
- *   at 100k games a scan is the thing this module exists to avoid. `nameTokens`
- *   is what gets stored (a multiEntry index in `persist/dbGames.ts`) and
- *   `queryTokens` is what gets typed; the two must stay the same splitter, so
- *   they share one.
+ *   `residual`, re-checked with `matchesQuery`. Reorder the preferences, add an
+ *   index, drop one — the results cannot change, only the work. A test pins
+ *   exactly that, which is what makes the ordering free to be a heuristic.
+ * - **Free text is resolved to index tokens before anything queries.** The
+ *   matching itself is fuzzy and lives in `persist/searchIndex.ts` (MiniSearch,
+ *   ADR 0018 §6); what arrives here is its *answer* — for each word typed, the
+ *   set of index tokens that satisfy it (`TermMatch`). So the fuzzy matcher is
+ *   injected as data, this module stays pure and exhaustively testable, and the
+ *   matcher can be replaced without touching a rule.
+ * - **`tokens: null` means "too many to enumerate", not "no matches".** A word
+ *   broad enough to match hundreds of distinct names is answered by a prefix
+ *   range over the index instead, which is complete for the prefix and drops
+ *   only the fuzzy extras. Capping a ranked list instead would silently drop
+ *   *exact* matches from the tail, which is the worse failure.
  * - **A filter that cannot be shown to hold excludes the game.** #53's ingest
  *   rule is the opposite — never reject on what the file didn't say — and both
  *   are right. Ingest is deciding what to keep; a browse filter is a claim about
@@ -26,18 +31,6 @@
  *   it is still there. Conveniently this is also what the indexes do on their
  *   own: IndexedDB does not index `undefined`, so the predicate and the index
  *   agree without either being taught about the other.
- *
- * **What this is not.** ADR 0018 §6 and plan §10 specify **MiniSearch** for
- * name search, and this is not it. Whole-token prefix matching over a multiEntry
- * index covers what MiniSearch was wanted for — finding a player or an event
- * without knowing which way round the file wrote the name — and costs no
- * dependency, no second index to keep in step with the table, and none of the
- * "reload it with the identical options object" hazard §10 warns about, because
- * there is no serialized index to reload. What it does **not** do is tolerate a
- * typo or rank by relevance; a search either hits a token or it doesn't. That
- * remains MiniSearch's job if it is ever wanted, and the seam for it is this
- * module plus `persist/dbGames.queryDbGames` — nothing above them knows how a
- * name is matched.
  */
 
 import type { GameResult, Speed } from './pgnImport'
@@ -67,7 +60,7 @@ export interface SearchableGame {
  * field is no constraint at all, so `{}` is "everything".
  */
 export interface GameQuery {
-  /** Free text over both players and the event. Whole-token prefixes. */
+  /** Free text over both players and the event. Matched by `searchIndex`. */
   text?: string
   yearFrom?: number
   yearTo?: number
@@ -105,7 +98,15 @@ const MIN_INDEXED_TOKEN = 2
  */
 const MAX_INDEXED_TOKENS = 32
 
-const split = (text: string): string[] => text.toLowerCase().split(SEPARATORS).filter(Boolean)
+/**
+ * Split text into words. **Shared with the search index**, which takes this as
+ * its `tokenize` option — the vocabulary it is built from and the words a query
+ * is cut into have to be cut the same way, and one function is how that is
+ * guaranteed rather than remembered.
+ */
+export function tokenize(text: string): string[] {
+  return text.toLowerCase().split(SEPARATORS).filter(Boolean)
+}
 
 /**
  * The searchable tokens of a game: both players and the event, deduplicated.
@@ -118,7 +119,7 @@ export function nameTokens(game: { white?: string; black?: string; event?: strin
   const tokens = new Set<string>()
   for (const field of [game.white, game.black, game.event]) {
     if (!field) continue
-    for (const token of split(field)) {
+    for (const token of tokenize(field)) {
       if (token.length < MIN_INDEXED_TOKEN) continue
       tokens.add(token)
       if (tokens.size >= MAX_INDEXED_TOKENS) return [...tokens]
@@ -128,33 +129,82 @@ export function nameTokens(game: { white?: string; black?: string; event?: strin
 }
 
 /**
- * The tokens of a typed query. Split the same way names are, but **without** the
- * minimum length: a query token is a prefix, and `g` is a fine prefix of `garry`
- * even though `g` is not a name worth indexing.
+ * The words of a typed query. Split the same way names are, but **without** the
+ * minimum length: a query word is matched against whole tokens, and `g` is a
+ * fine start for `garry` even though `g` is not a name worth indexing.
  */
 export function queryTokens(text: string): string[] {
-  return [...new Set(split(text))]
+  return [...new Set(tokenize(text))]
+}
+
+// ---------- resolving free text ----------
+
+/** One word of a query, and the index tokens that satisfy it. */
+export interface TermMatch {
+  /** The word as typed, lowercased. */
+  term: string
+  /**
+   * The index tokens it matches — or `null` when there were too many to
+   * enumerate, in which case the word falls back to being a **prefix**.
+   */
+  tokens: string[] | null
+}
+
+/**
+ * A query whose free text has been resolved against the search index.
+ *
+ * Everything downstream — the predicate, the plan, the count — works from this
+ * rather than from raw text, so nothing below this line knows how a name is
+ * matched.
+ */
+export interface ResolvedQuery {
+  /** The structured filters. Never carries `text`. */
+  filters: GameQuery
+  /** One entry per word of the free text; empty when none was typed. */
+  terms: TermMatch[]
+}
+
+/** Turns a query word into the index tokens satisfying it, or `null` for "too many". */
+export type TermExpander = (term: string) => string[] | null
+
+/**
+ * The expander to use when there is no search index — during a rebuild, or where
+ * storage is unavailable. Every word becomes a prefix, which is what the
+ * `*names` index can answer on its own.
+ */
+export const BY_PREFIX: TermExpander = () => null
+
+export function resolveQuery(query: GameQuery, expand: TermExpander): ResolvedQuery {
+  const { text, ...filters } = query
+  return {
+    filters: compact(filters),
+    terms: text ? queryTokens(text).map((term) => ({ term, tokens: expand(term) })) : [],
+  }
+}
+
+/** Whether a game's own tokens satisfy one word of the query. */
+function satisfies(names: string[], match: TermMatch): boolean {
+  if (match.tokens === null) return names.some((name) => name.startsWith(match.term))
+  const wanted = new Set(match.tokens)
+  return names.some((name) => wanted.has(name))
 }
 
 // ---------- the predicate ----------
 
-/** Whether a game satisfies a query. The one definition of "matches". */
-export function matchesQuery(game: SearchableGame, query: GameQuery): boolean {
-  if (query.text) {
-    const tokens = nameTokens(game)
-    for (const term of queryTokens(query.text)) {
-      if (!tokens.some((token) => token.startsWith(term))) return false
-    }
+/** Whether a game satisfies a resolved query. The one definition of "matches". */
+export function matchesQuery(game: SearchableGame, query: ResolvedQuery): boolean {
+  if (query.terms.length > 0) {
+    const names = nameTokens(game)
+    if (!query.terms.every((match) => satisfies(names, match))) return false
   }
-  if (query.yearFrom != null && !(game.year != null && game.year >= query.yearFrom)) return false
-  if (query.yearTo != null && !(game.year != null && game.year <= query.yearTo)) return false
-  if (query.result && game.result !== query.result) return false
-  if (query.eco && !(game.eco ?? '').toUpperCase().startsWith(query.eco.toUpperCase())) return false
-  if (query.minRating != null && !(game.minElo != null && game.minElo >= query.minRating)) {
-    return false
-  }
-  if (query.speed && game.speed !== query.speed) return false
-  if (query.source && game.source !== query.source) return false
+  const f = query.filters
+  if (f.yearFrom != null && !(game.year != null && game.year >= f.yearFrom)) return false
+  if (f.yearTo != null && !(game.year != null && game.year <= f.yearTo)) return false
+  if (f.result && game.result !== f.result) return false
+  if (f.eco && !(game.eco ?? '').toUpperCase().startsWith(f.eco.toUpperCase())) return false
+  if (f.minRating != null && !(game.minElo != null && game.minElo >= f.minRating)) return false
+  if (f.speed && game.speed !== f.speed) return false
+  if (f.source && game.source !== f.source) return false
   return true
 }
 
@@ -217,13 +267,18 @@ export function isEmptyQuery(query: GameQuery): boolean {
 /**
  * The index a query should be walked through.
  *
- * `names` is the multiEntry one, so a query through it **must** be paired with
- * `.distinct()`: a game whose White, Black and Event share a token matches the
- * same key range several times over (plan §10 — a compound index cannot be
- * multiEntry, which is why this one stands alone).
+ * `names` and `namePrefix` are both the **multiEntry** index, so a query through
+ * either **must** be paired with `.distinct()`: one game can sit at several keys
+ * inside the range being walked (two of its names matching, or two tokens
+ * sharing a prefix) and would otherwise come back once per hit. Plan §10 flags
+ * this — a compound index cannot be multiEntry, which is why this one stands
+ * alone.
  */
 export type QueryDriver =
-  | { index: 'names'; prefix: string; exact: boolean }
+  /** The resolved tokens of one word, looked up directly. */
+  | { index: 'names'; tokens: string[] }
+  /** A word with too many matches to enumerate, walked as a key range. */
+  | { index: 'namePrefix'; prefix: string }
   | { index: 'eco'; prefix: string }
   | { index: 'year'; from?: number; to?: number }
   | { index: 'minElo'; atLeast: number }
@@ -235,7 +290,7 @@ export type QueryDriver =
 export interface QueryPlan {
   driver: QueryDriver
   /** What the driver did not enforce. Re-checked against every row it yields. */
-  residual: GameQuery
+  residual: ResolvedQuery
   /**
    * True when the residual is empty — the driver *is* the query. Worth knowing
    * because it is the difference between counting an index range and walking it.
@@ -243,68 +298,83 @@ export interface QueryPlan {
   indexOnly: boolean
 }
 
+const EMPTY_RESIDUAL = (residual: ResolvedQuery): boolean =>
+  residual.terms.length === 0 && Object.keys(residual.filters).length === 0
+
 /**
  * Choose the index to drive a query, and say what it leaves over.
  *
- * The order below is a **selectivity heuristic**, in rough order of how much of
- * a real database each field cuts away:
+ * A word of free text always wins, and among several the one with the **fewest
+ * resolved tokens** goes first: that count is a real measure of selectivity
+ * rather than a guess, which is the one place this planner knows more than a
+ * heuristic. A word that could not be enumerated is used only if no word could.
  *
- * 1. a name — one player is a fraction of a percent of any corpus;
- * 2. an ECO code — ~500 of them, and a full code is narrow;
- * 3. a year range — usually a slice, occasionally the whole thing;
- * 4. a rating floor — narrow at the top end, everything at the bottom;
- * 5. a source file — narrow only if several are attached;
- * 6. a result, then a speed — three or four values over the whole database, so
+ * Below that the order is a **selectivity heuristic**, in rough order of how
+ * much of a real database each field cuts away:
+ *
+ * 1. an ECO code — ~500 of them, and a full code is narrow;
+ * 2. a year range — usually a slice, occasionally the whole thing;
+ * 3. a rating floor — narrow at the top end, everything at the bottom;
+ * 4. a source file — narrow only if several are attached;
+ * 5. a result, then a speed — three or four values over the whole database, so
  *    these drive only when nothing else is on offer.
  *
  * Being wrong about the order costs time and never answers. The test that pins
  * "driver + residual = the whole query" is what buys that freedom.
  */
-export function queryPlan(query: GameQuery): QueryPlan {
-  const rest = compact({ ...query })
+export function queryPlan(query: ResolvedQuery): QueryPlan {
+  const filters = compact({ ...query.filters })
+  const terms = [...query.terms]
 
   const driver = ((): QueryDriver => {
-    const terms = query.text ? queryTokens(query.text) : []
     if (terms.length > 0) {
-      // The longest term is the most selective prefix. One term *is* the query,
-      // so the index answers it exactly and nothing has to be re-checked.
-      const prefix = terms.reduce((a, b) => (b.length > a.length ? b : a))
-      const exact = terms.length === 1
-      if (exact) delete rest.text
-      return { index: 'names', prefix, exact }
+      const enumerated = terms.filter((t) => t.tokens !== null)
+      const chosen = enumerated.length
+        ? enumerated.reduce((a, b) => (b.tokens!.length < a.tokens!.length ? b : a))
+        : terms.reduce((a, b) => (b.term.length > a.term.length ? b : a))
+      terms.splice(terms.indexOf(chosen), 1)
+      return chosen.tokens !== null
+        ? { index: 'names', tokens: chosen.tokens }
+        : { index: 'namePrefix', prefix: chosen.term }
     }
-    if (query.eco) {
-      delete rest.eco
-      return { index: 'eco', prefix: query.eco }
+    if (filters.eco) {
+      const prefix = filters.eco
+      delete filters.eco
+      return { index: 'eco', prefix }
     }
-    if (query.yearFrom != null || query.yearTo != null) {
-      const { yearFrom, yearTo } = query
-      delete rest.yearFrom
-      delete rest.yearTo
+    if (filters.yearFrom != null || filters.yearTo != null) {
+      const { yearFrom, yearTo } = filters
+      delete filters.yearFrom
+      delete filters.yearTo
       return {
         index: 'year',
         ...(yearFrom === undefined ? {} : { from: yearFrom }),
         ...(yearTo === undefined ? {} : { to: yearTo }),
       }
     }
-    if (query.minRating != null) {
-      delete rest.minRating
-      return { index: 'minElo', atLeast: query.minRating }
+    if (filters.minRating != null) {
+      const atLeast = filters.minRating
+      delete filters.minRating
+      return { index: 'minElo', atLeast }
     }
-    if (query.source) {
-      delete rest.source
-      return { index: 'source', value: query.source }
+    if (filters.source) {
+      const value = filters.source
+      delete filters.source
+      return { index: 'source', value }
     }
-    if (query.result) {
-      delete rest.result
-      return { index: 'result', value: query.result }
+    if (filters.result) {
+      const value = filters.result
+      delete filters.result
+      return { index: 'result', value }
     }
-    if (query.speed) {
-      delete rest.speed
-      return { index: 'speed', value: query.speed }
+    if (filters.speed) {
+      const value = filters.speed
+      delete filters.speed
+      return { index: 'speed', value }
     }
     return { index: 'none' }
   })()
 
-  return { driver, residual: rest, indexOnly: Object.keys(rest).length === 0 }
+  const residual: ResolvedQuery = { filters, terms }
+  return { driver, residual, indexOnly: EMPTY_RESIDUAL(residual) }
 }

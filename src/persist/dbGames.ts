@@ -30,11 +30,15 @@ import {
   matchesQuery,
   nameTokens,
   queryPlan,
+  queryTokens,
+  resolveQuery,
   PAGE_SIZE,
   type GameQuery,
   type QueryDriver,
   type QueryPlan,
+  type ResolvedQuery,
 } from '../domain/dbQuery'
+import { expandTerms, invalidateSearchIndex } from './searchIndex'
 import { getDb, type EtudeDb } from './db'
 
 /** One imported game. Field names match `GameFacts` so the mapping stays boring. */
@@ -194,13 +198,28 @@ export interface DbGameCount {
 }
 
 /**
+ * Resolve a query's free text through the search index (#54, ADR 0018 §6).
+ *
+ * This is the only place the fuzzy matcher is consulted. Everything below works
+ * from the resolved tokens, so the rules stay pure and the matcher stays
+ * replaceable.
+ */
+async function resolve(query: GameQuery): Promise<ResolvedQuery> {
+  const terms = query.text ? queryTokens(query.text) : []
+  const expanded = await expandTerms(terms)
+  let i = 0
+  return resolveQuery(query, () => expanded[i++] ?? null)
+}
+
+/**
  * A query plan → the Dexie collection that walks it.
  *
- * The one rule here that is not obvious: **`names` must be `.distinct()`**. It
- * is a multiEntry index, so a game whose White, Black and Event share a token —
- * "Hastings" the event and "Hastings" the player, two Smiths, a rematch — sits
- * at several keys in the range and would otherwise be yielded once per hit
- * (plan §10).
+ * The one rule here that is not obvious: **both name drivers must be
+ * `.distinct()`**. `names` is a multiEntry index, so one game sits at several
+ * keys inside the range being walked whenever two of its tokens match — two
+ * spellings of the same surname resolved together, "Hastings" as both player and
+ * event, two tokens sharing a prefix — and would otherwise be yielded once per
+ * hit (plan §10).
  *
  * `none` walks the primary key rather than `orderBy('year')`, because a game
  * whose file gave no date has no entry in the year index and would silently
@@ -211,6 +230,10 @@ function collectionFor(d: EtudeDb, driver: QueryDriver) {
   const t = d.dbGames
   switch (driver.index) {
     case 'names':
+      // `anyOf` wants its keys sorted; Dexie then walks the index once, jumping
+      // between them, rather than once per key.
+      return t.where('names').anyOf([...driver.tokens].sort()).distinct()
+    case 'namePrefix':
       return t.where('names').startsWith(driver.prefix).distinct()
     case 'eco':
       return t.where('eco').startsWithIgnoreCase(driver.prefix)
@@ -254,7 +277,7 @@ export async function queryDbGames(
   pageSize = PAGE_SIZE,
 ): Promise<DbGamePage> {
   const d = getDb()
-  const plan = queryPlan(query)
+  const plan = queryPlan(await resolve(query))
   if (!d) return { rows: [], hasMore: false, order: plan.driver.index }
   try {
     const rows = await matching(d, plan)
@@ -286,7 +309,7 @@ export async function countMatchingDbGames(
 ): Promise<DbGameCount> {
   const d = getDb()
   if (!d) return { count: 0, exact: true }
-  const plan = queryPlan(query)
+  const plan = queryPlan(await resolve(query))
   try {
     // No residual: the index range *is* the answer, and IndexedDB counts a range
     // without reading the records in it.
@@ -352,6 +375,8 @@ export async function deleteDbSource(name: string): Promise<number> {
   try {
     const removed = await d.dbGames.where('source').equals(name).delete()
     await d.dbSources.delete(name)
+    // The vocabulary just changed, so the search index is stale by definition.
+    await invalidateSearchIndex()
     return removed
   } catch (e) {
     console.warn('etude-chess: could not detach the database', e)

@@ -267,6 +267,7 @@ function ImportSummary({ state }: { state: ImportState }) {
 /** Prose for the index that answered a query — which is also the order rows are in. */
 const ORDER_LABEL: Record<DbGamePage['order'], string> = {
   names: 'the name matched',
+  namePrefix: 'the name matched',
   eco: 'ECO code',
   year: 'year',
   minElo: 'rating',

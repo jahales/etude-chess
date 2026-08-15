@@ -42,12 +42,24 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     answers which filter is a *cost* decision and nothing else: a test pins that the index
     chosen plus what it left over is always the whole query, so the choice can be tuned freely
     and can never change which games come back.
-  - **A name matches from the start of any word in either player or the event**, so `karp`
-    finds Karpov and `garry` finds Kasparov, Garry — you don't have to know which way round the
-    file wrote the name. That works off a new multiEntry index of the words in each game, which
-    costs about 4.8 MB of tokens at 100k games against the ~76 MB of movetext already stored.
-    Games attached before this release are backfilled into it on first open; without that they
-    would have quietly gone missing from search while everything still looked right.
+  - **Names match on how they are spelled, not on how you spell them.** `garry` finds Kasparov,
+    Garry — you don't have to know which way round the file wrote the name — and, the reason
+    this needed a search engine rather than a prefix: **chess databases spell the same player
+    several ways, and those are not typos.** Transliteration from Cyrillic varies by publisher
+    and era, so a real corpus mixes Alekhine with Aljechin, Nimzowitsch with Nimzovich,
+    Botvinnik with Botwinnik. `aljechin` and `alekhine` share no prefix at all, so a player
+    search that only matched prefixes would return half a player's games and look like it
+    worked. Searching either spelling now finds both, and an accented name typed without its
+    accents finds itself.
+  - Two indexes carry that, each doing the thing it is good at. A multiEntry index of the words
+    in each game turns "games by Morphy" into a lookup instead of a scan, costs about 4.8 MB of
+    tokens at 100k games against the ~76 MB of movetext already stored, and is backfilled for
+    games attached before this release — without that they would have quietly gone missing from
+    search while everything still looked right. On top of it sits a MiniSearch index over the
+    **distinct names** rather than the games: 0.8 MB instead of 10.1 MB at 100k games, built
+    without reading a single game record, and it leaves results paged through an index rather
+    than truncated to a relevance list. It is rebuilt whenever what you have attached changes,
+    and rebuilt rather than trusted whenever there is any doubt it still matches.
   - **A total is exact where that is free and honest where it isn't.** When the index answers a
     filter by itself the count is exact at any size; when rows have to be re-checked it stops at
     a thousand and says "1,000+" rather than reading a hundred thousand games to put a number on
@@ -63,8 +75,8 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     TWIC for personal use, Lichess CC0 for online play — and, unlinked, that Caissabase's domain
     lapsed and now redirects to a crypto-casino affiliate, and that KingBase and Millionbase are
     down. We redistribute none of it.
-  - Not yet: **fuzzy** matching. ADR 0018 §6 specifies MiniSearch for typo tolerance and
-    relevance ranking, and this ships neither — a search hits a whole-word prefix or it doesn't.
+  - Deliberately not fuzzy below five letters: one edit on a four-letter name matches a great
+    deal of a real name list and means nothing.
 - **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
   instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
   why: rated game rating is the only real metric and it moves in months, puzzle rating moves in

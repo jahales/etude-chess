@@ -175,11 +175,16 @@ it is stored**, which is what stops the parser buffering a whole database ahead 
 `navigator.storage.persist()` is asked for from the hook rather than the worker: it is a window
 API, and being refused is reported rather than assumed. `ui/Database.tsx` is the screen.
 
-### Browsing the attached database — `domain/dbQuery.ts` + `persist/dbGames.ts` (#54, plan §10)
+### Browsing the attached database — `domain/dbQuery.ts` + `persist/dbGames.ts` + `persist/searchIndex.ts` (#54, plan §10)
 Same split again. `domain/dbQuery.ts` is pure: the query type, the `matchesQuery` predicate, and
 `queryPlan`, which chooses **one index to drive a query** and hands back everything it did not
 enforce as a `residual` re-checked per row. `persist/dbGames.ts` turns a plan into a Dexie
 collection and pages it; `app/useDbBrowse.ts` holds the form, the page and the counts.
+
+**Free text is resolved before anything queries.** `persist/searchIndex.ts` (MiniSearch, ADR 0018
+§6) turns each word typed into the set of index tokens that satisfy it; the domain receives that
+as data (`TermMatch`) and never learns how a name was matched. So the fuzzy matcher is injected,
+the rules stay pure, and swapping the matcher touches one file.
 
 - **The plan is a cost decision, never a correctness one.** Reordering the driver preferences,
   adding an index or dropping one cannot change *which* games come back, only how much work it
@@ -189,19 +194,42 @@ collection and pages it; `app/useDbBrowse.ts` holds the form, the page and the c
   rather than from a count. A total is exact when the driving index answers the query by itself
   and **capped at `COUNT_CAP` otherwise** (shown as "1,000+"), because an exact total behind a
   residual filter means reading every row in the driver's range to put one number on screen.
-- **`*names` is a multiEntry index** of the tokens in White, Black and Event, which is what makes
-  "games by Morphy" and "games at Hastings" a lookup instead of a scan. A multiEntry index cannot
-  be part of a compound one, and one row can sit at several keys inside a prefix range, so every
-  query through it is `.distinct()`. It costs ~6.6 entries per game (~4.8 MB of token text at
-  100k games, against ~76 MB of movetext for the same import), and `db.ts`'s **v4 upgrade
-  backfills it** — rows imported by #53 carry no `names`, and IndexedDB indexes only what a row
-  holds, so without the backfill they would drop out of search silently.
+- **`*names` is a multiEntry index** of the tokens in White, Black and Event. It does two jobs:
+  it is how a matched name becomes a set of games (`anyOf` on the resolved tokens, or a
+  `startsWith` range when a word is too broad to enumerate), and its `uniqueKeys()` **is** the
+  vocabulary the search index is built from — an index-only read, no records touched. A multiEntry
+  index cannot be part of a compound one, and one row can sit at several keys inside the range
+  being walked, so every query through it is `.distinct()`. It costs ~6.6 entries per game
+  (~4.8 MB of token text at 100k games, against ~76 MB of movetext for the same import), and
+  `db.ts`'s **v4 upgrade backfills it** — rows imported by #53 carry no `names`, and IndexedDB
+  indexes only what a row holds, so without the backfill they would drop out of search silently.
 - **A browse filter excludes what the file never stated** — an undated game is not evidence of a
   date — which is the mirror image of #53's ingest rule and agrees with the indexes for free,
   since IndexedDB doesn't index `undefined`. Unfiltered, those games are all still there.
-- ADR 0018 §6 and plan §10 name **MiniSearch** for name search and this is not it: token-prefix
-  matching over the index above does the finding, without a second index to persist or reload.
-  What is therefore **not** implemented is typo tolerance and relevance ranking. See #54.
+
+#### The search index — `persist/searchIndex.ts`
+Fuzzy name matching exists because **chess databases spell the same player several ways and those
+are not typos**: Alekhine / Aljechin, Nimzowitsch / Nimzovich, Botvinnik / Botwinnik. `aljechin`
+and `alekhine` share no prefix, so no prefix index can connect them.
+
+- **Documents are the name vocabulary, not the games.** A search returns *tokens*, which
+  `dbGames.ts` then looks up through `*names`. Measured on a synthetic 100k-game corpus (~33k
+  distinct tokens): a document-per-game index serializes to **10.1 MB** and needs every row —
+  ~76 MB of movetext — pulled out of IndexedDB to reach three header fields; the vocabulary index
+  is **0.8 MB**, builds in ~0.2 s, and reads no records at all. It also keeps real pagination:
+  games still come back through an index rather than as a truncated relevance list.
+- **The "identical options" hazard is closed structurally.** `OPTIONS` is module-private and
+  neither the build nor the load path takes options, so within a build they cannot differ. Across
+  builds the stored index carries `INDEX_STAMP` — a fingerprint that includes the *source* of the
+  function options, because `JSON.stringify` drops functions silently — and a mismatch discards
+  and rebuilds. It errs towards rebuilding: minification changes function source, so an app
+  update can rebuild an index whose options never changed. That is the safe direction.
+- **A missing index is a rebuild, not an empty result.** A database attached before this existed
+  has no stored index; so does one whose stored index is stale, unreadable, or built over a
+  different number of games. Same failure class as the `names` backfill — silent, and it looks
+  exactly like "you have no games by that player".
+- The index is rebuilt after an import and on detach, but **the listing never waits for it**; a
+  search issued mid-rebuild awaits the same build, so results are correct either way.
 
 Opening a game goes through `App.tsx` (`openDbGame`), not through the database screen, because
 that is the seam #55 hangs off: studying an imported game is building a `PackGame` from the row.
