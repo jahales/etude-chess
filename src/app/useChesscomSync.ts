@@ -281,6 +281,12 @@ export function useChesscomSync(): ChesscomSync {
  * `games` is counted from storage rather than tallied from this run: a sync adds
  * to what is there, unlike re-importing a file, which replaces it. Reporting
  * this run's writes would make the list say "12 games" over a database of 900.
+ *
+ * The honest caveat, since the row is shown beside a file's: `parsed` and
+ * `skipped` describe **the most recent sync**, not the account. Once you are up
+ * to date a sync only sees the month you are in, so those two shrink while
+ * `games` does not. Accumulating them instead would be worse — re-syncing the
+ * current month ten times would count its games ten times.
  */
 async function finishSource(source: string, progress: SyncProgress): Promise<void> {
   await recordDbSource({

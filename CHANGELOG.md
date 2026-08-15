@@ -7,6 +7,38 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Import your own chess.com games from inside the app (#145).** Reviewing your own games meant
+  exporting a PGN from chess.com by hand and attaching it. Now you type your handle, tick which
+  time controls to bring in, and press Sync. `api.chess.com` sends
+  `Access-Control-Allow-Origin: *` and its monthly endpoints carry each game's full PGN inline,
+  so this is the browser talking to a public read-only API with **no backend** (ADR 0009) and
+  one request per month rather than one per game. This is the same decision as the rest of the
+  database, not an exception to it: your games, on your device, redistributed nowhere (ADR 0018).
+  - **It goes through the existing import path**, not a second one — `normalizeGame` →
+    `describeGame` → `filterGame` → `putDbGames`, with the **My own games** preset (#129) that
+    exists for exactly this case. So a game fetched from chess.com and the same game exported by
+    hand land on the *same row*: the dedup key (#128) is computed from the game, never from where
+    it came from, which makes re-syncing idempotent row for row. There is a test that proves it
+    rather than an assumption that it holds.
+  - **Which time controls come in is your choice, and there is no default.** The sync will not
+    start until you pick at least one. Pooling blitz with rapid and daily describes a mixture of
+    players rather than a player, so choosing for you would be choosing silently.
+  - **It is polite to a free public API.** The archive index is fetched once; months go out one
+    at a time with a pause between them; each month's write is *awaited* before the next request,
+    so the disk paces the network instead of racing it; a month that has ended and is already
+    covered is never asked for again — so a routine sync is the index plus the month you are in;
+    a `429` is obeyed once using the server's own `Retry-After` and then reported rather than
+    hammered. **Nothing syncs on load**; it is a button and only a button.
+  - **A wrong handle says so.** A 404 is "no such user", never a run that finishes with "0 games
+    imported" and reads like success. A rate limit, an unreachable site and a request that never
+    left are all reported as themselves.
+  - **The summary separates what was new from what was already there** — "Imported 0 new games
+    from 26 fetched · 21 were already in your database" is what an idempotent re-sync should look
+    like, and it says which months it skipped and what each filter rejected, in the same
+    vocabulary the file import uses.
+  - Your handle is typed at runtime and stored **on your device only** (`localStorage`,
+    following #130), and syncing adds it to the names you play under, so the games you just
+    imported open from your own side instead of arriving as somebody else's.
 - **Walk the engine's lines on the board (#131).** The reveal's top lines were static text:
   you could read "Rxh2+ Kxh2 Bxe5+ Rxe5 Rxd1" and still have no idea what the position at the
   end of it looks like — which is exactly when a line is worth seeing. Now every move in a line
