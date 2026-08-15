@@ -70,6 +70,41 @@ describe('START_GAME', () => {
   })
 })
 
+// #144: a review session over only the moments that decided the game.
+describe('START_GAME with focusPlies', () => {
+  const focused = (focusPlies: readonly number[]) =>
+    sessionReducer(initialState, {
+      type: 'START_GAME',
+      game: opera,
+      sessionId: 's3',
+      focusPlies,
+    })
+
+  it('asks about exactly the plies given, in playing order', () => {
+    const s = focused([10, 16])
+    expect(s.session!.quiz.map((q) => q.ply)).toEqual([10, 16])
+    expect(isLast(s)).toBe(false)
+  })
+
+  it('reaches past the opening cutoff, because a selected moment was measured', () => {
+    // Ply 4 is White's third move — inside the cutoff, and unreachable in a
+    // whole-game session. A blunder there is exactly what a review is for.
+    expect(focused([4]).session!.quiz.map((q) => q.ply)).toEqual([4])
+    expect(started().session!.quiz.some((q) => q.ply < OPENING_CUTOFF_PLY)).toBe(false)
+  })
+
+  it('never widens the session — a ply that is not the hero’s is simply not asked', () => {
+    // Ply 11 is Black's; the hero is White. The guard that matters is that this
+    // does not fall back to the whole game, which is the "silent degradation"
+    // #144 is written against.
+    expect(focused([11]).session!.quiz).toHaveLength(0)
+  })
+
+  it('leaves every other caller on the whole game', () => {
+    expect(started().session!.quiz.length).toBeGreaterThan(2)
+  })
+})
+
 describe('move entry', () => {
   it('sets a pending move for a legal drop, ignores an illegal one', () => {
     const s = started()

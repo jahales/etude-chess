@@ -10,6 +10,7 @@ import {
   isAnalysed,
   pliesNeedingAnalysis,
   progressOf,
+  supersedes,
   withEvalAt,
   type AnalysisProgress,
   type AnalysisRecord,
@@ -19,10 +20,12 @@ import {
  * Analyse every position of an **imported** game in one pass (#133).
  *
  * The sibling of `useGameAnalysis`, which does this for a game you played
- * against Maia. Deliberately the same shape, and the budget cannot drift between
- * them because both take `BATCH_NODES` from `gameAnalysis.ts` — one pass at one
- * node count is what makes the scores within a game comparable, and what the
- * annotation glyphs rest on. What differs is only where the result is kept: an
+ * against Maia. Deliberately the same shape, and the budget still cannot drift
+ * between them by accident: both *default* to `BATCH_NODES` from
+ * `gameAnalysis.ts`, and #144's review screen overrides it only with a budget
+ * the user chose and only for the pass it then files under that number. One pass
+ * at one node count is what makes the scores within a game comparable, and what
+ * the annotation glyphs rest on. What differs is only where the result is kept: an
  * imported game's evaluations live in a table beside its row rather than on it
  * (`persist/db.ts`'s v7 comment says why), so they are *loaded* rather than
  * handed in, and the screen cannot start a pass before that read lands.
@@ -54,8 +57,18 @@ export interface ImportedGameAnalysis {
   startEval: PositionEval | undefined
   progress: AnalysisProgress | null
   running: boolean
-  /** Already covered by a completed pass at this budget. */
+  /** Already covered by a completed pass at this budget or a deeper one. */
   analysed: boolean
+  /**
+   * The budget the evaluations on screen are actually at.
+   *
+   * Equal to the budget asked for, except where a stored pass superseded it —
+   * an off-app deep pass imported into the same table. Returned so a screen
+   * reports the depth its claims *rest on* rather than the depth it requested;
+   * getting that backwards would put a hedge on a trustworthy answer, or worse,
+   * take one off a shallow one.
+   */
+  effectiveNodes: number
   /** True once a pass could actually be started: engine ready, stored work read. */
   available: boolean
   start: () => void
@@ -68,6 +81,13 @@ const movesOf = (movetext: string): string[] => movetext.split(/\s+/).filter(Boo
 export function useDbGameAnalysis(
   engine: AnalyserState,
   game: AnalysableDbGame,
+  /**
+   * Nodes per position (#144). Defaults to the shared budget, so the two passes
+   * still cannot drift apart by accident; a caller passes one only when the
+   * *user* chose it, and then the choice is recorded with the pass so a later
+   * screen can say which budget its claims rest on.
+   */
+  nodes = BATCH_NODES,
 ): ImportedGameAnalysis {
   const { key, movetext, startFen } = game
 
@@ -87,7 +107,9 @@ export function useDbGameAnalysis(
   const runIdRef = useRef(0)
 
   // A different game means different results; never carry them across, and
-  // never let the previous game's load land on this one.
+  // never let the previous game's load land on this one. **A different budget is
+  // the same kind of change** (#144): the stored evaluations describe the same
+  // game at a depth we are no longer working at, so this re-runs on `nodes` too.
   useEffect(() => {
     const runId = ++runIdRef.current
     setEvalByPly(undefined)
@@ -102,14 +124,24 @@ export function useDbGameAnalysis(
       // back as "not analysed" and the game can simply be analysed again.
       const stored = await getDbAnalysis({ key, startFen })
       if (runIdRef.current !== runId) return
-      if (stored) {
+      // Kept when it answers the request: a completed pass at least as deep
+      // (`supersedes` — the seam an off-app deep pass arrives through), or a
+      // partial one at exactly this budget, which a further pass can top up.
+      //
+      // Everything else is dropped rather than shown. A row written before #144
+      // carries no budget at all and was produced at the old 150k; a partial
+      // deeper pass cannot be topped up with cheaper searches. Both would leave
+      // one game holding evaluations from two budgets, and differencing those
+      // manufactures swings out of nothing (docs/architecture.md) — which is
+      // exactly what #132 selects the positions you are quizzed on from.
+      if (stored && (supersedes(stored, nodes) || stored.analysisNodes === nodes)) {
         setEvalByPly(stored.evalByPly)
         setStartEval(stored.startEval)
         setRecord({ analysedAt: stored.analysedAt, analysisNodes: stored.analysisNodes })
       }
       setLoaded(true)
     })()
-  }, [key, startFen])
+  }, [key, startFen, nodes])
 
   // Abandon an in-flight pass when the screen goes away, so a background walk of
   // 60 positions doesn't keep the worker busy after the user has moved on.
@@ -120,7 +152,7 @@ export function useDbGameAnalysis(
     // `loaded` is part of the guard: starting before the stored pass has been
     // read would redo work that is already done and then overwrite it.
     if (!analyser || !engine.ready || running || !loaded) return
-    const plies = pliesNeedingAnalysis({ sanHistory, ...record }, BATCH_NODES, positions.length)
+    const plies = pliesNeedingAnalysis({ sanHistory, ...record }, nodes, positions.length)
     if (plies.length === 0) return
 
     const runId = ++runIdRef.current
@@ -141,7 +173,7 @@ export function useDbGameAnalysis(
       // Without it the first move of every game is permanently unscorable (#74).
       if (!atStart && positions[0]) {
         try {
-          const { score } = await analyser.evaluate(positions[0], { nodes: BATCH_NODES })
+          const { score } = await analyser.evaluate(positions[0], { nodes })
           atStart = {
             whitePct: whiteWinPercent(score, sideToMoveOf(positions[0])),
             label: whiteScoreLabel(score, sideToMoveOf(positions[0])),
@@ -158,7 +190,7 @@ export function useDbGameAnalysis(
         const fen = positions[ply + 1]
         if (!fen) break
         try {
-          const { score } = await analyser.evaluate(fen, { nodes: BATCH_NODES })
+          const { score } = await analyser.evaluate(fen, { nodes })
           const perspective = sideToMoveOf(fen)
           acc = withEvalAt(acc, ply, {
             whitePct: whiteWinPercent(score, perspective),
@@ -187,7 +219,7 @@ export function useDbGameAnalysis(
       // budget and re-running is what fills the rest.
       const complete = scored === plies.length
       const analysedAt = Date.now()
-      if (complete) setRecord({ analysedAt, analysisNodes: BATCH_NODES })
+      if (complete) setRecord({ analysedAt, analysisNodes: nodes })
       // A pass that produced nothing at all leaves no row: an empty record and
       // no record mean the same thing, and only one of them takes up space in a
       // table sized by how many games have actually been analysed.
@@ -199,7 +231,13 @@ export function useDbGameAnalysis(
         // Filed with the position it was computed from, so a row replaced by a
         // re-import can't be served evaluations of a different game.
         startFen,
-        ...(complete ? { analysedAt, analysisNodes: BATCH_NODES } : {}),
+        // The budget is recorded whether or not the pass finished, and
+        // `analysedAt` only when it did. A partial pass is still useful work —
+        // re-running fills the rest — but only to a *later pass at the same
+        // budget*, and before #144 there was no way to tell which budget a
+        // partial set came from (the load discards what it cannot place).
+        analysisNodes: nodes,
+        ...(complete ? { analysedAt } : {}),
       })
     })()
   }, [
@@ -214,6 +252,7 @@ export function useDbGameAnalysis(
     startEval,
     key,
     startFen,
+    nodes,
   ])
 
   const cancel = useCallback(() => {
@@ -227,7 +266,8 @@ export function useDbGameAnalysis(
     startEval,
     progress,
     running,
-    analysed: isAnalysed(record),
+    analysed: isAnalysed(record, nodes),
+    effectiveNodes: supersedes(record, nodes) ? (record.analysisNodes ?? nodes) : nodes,
     available: Boolean(engine.analyser) && engine.ready && loaded,
     start,
     cancel,

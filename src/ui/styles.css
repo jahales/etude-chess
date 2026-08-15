@@ -1772,3 +1772,110 @@ button {
   font-family: var(--serif);
   font-size: 0.9rem;
 }
+
+/* ---------- review mode (#144) ---------- */
+
+/* The result *for you*, which is the whole reason the picker is ordered the way
+   it is. Colour follows the tier palette rather than a third one: a loss reads
+   in the same red a mistake does. */
+.review-outcome {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.review-outcome.lost {
+  color: var(--bad);
+}
+.review-outcome.won {
+  color: var(--good);
+}
+.review-outcome.undecided {
+  color: var(--ink-soft);
+}
+
+.review-provenance {
+  margin: -0.4rem 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.review-side {
+  margin-bottom: 1.2rem;
+}
+
+/* The pass: the budget, what it will cost, and where it is. Boxed because the
+   cost has to be read before the button is pressed, not scrolled past. */
+.review-pass {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  margin-bottom: 1.4rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.review-budget {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.review-budget select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+.review-pass .settings-hint,
+.review-pass .table-note,
+.review-cost {
+  flex-basis: 100%;
+  margin: 0;
+}
+.review-cost {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+.review-pass .analysis-progress {
+  flex: 1 1 14rem;
+}
+
+/* The two paths, side by side where there is room. Deliberately equal weight:
+   the whole game is not a consolation prize for a game with no key moments. */
+.review-paths {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+}
+.review-path {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.review-path h3 {
+  margin: 0 0 0.5rem;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+}
+.review-path .btn {
+  margin-top: 0.4rem;
+}
+
+.moment-list {
+  margin: 0.6rem 0;
+  padding-left: 1.3rem;
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+.moment-list .tier-badge {
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+}
+.moment-chance {
+  color: var(--ink-soft);
+}

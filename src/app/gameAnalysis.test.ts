@@ -7,6 +7,11 @@ import {
   evalSwingAt,
   accuracyReport,
   BATCH_NODES,
+  REFERENCE_NODES,
+  supersedes,
+  trustworthyAbsences,
+  ANALYSIS_BUDGETS,
+  budgetForNodes,
   type AnalysableGame,
 } from './gameAnalysis'
 import type { StoredGame } from '../persist/db'
@@ -224,5 +229,57 @@ describe('accuracyReport — the figure, and how much of the game it covers', ()
     const r = accuracyReport(game({ sanHistory: [] }))
     expect(r.accuracy).toBe(100)
     expect(r.total).toBe(0)
+  })
+})
+
+/**
+ * The budget a pass ran at, and what that entitles the app to say (#144).
+ *
+ * Two separate questions, deliberately two functions. `supersedes` asks whether
+ * the work is *done to at least this depth*, which is what decides whether the
+ * engine runs. `trustworthyAbsences` asks whether a *missing* finding means
+ * anything, which is what decides what the screen is allowed to claim — and no
+ * budget a browser can afford makes it true.
+ */
+describe('what a pass budget entitles us to say', () => {
+  it('lets a completed deeper pass answer a request for a shallower one', () => {
+    // The seam an off-app pass arrives through: deeper work already in the table
+    // must not be redone with worse searches on top of it.
+    const deep = { analysedAt: 1, analysisNodes: REFERENCE_NODES }
+    expect(supersedes(deep, BATCH_NODES)).toBe(true)
+    expect(isAnalysed(deep, BATCH_NODES)).toBe(true)
+    expect(pliesNeedingAnalysis({ sanHistory: ['e4', 'e5'], ...deep }, BATCH_NODES)).toEqual([])
+  })
+
+  it('does not let a shallower pass answer a request for a deeper one', () => {
+    // What invalidates the old 150k work rather than serving it at a depth the
+    // selection in domain/keyMoments.ts will no longer rest on.
+    expect(supersedes({ analysedAt: 1, analysisNodes: 150_000 }, BATCH_NODES)).toBe(false)
+    expect(isAnalysed({ analysedAt: 1, analysisNodes: 150_000 }, BATCH_NODES)).toBe(false)
+  })
+
+  it('does not let an unfinished pass answer anything, however deep', () => {
+    // A partial deeper pass topped up with cheaper searches would leave one game
+    // holding evaluations from two budgets.
+    expect(supersedes({ analysisNodes: REFERENCE_NODES }, BATCH_NODES)).toBe(false)
+    // Nor a record from before budgets were written down at all.
+    expect(supersedes({ analysedAt: 1 }, BATCH_NODES)).toBe(false)
+  })
+
+  it('trusts an absence only at the budget the measurements were made at', () => {
+    // 800k — twice the in-app default — is the budget measured to lose a real
+    // Tier B move. Every option this app offers is at or below it, so every one
+    // of them leaves the claim hedged.
+    expect(trustworthyAbsences(REFERENCE_NODES)).toBe(true)
+    expect(ANALYSIS_BUDGETS.every((b) => !trustworthyAbsences(b.nodes))).toBe(true)
+    expect(ANALYSIS_BUDGETS.every((b) => b.nodes <= 800_000)).toBe(true)
+  })
+
+  it('offers the default as one of the budgets, and describes every one it offers', () => {
+    expect(budgetForNodes(BATCH_NODES)).toBeDefined()
+    for (const b of ANALYSIS_BUDGETS) expect(b.note.length).toBeGreaterThan(40)
+    // The setting this project's own measurement condemns most directly is not
+    // on the menu to be picked out of habit.
+    expect(ANALYSIS_BUDGETS.every((b) => b.nodes > 150_000)).toBe(true)
   })
 })

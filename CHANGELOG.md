@@ -39,6 +39,65 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   - Your handle is typed at runtime and stored **on your device only** (`localStorage`,
     following #130), and syncing adds it to the names you play under, so the games you just
     imported open from your own side instead of arriving as somebody else's.
+- **Review mode: pick a game, analyse it properly, then work the critical positions or the
+  whole game (#144).** The pieces existed — import (#129), your own side (#130), explorable
+  engine lines (#131), key-moment selection (#132), the whole-game pass (#133) — and nothing
+  composed them into something you could open. A new Home card does: pick one of your games out
+  of the attached database, run a pass over every position in it, then choose to re-decide only
+  the moments that cost you the game or to work the whole thing move by move. The session and
+  the reveal are the ordinary ones, explorable lines and all; this is composition, not a second
+  kind of session.
+  - **The pass budget was the blocking problem, and the fix is honesty rather than a bigger
+    number.** The whole-game pass ran at **150k nodes per position**, defensible when the output
+    was annotation glyphs and not defensible once #132 selects *which positions you are quizzed
+    on* out of the same evaluations. This project had already measured the direction of that
+    error: at 800k against 4M the reference game gave **one false negative and zero phantoms** —
+    a real Tier B move looked clean — and understated the win% given away by 10%. But raising
+    the in-app pass to 4M is not available: measured on the owner's machine, 4M is 4.13 s per
+    search native single-threaded and WASM is 2–3× slower again with no pool, which puts a
+    whole-game pass around **three quarters of an hour**. So:
+    - The in-app default is **400k** (about 2.5× the old pass), with **250k** and **800k**
+      offered. Every option is a time trade and nothing more — none of them is deep enough to
+      make an *absence* mean anything.
+    - The UI never claims otherwise. The heading is **"the positions this pass could see"**, the
+      list is described as a floor rather than a ceiling, and a game the pass found nothing in
+      is reported as "nothing obvious", explicitly **not** as a clean game. The hedge is driven
+      by the recorded budget, not hard-coded, so it lifts by itself when a deep enough analysis
+      exists.
+    - The cost is on screen before the button: how many searches, at what budget, what the pass
+      cannot do — and while it runs, real elapsed time with a live estimate from actual
+      throughput rather than a guess.
+    - The deep pass belongs **off-app**, where `scripts/` already has the engine pool; it is
+      filed separately. The seam is `app/gameAnalysis.supersedes`: a stored complete pass at a
+      deeper budget wins outright, no WASM search runs over the top of it, and every screen
+      reports the deeper number.
+  - **Changing the budget invalidates stored passes on purpose.** A pass is filed with the
+    budget it ran at, so a game analysed at 150k reads as un-analysed and is redone rather than
+    served at a depth we no longer trust — while a pass *deeper* than asked for is used as it
+    stands. Partial passes now record their budget too, so a half-finished pass can never be
+    topped up by a pass at a different one: evaluations from two budgets differenced against
+    each other manufacture swings out of nothing.
+  - **The list is never served silently short.** Even the weaker claim is a claim about every
+    move you played, so it is offered only over a pass that measured every move you played. The
+    four ways that can fail all render as "no list" and none of them means "you played clean",
+    so each says which it is with the coverage attached: not analysed, analysed this far (with
+    the moments it did find, marked as partial), measured end to end with nothing found, or
+    found but unaskable. The whole-game path stays open throughout — it grades per move as you
+    commit, so it needs no pass.
+  - A selected moment reaches **inside the opening cutoff**. The cutoff skips theory nobody
+    chose to be asked about; a moment is on the list because it measurably cost win%, and a
+    blunder on move three is exactly what a review is for.
+  - **Games you lost come first**, then draws, then wins, with not-yet-analysed ahead of already
+    done — and the screen says plainly that it orders *the page*, not the database, because
+    results come back through whichever index answered the filter.
+  - Deliberately **not** done: analysing the game in reverse. It is a real technique and it does
+    help, but it earns its speed from a warm transposition table, which is precisely what this
+    project's reproducibility rule excludes — the same position at the same node count would
+    grade differently depending on how it was reached. The honest path is to measure it first
+    (one game forward and backward, diff the tiers) and revisit with an ADR.
+  - Review mode is a **separate entry point** rather than the unified picker the owner has
+    argued for; the browse machinery is reused, the picker's own table is not. Merging them
+    stays worth doing.
 - **Walk the engine's lines on the board (#131).** The reveal's top lines were static text:
   you could read "Rxh2+ Kxh2 Bxe5+ Rxe5 Rxd1" and still have no idea what the position at the
   end of it looks like — which is exactly when a line is worth seeing. Now every move in a line

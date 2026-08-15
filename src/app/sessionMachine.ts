@@ -68,7 +68,22 @@ export const initialState: SessionState = {
 }
 
 export type Action =
-  | { type: 'START_GAME'; game: PackGame; sessionId: string }
+  | {
+      type: 'START_GAME'
+      game: PackGame
+      sessionId: string
+      /**
+       * Ask about **only** these plies (#144's critical positions). Absent is
+       * the whole game, which is every other caller.
+       *
+       * A list of plies rather than a list of items, because the reducer must
+       * keep building the quiz itself: `domain/reviewPlan.criticalOffer` makes a
+       * promise about how many questions there will be by running the same pure
+       * `buildQuiz`, and handing prebuilt items in would let the promise and the
+       * session drift apart with nothing to notice it.
+       */
+      focusPlies?: readonly number[]
+    }
   | { type: 'GO_HOME' }
   | { type: 'CLICK_SQUARE'; square: string }
   | { type: 'TRY_MOVE'; from: string; to: string; promotion?: string }
@@ -149,13 +164,20 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       // be a draw or unfinished, and then the side is a choice the caller made
       // rather than a fact of the game (#55, `domain/studyGame.studySides`).
       const heroColor = action.game.heroColor ?? heroColorFromResult(parsed.result) ?? 'w'
+      // The opening cutoff skips theory nobody chose to be asked about. A
+      // focused session's plies were *selected* — each one measurably cost win%
+      // — so applying the cutoff there would silently drop a blunder on move
+      // three from a list presented as "the positions that decided this game"
+      // (`domain/reviewPlan.CRITICAL_START_PLY` is the same constant, and the
+      // reason is written out there).
+      const focus = action.focusPlies
       const quiz = buildQuiz(parsed.sanMoves, {
         heroColor,
-        startPly: OPENING_CUTOFF_PLY,
+        startPly: focus ? 0 : OPENING_CUTOFF_PLY,
         // An imported study or endgame does not begin from the initial position;
         // without this the replay throws on its first move, inside the reducer.
         ...(parsed.startFen ? { startFen: parsed.startFen } : {}),
-      })
+      }).filter((item) => !focus || focus.includes(item.ply))
       const opening = detectOpening(parsed.sanMoves)
       return {
         ...initialState,

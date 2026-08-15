@@ -24,12 +24,13 @@ import {
   STRENGTH_PRESETS,
   MULTIPV_OPTIONS,
   presetIdForNodes,
-  formatPlayerNames,
-  parsePlayerNames,
   loadPlayerNames,
-  savePlayerNames,
+  loadReviewNodes,
+  saveReviewNodes,
   type AnalysisSettings,
 } from '../app/settings'
+import { ReviewPicker, ReviewGame } from './Review'
+import { YourNames } from './YourNames'
 import {
   currentItem,
   displayFen as selectDisplayFen,
@@ -70,15 +71,24 @@ type Mode =
   | 'replay'
   | 'database'
   | 'database-game'
+  | 'review-pick'
+  | 'review-game'
 
 /** Analysis settings configure guess-mode grading, so the gear only belongs there. */
 const SETTINGS_MODES: Mode[] = ['guess-pick', 'guess']
 
 /**
  * Screens that never touch an engine, so they must not report one as loading.
- * Replay does analyse on request, which is why it isn't here.
+ * Replay does analyse on request, which is why it isn't here — and neither is
+ * `review-game`, whose whole purpose is to run a pass (#144).
  */
-const ENGINE_FREE_MODES: Mode[] = ['home', 'library', 'database', 'database-game']
+const ENGINE_FREE_MODES: Mode[] = [
+  'home',
+  'library',
+  'database',
+  'database-game',
+  'review-pick',
+]
 
 export function App() {
   const engine = useAnalyser() // one shared Stockfish worker (guess grading + play coach)
@@ -99,6 +109,24 @@ export function App() {
   // studying an imported game means building a `PackGame` from this row and
   // handing it to `guess.startGame`, and only this function has to know that.
   const [dbGame, setDbGame] = useState<DbGame | null>(null)
+  /**
+   * The names you play under, held here rather than on one screen (#144).
+   *
+   * Two screens now depend on the answer — the study control decides which side
+   * to offer, the review picker decides which games are losses — and two copies
+   * of the same `useState(loadPlayerNames)` would disagree the moment one of
+   * them saved. Storage is still the source of truth; this is the one reader.
+   */
+  const [names, setNames] = useState(loadPlayerNames)
+  /** The pass budget, remembered between visits. See `app/settings.loadReviewNodes`. */
+  const [reviewNodes, setReviewNodes] = useState(loadReviewNodes)
+  const changeReviewNodes = (nodes: number) => {
+    setReviewNodes(nodes)
+    saveReviewNodes(nodes)
+  }
+  // The game being reviewed (#144). Separate from `dbGame` so backing out of a
+  // review lands on the review picker rather than the database screen.
+  const [reviewing, setReviewing] = useState<DbGame | null>(null)
 
   const goHome = () => {
     guess.goHome()
@@ -106,9 +134,19 @@ export function App() {
     setMode('home')
     setHomeVisits((n) => n + 1)
   }
-  const startGuess = (g: PackGame) => {
-    guess.startGame(g)
+  /**
+   * `focusPlies` narrows the session to the moments that decided the game
+   * (#144). Absent is the whole game, which is every other caller — and the
+   * reveal, the grading and the explorable lines are identical either way: this
+   * mode composes the existing session rather than adding a second one.
+   */
+  const startGuess = (g: PackGame, focusPlies?: readonly number[]) => {
+    guess.startGame(g, focusPlies)
     setMode('guess')
+  }
+  const openReview = (game: DbGame) => {
+    setReviewing(game)
+    setMode('review-game')
   }
   const startMaia = (opts: { yourColor: Color; level: MaiaLevel }) => {
     play.newGame(opts)
@@ -196,7 +234,38 @@ export function App() {
             onStudy={() => setMode('guess-pick')}
             onLibrary={() => setMode('library')}
             onDatabase={() => setMode('database')}
+            onReview={() => setMode('review-pick')}
           />
+        )}
+        {mode === 'review-pick' && (
+          <Screen title="Review a game you played" onBack={goHome}>
+            <ReviewPicker
+              names={names}
+              onChangeNames={setNames}
+              nodes={reviewNodes}
+              onOpen={openReview}
+            />
+          </Screen>
+        )}
+        {mode === 'review-game' && reviewing && (
+          <Screen
+            title="Review this game"
+            onBack={() => setMode('review-pick')}
+            back="Pick another game"
+          >
+            <ReviewGame
+              // Keyed per game so a pass, a side choice and a moment list can
+              // never outlive the game they were computed for.
+              key={reviewing.key}
+              game={reviewing}
+              engine={engine}
+              names={names}
+              onChangeNames={setNames}
+              nodes={reviewNodes}
+              onChangeNodes={changeReviewNodes}
+              onStart={startGuess}
+            />
+          </Screen>
         )}
         {mode === 'maia-setup' && (
           <Screen title="Play a coached game" onBack={goHome}>
@@ -259,7 +328,12 @@ export function App() {
             back="Database"
           >
             <DbGameView game={dbGame}>
-              <StudyThisGame game={dbGame} onStudy={startGuess} />
+              <StudyThisGame
+                game={dbGame}
+                onStudy={startGuess}
+                names={names}
+                onChangeNames={setNames}
+              />
             </DbGameView>
           </Screen>
         )}
@@ -332,12 +406,14 @@ function Home({
   onStudy,
   onLibrary,
   onDatabase,
+  onReview,
 }: {
   stats: HomeStats
   onPlay: () => void
   onStudy: () => void
   onLibrary: () => void
   onDatabase: () => void
+  onReview: () => void
 }) {
   return (
     <section className="home">
@@ -358,6 +434,15 @@ function Home({
           cta="Pick a game"
           stat={stats.decisions > 0 ? `${stats.decisions} decisions committed` : undefined}
           onClick={onStudy}
+        />
+        <ModeCard
+          title="Review a game you played"
+          pitch="Take one of your own games out of the database, measure every position in it, then re-decide the moments that cost you the game."
+          cta="Pick a game to review"
+          stat={
+            stats.dbGames > 0 ? `${stats.dbGames.toLocaleString()} games to draw on` : undefined
+          }
+          onClick={onReview}
         />
         <ModeCard
           title="Your games"
@@ -689,11 +774,15 @@ function Play({
 function StudyThisGame({
   game,
   onStudy,
+  names,
+  onChangeNames,
 }: {
   game: DbGame
   onStudy: (g: StudyGame) => void
+  /** Hoisted to `App` in #144, so the review picker and this agree on who you are. */
+  names: string[]
+  onChangeNames: (names: string[]) => void
 }) {
-  const [names, setNames] = useState(loadPlayerNames)
   const yours = useMemo(() => yourSide(game, names), [game, names])
   const plans = useMemo(
     () => studySides(game.result, yours).map((color) => ({ color, plan: planStudy(game, color) })),
@@ -768,66 +857,8 @@ function StudyThisGame({
         )}{' '}
         {game.comments && 'Notes the file carries are shown at the reveal, marked as the file’s.'}
       </p>
-      <YourNames names={names} onChange={setNames} claimed={yours !== null} />
+      <YourNames names={names} onChange={onChangeNames} claimed={yours !== null} />
     </div>
-  )
-}
-
-/**
- * Who you are, so a game of yours can be recognised as one (#130).
- *
- * Folded away because it is answered once and then never again, and it sits on
- * the study control rather than in the settings panel because this is the only
- * screen where knowing the answer changes anything.
- *
- * A list and not a field: a site writes your handle into the `White` tag, a PGN
- * you exported by hand writes `Lastname, Firstname`, and both are you. One per
- * line, because that comma is part of a name. Nothing is guessed for you — the
- * list starts empty and stays on this machine.
- */
-function YourNames({
-  names,
-  onChange,
-  claimed,
-}: {
-  names: string[]
-  onChange: (names: string[]) => void
-  claimed: boolean
-}) {
-  const [draft, setDraft] = useState(() => formatPlayerNames(names))
-  const save = () => {
-    const parsed = parsePlayerNames(draft)
-    savePlayerNames(parsed)
-    onChange(parsed)
-    setDraft(formatPlayerNames(parsed))
-  }
-  return (
-    <details className="study-you">
-      <summary>{claimed ? 'This is one of your games' : 'Is this one of your games?'}</summary>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          save()
-        }}
-      >
-        <label htmlFor="your-names">The names you play under — one per line</label>
-        <textarea
-          id="your-names"
-          rows={2}
-          value={draft}
-          spellCheck={false}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={save}
-        />
-        <button className="btn ghost" type="submit">
-          Save
-        </button>
-        <span className="study-note">
-          Matched against the game&apos;s White and Black tags, ignoring case. Kept in this browser
-          and nowhere else.
-        </span>
-      </form>
-    </details>
   )
 }
 
