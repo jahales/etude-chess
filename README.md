@@ -26,6 +26,21 @@ npm run build                 # typecheck + production build
 Fully client-side — no backend, no accounts. Stockfish runs as a WASM Web Worker from
 `public/engine/` (GPLv3, arm's-length). See [docs/v0.1.0-plan.md](docs/v0.1.0-plan.md).
 
+## Licence
+
+**AGPL-3.0-only** — see [LICENSE](LICENSE), and ADR
+[0029](docs/decisions/0029-agpl-3-0-is-the-licence.md) for why.
+
+Short version: the app links **chessops** (GPL-3.0-or-later) for streaming PGN parsing and
+ships **Stockfish 18** (GPL-3.0) as a WASM worker, so the distributed work has to be
+GPL-compatible. It is a personal, non-commercial project and intends to stay open, which
+makes copyleft the right fit rather than a constraint to work around.
+
+Third-party notices: [public/engine/NOTICE.md](public/engine/NOTICE.md) for Stockfish,
+including corresponding-source pointers. The Maia nets are fetched at setup rather than
+committed, and **no games corpus is redistributed** — you attach your own (ADR
+[0018](docs/decisions/0018-games-corpus-and-annotations.md)).
+
 ## The one-paragraph pitch
 
 Games give you ~3–5 genuinely instructive decisions per 30 minutes and one bit of
