@@ -469,6 +469,40 @@ button {
   color: var(--ink);
 }
 
+/* The move you played (#151) — a line, but never one of the engine's.
+   It sits directly above "Engine lines", so the whole job of this block is to
+   make sure nobody reads it as a recommendation: your own amber (the colour the
+   board draws your move in), a rule down the left the ranked lines do not have,
+   and its own heading. The one thing that must not happen on this screen is a
+   reader mistaking their mistake for the engine's pick. */
+.played-line {
+  margin-top: 1.3rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 4px solid var(--warn);
+  border-radius: 4px;
+  background: rgba(176, 130, 31, 0.07);
+}
+.played-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+.line.played .line-score {
+  color: var(--ink);
+  font-weight: 600;
+}
+.line.played .line-pv {
+  color: var(--ink);
+}
+/* Says in words what the colour says at a glance: this is the position your
+   move leaves, and the verdict is still the tier (constitution §9, ADR 0010). */
+.played-note {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
 /* Exploring an engine line — deliberately not the game (#131). */
 .exploring {
   margin-top: 1.1rem;

@@ -6,7 +6,7 @@ import { buildFactBundle, type FactBundle } from '../domain/factBundle'
 import type { Attempt } from '../domain/session'
 import type { GradedMove } from '../engine/grading'
 import type { AnalysisLine } from '../engine/analyser'
-import type { Color } from '../domain/types'
+import type { Color, Score } from '../domain/types'
 
 // The application layer (ADR 0015): a *pure* reducer for the guess→commit→grade→
 // reveal→next state machine. No engine calls, no I/O, no Date.now — the async
@@ -29,9 +29,28 @@ export interface PendingMove {
   /** Promotion piece for a promoting move ('q' by default); ignored otherwise. */
   promotion: string
 }
+/**
+ * The move you actually played, as something to read rather than only to grade
+ * (#151).
+ *
+ * `score` is the position your move leaves, **from the mover's perspective** —
+ * the same normalisation `GradedMove.playedScoreMover` carries, so the screen
+ * turns it into White's the one way everything else does (`whiteScoreLabel`).
+ * It is *additional information*, never a second verdict: the grade is the tier
+ * on the fact bundle, computed from win% swing (ADR 0010, constitution §9), and
+ * a centipawn number is not that.
+ */
+export interface PlayedMove {
+  san: string
+  score: Score
+  /** The engine's continuation, UCI, from the position after your move. */
+  pv: string[]
+}
+
 export interface Result {
   fb: FactBundle
   bestMoveUci: string | null
+  played: PlayedMove
 }
 
 export type Screen = 'home' | 'play' | 'summary'
@@ -251,7 +270,17 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       return {
         ...state,
         phase: 'reveal',
-        result: { fb, bestMoveUci: action.graded.bestMoveUci },
+        result: {
+          fb,
+          bestMoveUci: action.graded.bestMoveUci,
+          // Straight off the grading result: both halves came out of the search
+          // that graded the move, so nothing here costs a second look (#151).
+          played: {
+            san: action.graded.userMoveSan,
+            score: action.graded.playedScoreMover,
+            pv: action.graded.afterPv,
+          },
+        },
         lines: action.lines,
         positionWhitePct: action.whitePct,
         attempts: [...state.attempts, attempt],

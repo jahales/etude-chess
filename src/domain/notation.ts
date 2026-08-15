@@ -21,6 +21,38 @@ export function pvToSan(fen: string, pv: string[], maxPlies = 6): string[] {
   return out
 }
 
+/**
+ * The line that starts with the move *you* played: your move, then the engine's
+ * answer to it (#151).
+ *
+ * One line and not two halves, because that is what makes it walkable — the
+ * exploration reducer replays SAN from a single root position, so the played
+ * move has to be the first move of the line rather than a caption on it. It
+ * roots at the same FEN the engine's ranked lines do, which is what lets one
+ * click move between them.
+ *
+ * `continuation` is UCI **from the position after your move** (`GradedMove.afterPv`).
+ * An empty result means the move itself would not replay — a caller's cue that
+ * there is nothing to show, rather than a claim that the game ends here.
+ */
+export function playedLineToSan(
+  fen: string,
+  playedSan: string,
+  continuation: readonly string[],
+  maxPlies = 6,
+): string[] {
+  const chess = new Chess(fen)
+  let played
+  try {
+    played = chess.move(playedSan)
+  } catch {
+    return []
+  }
+  // Your move spends one of the plies, so the line is the same length as an
+  // engine line beside it and the two stay comparable at a glance.
+  return [played.san, ...pvToSan(chess.fen(), [...continuation], Math.max(0, maxPlies - 1))]
+}
+
 /** Display a score from the side-to-move's perspective, e.g. "+1.24", "-0.30", "M3", "-M2". */
 export function formatScore(score: Score): string {
   if (score.type === 'mate') {

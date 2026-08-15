@@ -14,4 +14,16 @@ export type Color = 'w' | 'b'
 export interface EngineEvaluation {
   score: Score
   bestMove: string | null
+  /**
+   * The principal variation behind `score`, as UCI moves from the position that
+   * was evaluated — `pv[0]` is `bestMove`. It is what the search already knew
+   * and used to throw away (#151): the *continuation* is the only thing that
+   * explains a score with no material in it.
+   *
+   * **Optional, and absent means "not reported", never "no line"** — the same
+   * rule stored records follow. An adapter that cannot report one (or a fake in
+   * a test) leaves it out, so a caller must handle its absence rather than
+   * treating an empty line as a claim about the position.
+   */
+  pv?: string[]
 }

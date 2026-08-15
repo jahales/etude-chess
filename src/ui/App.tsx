@@ -43,6 +43,7 @@ import {
   ExplorationBar,
   ExplorationControls,
   LinesPanel,
+  PlayedLinePanel,
   useExploration,
 } from './Analysis'
 import type { AnalyserState } from '../app/useAnalyser'
@@ -750,6 +751,20 @@ function Play({
               note={annotationAt(session.game, item.ply)}
               onNext={onNext}
               last={isLast(state)}
+            />
+            {/* Your own move's score and continuation (#151), between the
+                verdict it belongs to and the engine's alternatives it is being
+                compared against. It stays on screen while you explore: it is a
+                statement about one move rather than about the board, and it is
+                the way back into your own line after wandering off into the
+                engine's — `exploration.spliceAt` re-roots the click at the
+                position the moves actually belong to. */}
+            <PlayedLinePanel
+              fen={item.fen}
+              san={result.played.san}
+              score={result.played.score}
+              pv={result.played.pv}
+              onPickMove={explore.enter}
             />
             <ExplorationBar explore={explore} />
             {/* One panel, and it always renders the lines *for the position on

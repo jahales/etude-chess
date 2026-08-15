@@ -7,6 +7,33 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **The score and the continuation for the move *you* played, beside the engine's lines (#151).**
+  The reveal could tell you a move cost you 10% of your winning chances and show you three lines
+  that were not the one you played. What it could never show was the reply — and the reply is the
+  whole explanation of a positional error, where no material changes hands and "it leaves e5
+  hanging" is not what actually happened. Now "the move you played" is a line of its own: the
+  score of the position it leaves, then the engine's answer to it, walkable move by move.
+  - **It costs no extra engine time.** Grading has always run two searches — the position, then
+    the position *after* your move — and the second one's principal variation was computed and
+    then dropped on the floor, because `EngineEvaluation` carried only a score and a best move.
+    Widening it to carry the pv makes the continuation free; a third search would have been a 50%
+    increase on every move committed, at a live budget of 700k nodes. The grading test asserts the
+    search count rather than trusting a comment.
+  - **The tier is still the verdict.** The centipawn number is *additional information*, never a
+    second grade: this project grades by win% swing with engine-equal as Tier A (ADR
+    [0010](docs/decisions/0010-engine-architecture.md), constitution §9), and cp is a different
+    question on a different scale. The panel says so in the same block, because two numbers next
+    to each other otherwise read as two attempts at the same one — and it says the score comes
+    from its own search, so a small disagreement with the same move inside a ranked engine line
+    is explained rather than merely survivable.
+  - **It cannot be mistaken for a recommendation.** Its own heading, its own block, and the amber
+    the board already draws *your* move in — the one thing that must not happen on that screen is
+    a reader taking their own mistake for the engine's pick.
+  - **It is a line like any other**, so it clicks, steps and branches through #131's exploration
+    reducer unchanged: your move is simply the first ply, rooted at the same position the engine's
+    lines are rooted at, which is what lets one click move between them.
+  - **Tier A gets it too.** An engine-equal move with a different plan is worth seeing the
+    continuation of, and that is a large share of the moves this mode is built to reward.
 - **Import your own chess.com games from inside the app (#145).** Reviewing your own games meant
   exporting a PGN from chess.com by hand and attaching it. Now you type your handle, tick which
   time controls to bring in, and press Sync. `api.chess.com` sends

@@ -12,6 +12,16 @@ export interface GradedMove {
   playedScoreMover: Score
   afterFen: string
   userMoveSan: string
+  /**
+   * How the engine says the game goes on **after your move** — UCI, from
+   * `afterFen`, so `afterPv[0]` is the reply to what you played (#151).
+   *
+   * This is the second search's principal variation, which used to be dropped:
+   * the search that produced `playedScoreMover` had already computed it. Empty
+   * when the move ended the game, and empty when the adapter reported no line —
+   * a caller may not read "no continuation" as "nothing follows".
+   */
+  afterPv: string[]
 }
 
 /**
@@ -46,6 +56,10 @@ export async function gradeAfterMove(
   const applied = chess.move(userMoveSan) // throws if illegal; the UI only submits legal moves
 
   let playedScoreMover: Score
+  // The continuation comes off the *same* search as the score, never a second
+  // one: grading is two searches and #151 is explicit that it stays two. A
+  // terminal position keeps its empty line, since there is nothing to play on.
+  let afterPv: string[] = []
   if (chess.isCheckmate()) {
     playedScoreMover = { type: 'mate', value: 1 } // the mover delivered mate
   } else if (chess.isGameOver()) {
@@ -53,6 +67,7 @@ export async function gradeAfterMove(
   } else {
     const played = await analyser.evaluate(chess.fen(), opts)
     playedScoreMover = negate(played.score)
+    afterPv = played.pv ?? (played.bestMove ? [played.bestMove] : [])
   }
 
   return {
@@ -62,5 +77,6 @@ export async function gradeAfterMove(
     playedScoreMover,
     afterFen: chess.fen(),
     userMoveSan: applied.san,
+    afterPv,
   }
 }

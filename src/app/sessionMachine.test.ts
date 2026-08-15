@@ -26,6 +26,7 @@ const gradeA: GradedMove = {
   playedScoreMover: { type: 'cp', value: 300 },
   afterFen: 'x',
   userMoveSan: 'Qxf3',
+  afterPv: ['g2f3', 'b8c6'],
 }
 
 describe('resolveMove (shared by the reducer and the drag handler)', () => {
@@ -177,6 +178,20 @@ describe('grading + reveal + advance', () => {
     expect(s.attempts[0]!.tier).toBe('A')
     expect(s.attempts[0]!.reason).toBe('wins the bishop back')
     expect(s.result?.fb.userMoveSan).toBe('Qxf3')
+  })
+
+  // #151: the second search's answer used to stop at the reducer's door. The
+  // score stays on the *mover's* perspective here — turning it into White's is
+  // the screen's job, and doing it twice is how a sign gets flipped.
+  it('carries the played move, its score and the engine answer to the reveal', () => {
+    let s = started()
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, { type: 'GRADE_RESULT', graded: gradeA, lines: [], whitePct: 80 })
+    expect(s.result?.played).toEqual({
+      san: 'Qxf3',
+      score: { type: 'cp', value: 300 },
+      pv: ['g2f3', 'b8c6'],
+    })
   })
 
   it('NEXT advances and clears per-move state; goes to summary on the last item', () => {

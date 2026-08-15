@@ -57,13 +57,32 @@ export class StockfishAnalyser implements Analyser {
       await this.readyPromise
       return new Promise<EngineEvaluation>((resolve) => {
         let lastScore: Score | null = null
+        let lastPv: string[] | null = null
         this.listener = (line: string) => {
-          const s = parseScore(line)
-          if (s) lastScore = s
+          // The pv is only ever kept alongside the score it was reported with:
+          // an `info` line carrying a score but no pv replaces both, so the
+          // continuation can never be one iteration's line captioned by another
+          // iteration's number (#151). Score handling is otherwise unchanged —
+          // the last complete (non-bound) score before `bestmove` wins.
+          const info = parseInfoLine(line)
+          if (info) {
+            lastScore = info.score
+            lastPv = info.pv
+          } else {
+            const s = parseScore(line)
+            if (s) {
+              lastScore = s
+              lastPv = null
+            }
+          }
           const bm = parseBestMove(line)
           if (bm) {
             this.listener = null
-            resolve({ score: lastScore ?? { type: 'cp', value: 0 }, bestMove: bm.move })
+            resolve({
+              score: lastScore ?? { type: 'cp', value: 0 },
+              bestMove: bm.move,
+              ...(lastPv ? { pv: lastPv } : {}),
+            })
           }
         }
         this.worker.postMessage('setoption name MultiPV value 1')
