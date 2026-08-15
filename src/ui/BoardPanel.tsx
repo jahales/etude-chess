@@ -27,6 +27,7 @@ export function BoardPanel({
   whitePct = null,
   showEvalBar = true,
   showMaterial = true,
+  offGame,
   children,
   ...board
 }: {
@@ -37,6 +38,15 @@ export function BoardPanel({
   whitePct?: number | null
   showEvalBar?: boolean
   showMaterial?: boolean
+  /**
+   * The board is showing something other than the real game — a line being
+   * walked, or a branch off it (#131).
+   *
+   * It belongs here rather than in a side panel because the board is what a
+   * reader is looking at, and mistaking an imagined position for one that
+   * actually occurred is the failure worth spending a ribbon on.
+   */
+  offGame?: { label: string; onLeave?: () => void }
   /** Controls that belong under the board (turn line, replay transport). */
   children?: ReactNode
 } & Omit<ChessboardProps, 'id' | 'position' | 'boardWidth' | 'boardOrientation'>) {
@@ -45,7 +55,18 @@ export function BoardPanel({
   const whiteBottom = orientedFor === 'w' ? !flipped : flipped
 
   return (
-    <div className="board-col">
+    <div className={`board-col ${offGame ? 'off-game' : ''}`}>
+      {offGame && (
+        <div className="off-game-flag" role="status">
+          <span className="off-game-dot" aria-hidden="true" />
+          <span className="off-game-label">{offGame.label}</span>
+          {offGame.onLeave && (
+            <button className="btn ghost off-game-back" type="button" onClick={offGame.onLeave}>
+              Back to the game
+            </button>
+          )}
+        </div>
+      )}
       <div className="board-row">
         {showEvalBar && <EvalBar whitePct={whitePct} whiteBottom={whiteBottom} />}
         <div className="board-frame" ref={ref}>
