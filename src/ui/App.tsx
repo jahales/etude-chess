@@ -12,7 +12,8 @@ import type { MaiaLevel } from '../engine/maia/opponent'
 import { useAnalyser } from '../app/useAnalyser'
 import { MaiaSetup, MaiaPlay } from './MaiaMode'
 import { Library, Replay } from './Library'
-import { GameDatabase } from './Database'
+import { GameDatabase, DbGameView } from './Database'
+import type { DbGame } from '../persist/dbGames'
 import {
   STRENGTH_PRESETS,
   MULTIPV_OPTIONS,
@@ -53,9 +54,16 @@ type Mode =
   | 'library'
   | 'replay'
   | 'database'
+  | 'database-game'
 
 /** Analysis settings configure guess-mode grading, so the gear only belongs there. */
 const SETTINGS_MODES: Mode[] = ['guess-pick', 'guess']
+
+/**
+ * Screens that never touch an engine, so they must not report one as loading.
+ * Replay does analyse on request, which is why it isn't here.
+ */
+const ENGINE_FREE_MODES: Mode[] = ['home', 'library', 'database', 'database-game']
 
 export function App() {
   const engine = useAnalyser() // one shared Stockfish worker (guess grading + play coach)
@@ -71,6 +79,11 @@ export function App() {
   // The game being replayed, plus where to land in it.
   const [replaying, setReplaying] = useState<{ game: StoredGame; cursor: number } | null>(null)
   const [reviewJumpError, setReviewJumpError] = useState<string | null>(null)
+  // A game opened out of the attached database (#54). It lives here rather than
+  // inside the database screen because opening one is the seam #55 hangs off:
+  // studying an imported game means building a `PackGame` from this row and
+  // handing it to `guess.startGame`, and only this function has to know that.
+  const [dbGame, setDbGame] = useState<DbGame | null>(null)
 
   const goHome = () => {
     guess.goHome()
@@ -85,6 +98,10 @@ export function App() {
   const startMaia = (opts: { yourColor: Color; level: MaiaLevel }) => {
     play.newGame(opts)
     setMode('maia')
+  }
+  const openDbGame = (game: DbGame) => {
+    setDbGame(game)
+    setMode('database-game')
   }
   const openReplay = (game: StoredGame, cursor = 0) => {
     setReviewJumpError(null)
@@ -105,10 +122,7 @@ export function App() {
   }
 
   const showSettingsGear = SETTINGS_MODES.includes(mode)
-  // Replay analyses on request, so it counts; home/library/database/setup never touch
-  // an engine and shouldn't report one as loading.
-  const showEnginePill =
-    mode !== 'home' && mode !== 'library' && mode !== 'database' && !mode.endsWith('-setup')
+  const showEnginePill = !ENGINE_FREE_MODES.includes(mode) && !mode.endsWith('-setup')
   const enginePill =
     mode === 'maia'
       ? play.maiaError
@@ -219,7 +233,17 @@ export function App() {
         )}
         {mode === 'database' && (
           <Screen title="Your game database" onBack={goHome}>
-            <GameDatabase />
+            <GameDatabase onOpenGame={openDbGame} />
+          </Screen>
+        )}
+        {mode === 'database-game' && dbGame && (
+          <Screen
+            title="A game from your database"
+            onBack={() => setMode('database')}
+            back="Database"
+          >
+            {/* #55 passes a "Study this game" control in here. */}
+            <DbGameView game={dbGame} />
           </Screen>
         )}
         {mode === 'replay' && replaying && (
@@ -380,21 +404,29 @@ function ModeCard({
   )
 }
 
-/** Shell for a focused setup screen: a title, a way back, and the content. */
+/**
+ * Shell for a focused setup screen: a title, a way back, and the content.
+ *
+ * `back` names where the button goes. It defaults to Home because almost
+ * everything returns there; a screen reached *from* another one says so instead,
+ * so the label is never a lie about where you land.
+ */
 function Screen({
   title,
   onBack,
+  back = 'Home',
   children,
 }: {
   title: string
   onBack: () => void
+  back?: string
   children: React.ReactNode
 }) {
   return (
     <section className="screen">
       <div className="screen-head">
         <button className="btn ghost back" type="button" onClick={onBack}>
-          ← Home
+          ← {back}
         </button>
         <h1 className="screen-title">{title}</h1>
       </div>

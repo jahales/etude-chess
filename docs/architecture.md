@@ -174,7 +174,37 @@ Three things about this that are easy to get wrong on a later edit:
 it is stored**, which is what stops the parser buffering a whole database ahead of the writer.
 `navigator.storage.persist()` is asked for from the hook rather than the worker: it is a window
 API, and being refused is reported rather than assumed. `ui/Database.tsx` is the screen.
-Browsing and searching what has been attached is #54 and lands separately.
+
+### Browsing the attached database — `domain/dbQuery.ts` + `persist/dbGames.ts` (#54, plan §10)
+Same split again. `domain/dbQuery.ts` is pure: the query type, the `matchesQuery` predicate, and
+`queryPlan`, which chooses **one index to drive a query** and hands back everything it did not
+enforce as a `residual` re-checked per row. `persist/dbGames.ts` turns a plan into a Dexie
+collection and pages it; `app/useDbBrowse.ts` holds the form, the page and the counts.
+
+- **The plan is a cost decision, never a correctness one.** Reordering the driver preferences,
+  adding an index or dropping one cannot change *which* games come back, only how much work it
+  takes — a property a test pins directly, which is what makes the preference order free to be
+  a heuristic.
+- **A page is all that is ever loaded**, and `hasMore` comes from reading one row past the page
+  rather than from a count. A total is exact when the driving index answers the query by itself
+  and **capped at `COUNT_CAP` otherwise** (shown as "1,000+"), because an exact total behind a
+  residual filter means reading every row in the driver's range to put one number on screen.
+- **`*names` is a multiEntry index** of the tokens in White, Black and Event, which is what makes
+  "games by Morphy" and "games at Hastings" a lookup instead of a scan. A multiEntry index cannot
+  be part of a compound one, and one row can sit at several keys inside a prefix range, so every
+  query through it is `.distinct()`. It costs ~6.6 entries per game (~4.8 MB of token text at
+  100k games, against ~76 MB of movetext for the same import), and `db.ts`'s **v4 upgrade
+  backfills it** — rows imported by #53 carry no `names`, and IndexedDB indexes only what a row
+  holds, so without the backfill they would drop out of search silently.
+- **A browse filter excludes what the file never stated** — an undated game is not evidence of a
+  date — which is the mirror image of #53's ingest rule and agrees with the indexes for free,
+  since IndexedDB doesn't index `undefined`. Unfiltered, those games are all still there.
+- ADR 0018 §6 and plan §10 name **MiniSearch** for name search and this is not it: token-prefix
+  matching over the index above does the finding, without a second index to persist or reload.
+  What is therefore **not** implemented is typo tolerance and relevance ranking. See #54.
+
+Opening a game goes through `App.tsx` (`openDbGame`), not through the database screen, because
+that is the seam #55 hangs off: studying an imported game is building a `PackGame` from the row.
 
 ### Application — `src/app/**`
 Orchestration: **pure reducers/derivations** plus the hooks that bind them to async work.

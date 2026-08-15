@@ -26,7 +26,16 @@
  */
 
 import { dedupKey, type GameFacts, type GameResult, type ImportedGame, type Speed } from '../domain/pgnImport'
-import { getDb } from './db'
+import {
+  matchesQuery,
+  nameTokens,
+  queryPlan,
+  PAGE_SIZE,
+  type GameQuery,
+  type QueryDriver,
+  type QueryPlan,
+} from '../domain/dbQuery'
+import { getDb, type EtudeDb } from './db'
 
 /** One imported game. Field names match `GameFacts` so the mapping stays boring. */
 export interface DbGame {
@@ -56,6 +65,14 @@ export interface DbGame {
   /** Provenance: the file this came from, and when it was attached. */
   source: string
   importedAt: number
+  /**
+   * Searchable tokens of White, Black and Event (`domain/dbQuery.nameTokens`),
+   * carried on the row because a **multiEntry** index can only index a field
+   * that is there (#54). Optional in the type because rows written by #53
+   * predate it — `db.ts`'s v4 upgrade backfills them, and this stays optional so
+   * a reader can never assume a migration ran.
+   */
+  names?: string[]
 }
 
 /** One attached file, so the UI can list what is attached and offer to re-attach. */
@@ -110,6 +127,7 @@ export function toDbGame(
     nags: game.nags,
     source: provenance.source,
     importedAt: provenance.importedAt,
+    names: nameTokens(facts),
   })
 }
 
@@ -142,6 +160,155 @@ export async function putDbGames(games: DbGame[], chunkSize = BULK_CHUNK): Promi
     }
   }
   return { written }
+}
+
+// ---------- browsing (#54, plan §10) ----------
+
+/**
+ * How many matches a filtered count will look at before it gives up and says
+ * "more than this".
+ *
+ * A query the driving index answers by itself is counted from the index and is
+ * exact whatever its size. A query with a residual has to *walk* the driver's
+ * range to apply it, and over 100k games an exact total would mean reading every
+ * row to put one number on screen. "1,000+" is worth more than a spinner.
+ */
+export const COUNT_CAP = 1000
+
+/** One page of results, plus what the caller needs to draw the pager. */
+export interface DbGamePage {
+  rows: DbGame[]
+  /** Whether a further page exists. Known by fetching one row more than asked for. */
+  hasMore: boolean
+  /**
+   * The index the rows came back through — which is also the order they are in,
+   * since sorting them any other way would mean loading all of them first.
+   */
+  order: QueryDriver['index']
+}
+
+export interface DbGameCount {
+  count: number
+  /** False when the count stopped at `COUNT_CAP`, so the real total is higher. */
+  exact: boolean
+}
+
+/**
+ * A query plan → the Dexie collection that walks it.
+ *
+ * The one rule here that is not obvious: **`names` must be `.distinct()`**. It
+ * is a multiEntry index, so a game whose White, Black and Event share a token —
+ * "Hastings" the event and "Hastings" the player, two Smiths, a rematch — sits
+ * at several keys in the range and would otherwise be yielded once per hit
+ * (plan §10).
+ *
+ * `none` walks the primary key rather than `orderBy('year')`, because a game
+ * whose file gave no date has no entry in the year index and would silently
+ * vanish from the unfiltered list. The primary key is the dedup key, which
+ * begins with White, so browsing everything is alphabetical by White.
+ */
+function collectionFor(d: EtudeDb, driver: QueryDriver) {
+  const t = d.dbGames
+  switch (driver.index) {
+    case 'names':
+      return t.where('names').startsWith(driver.prefix).distinct()
+    case 'eco':
+      return t.where('eco').startsWithIgnoreCase(driver.prefix)
+    case 'year':
+      if (driver.from != null && driver.to != null) {
+        return t.where('year').between(driver.from, driver.to, true, true)
+      }
+      return driver.from != null
+        ? t.where('year').aboveOrEqual(driver.from)
+        : t.where('year').belowOrEqual(driver.to!)
+    case 'minElo':
+      return t.where('minElo').aboveOrEqual(driver.atLeast)
+    case 'source':
+      return t.where('source').equals(driver.value)
+    case 'result':
+      return t.where('result').equals(driver.value)
+    case 'speed':
+      return t.where('speed').equals(driver.value)
+    case 'none':
+      return t.toCollection()
+  }
+}
+
+/** The driver's collection with anything it did not enforce re-checked on top. */
+function matching(d: EtudeDb, plan: QueryPlan) {
+  const collection = collectionFor(d, plan.driver)
+  return plan.indexOnly ? collection : collection.filter((g) => matchesQuery(g, plan.residual))
+}
+
+/**
+ * One page of the games matching a query.
+ *
+ * Never loads more than a page: `offset`/`limit` are applied to the index walk,
+ * and one extra row is read to answer "is there a next page?" without counting
+ * anything. That is the whole reason a plan exists — 100k games is a normal
+ * import, and a results table that renders them all is a hung tab.
+ */
+export async function queryDbGames(
+  query: GameQuery,
+  page = 0,
+  pageSize = PAGE_SIZE,
+): Promise<DbGamePage> {
+  const d = getDb()
+  const plan = queryPlan(query)
+  if (!d) return { rows: [], hasMore: false, order: plan.driver.index }
+  try {
+    const rows = await matching(d, plan)
+      .offset(page * pageSize)
+      .limit(pageSize + 1)
+      .toArray()
+    return {
+      rows: rows.slice(0, pageSize),
+      hasMore: rows.length > pageSize,
+      order: plan.driver.index,
+    }
+  } catch (e) {
+    console.warn('etude-chess: could not search the attached database', e)
+    return { rows: [], hasMore: false, order: plan.driver.index }
+  }
+}
+
+/**
+ * How many games match, exactly where that is cheap and capped where it isn't.
+ *
+ * The honest caveat: the cap bounds the *matches* counted, not the rows
+ * examined, so a query whose residual matches almost nothing still walks its
+ * driver's range. That is why the planner spends its effort choosing a selective
+ * driver — with a name in the query there always is one.
+ */
+export async function countMatchingDbGames(
+  query: GameQuery,
+  cap = COUNT_CAP,
+): Promise<DbGameCount> {
+  const d = getDb()
+  if (!d) return { count: 0, exact: true }
+  const plan = queryPlan(query)
+  try {
+    // No residual: the index range *is* the answer, and IndexedDB counts a range
+    // without reading the records in it.
+    if (plan.indexOnly) return { count: await matching(d, plan).count(), exact: true }
+    const keys = await matching(d, plan).limit(cap).primaryKeys()
+    return { count: keys.length, exact: keys.length < cap }
+  } catch (e) {
+    console.warn('etude-chess: could not count the attached database', e)
+    return { count: 0, exact: true }
+  }
+}
+
+/** One imported game by its key. The seam #55 opens a game for study through. */
+export async function getDbGame(key: string): Promise<DbGame | undefined> {
+  const d = getDb()
+  if (!d) return undefined
+  try {
+    return await d.dbGames.get(key)
+  } catch (e) {
+    console.warn('etude-chess: could not load the game', e)
+    return undefined
+  }
 }
 
 /** How many imported games are stored. Counts the index; loads no rows. */

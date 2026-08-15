@@ -32,7 +32,39 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     import is never the only copy of anything.
   - Annotations that came with the file (`{...}` comments and NAGs) are kept rather than
     stripped: it's your own copy, and showing them locally is personal use.
-  - Browsing and searching what you've attached, and studying a game from it, are #54 and #55.
+  - Studying a game from what you've attached is #55.
+- **Browse and search the database you attached (#54).** Filter by player or event, year,
+  result, ECO, minimum rating, time control and source file; open any game to its headers,
+  its provenance and its moves, annotations and all.
+  - **It reads a page, never a database.** Every filter is answered through an IndexedDB index
+    and paged fifty rows at a time, which is not an optimisation at the 10k–100k games an import
+    is written for — it is the difference between a results table and a hung tab. Which index
+    answers which filter is a *cost* decision and nothing else: a test pins that the index
+    chosen plus what it left over is always the whole query, so the choice can be tuned freely
+    and can never change which games come back.
+  - **A name matches from the start of any word in either player or the event**, so `karp`
+    finds Karpov and `garry` finds Kasparov, Garry — you don't have to know which way round the
+    file wrote the name. That works off a new multiEntry index of the words in each game, which
+    costs about 4.8 MB of tokens at 100k games against the ~76 MB of movetext already stored.
+    Games attached before this release are backfilled into it on first open; without that they
+    would have quietly gone missing from search while everything still looked right.
+  - **A total is exact where that is free and honest where it isn't.** When the index answers a
+    filter by itself the count is exact at any size; when rows have to be re-checked it stops at
+    a thousand and says "1,000+" rather than reading a hundred thousand games to put a number on
+    screen.
+  - **A year, rating or ECO filter leaves out the games whose file never said** — an undated
+    game is not evidence of a date. This is the mirror of the import rule, which *keeps* those
+    games precisely because the file's silence is not a fact about the game; unfiltered they are
+    all still there, and "Unknown" is a time control you can filter *for*.
+  - **Nothing attached, an import still running, and a filter that matched nothing are three
+    different sentences**, not one empty table.
+  - **Where to find a database, dead ends included**, on the screen itself (ADR 0018 §5):
+    Lumbra's Gigabase (CC BY-NC-SA 4.0 and the only cleanly-licensed maintained OTB corpus),
+    TWIC for personal use, Lichess CC0 for online play — and, unlinked, that Caissabase's domain
+    lapsed and now redirects to a crypto-casino affiliate, and that KingBase and Millionbase are
+    down. We redistribute none of it.
+  - Not yet: **fuzzy** matching. ADR 0018 §6 specifies MiniSearch for typo tolerance and
+    relevance ranking, and this ships neither — a search hits a whole-word prefix or it doesn't.
 - **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
   instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
   why: rated game rating is the only real metric and it moves in months, puzzle rating moves in

@@ -1,12 +1,20 @@
 /**
- * Attach your own game database (#53, ADR 0018).
+ * Attach, browse and search your own game database (#53 + #54, ADR 0018).
  *
  * We ship no corpus — that is the decision that makes this legally clean — so
- * this screen's whole job is to take a PGN file the user already has, show
- * honestly what will be kept and what will be dropped, and say plainly that an
- * import is never the only copy of anything.
+ * this screen takes a PGN file the user already has, shows honestly what will be
+ * kept and what will be dropped, says plainly that an import is never the only
+ * copy of anything, and then lets you find a game in what you attached.
  *
- * Browsing and searching what has been attached is item 10 and lands separately.
+ * The browse half (plan §10) holds one page of results and never more. At the
+ * 10k–100k games an import is written for, a results table that renders its
+ * results is a hung tab, so every filter is answered through an index and paged
+ * — see `domain/dbQuery.ts` for which index answers what, and why that choice is
+ * only ever about cost.
+ *
+ * **Opening a game goes through the caller** (`onOpenGame`), not through a
+ * detail view welded on here. #55 feeds a chosen game into guess-the-move, and
+ * the only thing it should have to change is what the app does with the row.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -16,13 +24,22 @@ import {
   type ImportFilters,
   type SkipReason,
 } from '../domain/pgnImport'
+import { PAGE_SIZE, isEmptyQuery, type GameQuery } from '../domain/dbQuery'
 import { usePgnImport } from '../app/usePgnImport'
-import { countDbGames, deleteDbSource, listDbSources, type DbSource } from '../persist/dbGames'
+import { useDbBrowse, type DbBrowse } from '../app/useDbBrowse'
+import {
+  countDbGames,
+  deleteDbSource,
+  listDbSources,
+  type DbGame,
+  type DbGamePage,
+  type DbSource,
+} from '../persist/dbGames'
 import { formatBytes, storageStatus, type StorageStatus } from '../persist/storage'
 
 const count = (n: number) => n.toLocaleString()
 
-export function GameDatabase() {
+export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => void }) {
   const [filters, setFilters] = useState<ImportFilters>(DEFAULT_IMPORT_FILTERS)
   const { state, attach, cancel, completed } = usePgnImport()
   const [sources, setSources] = useState<DbSource[]>([])
@@ -105,7 +122,15 @@ export function GameDatabase() {
       )}
       {state.status === 'done' && <ImportSummary state={state} />}
 
+      <BrowseDatabase
+        reload={completed + reload}
+        importing={importing}
+        sources={sources}
+        onOpen={onOpenGame}
+      />
+
       <AttachedSources sources={sources} total={total} onDetach={detach} />
+      <SourceGuidance empty={total === 0} />
       <ReimportNote storage={storage} persisted={state.persisted} />
     </>
   )
@@ -237,6 +262,379 @@ function ImportSummary({ state }: { state: ImportState }) {
   )
 }
 
+// ---------- browse + search (#54, plan §10) ----------
+
+/** Prose for the index that answered a query — which is also the order rows are in. */
+const ORDER_LABEL: Record<DbGamePage['order'], string> = {
+  names: 'the name matched',
+  eco: 'ECO code',
+  year: 'year',
+  minElo: 'rating',
+  source: 'file',
+  result: 'result',
+  speed: 'time control',
+  none: 'White',
+}
+
+const RESULT_OPTIONS: [string, string][] = [
+  ['1-0', 'White won'],
+  ['0-1', 'Black won'],
+  ['1/2-1/2', 'Draw'],
+  ['*', 'Unfinished'],
+]
+
+const SPEED_OPTIONS: [string, string][] = [
+  ['classical', 'Classical'],
+  ['rapid', 'Rapid'],
+  ['blitz', 'Blitz'],
+  ['bullet', 'Bullet'],
+  ['correspondence', 'Correspondence'],
+  ['unknown', 'Unknown'],
+]
+
+function BrowseDatabase({
+  reload,
+  importing,
+  sources,
+  onOpen,
+}: {
+  reload: number
+  importing: boolean
+  sources: DbSource[]
+  onOpen: (game: DbGame) => void
+}) {
+  const browse = useDbBrowse(reload)
+  const { rows, stored, total, loading, query } = browse
+
+  // Three different situations that all render as "no rows", and they must not
+  // read the same. Nothing attached is answered by the panel above, not here.
+  if (stored === 0 && !importing) return null
+  if (importing && !stored) {
+    return (
+      <p className="banner" role="status">
+        Reading the file. Games become searchable when the import finishes.
+      </p>
+    )
+  }
+  if (rows === null) return <p className="banner">Opening the database…</p>
+
+  const filtered = !isEmptyQuery(query)
+
+  return (
+    <>
+      <h2 className="section-title">
+        Browse {filtered ? matchLabel(total, stored) : `(${count(stored ?? 0)})`}
+      </h2>
+      {importing && (
+        <p className="banner" role="status">
+          An import is running — this is what has been stored so far, and it refreshes when the
+          import finishes.
+        </p>
+      )}
+
+      <BrowseFilters browse={browse} sources={sources} />
+
+      {rows.length === 0 ? (
+        <NoMatches onClear={browse.clear} />
+      ) : (
+        <>
+          <ResultsTable rows={rows} onOpen={onOpen} />
+          <p className="table-note">
+            Ordered by {ORDER_LABEL[browse.order]} — results come back through whichever index
+            answered the filter, because sorting them any other way would mean loading all of
+            them first.
+          </p>
+          <Pager browse={browse} />
+        </>
+      )}
+      {loading && (
+        <p className="table-note" role="status">
+          Searching…
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
+ * "12 of 41,238" — or "1,000+ of 41,238".
+ *
+ * A total the index can answer by itself is exact at any size. One that needs
+ * every row re-checked stops at a cap and says so, because reading 100k rows to
+ * put a number on screen is the thing paging exists to avoid.
+ */
+function matchLabel(
+  total: DbBrowse['total'],
+  stored: DbBrowse['stored'],
+): string {
+  if (!total) return ''
+  const matched = total.exact ? count(total.count) : `${count(total.count)}+`
+  return `(${matched} of ${count(stored ?? 0)})`
+}
+
+function BrowseFilters({ browse, sources }: { browse: DbBrowse; sources: DbSource[] }) {
+  const { form, setField } = browse
+  const field = (name: keyof GameQuery) => ({
+    value: form[name] ?? '',
+    onChange: (e: { target: { value: string } }) => setField(name, e.target.value),
+  })
+  return (
+    <div className="browse-filters">
+      <label className="grow">
+        Player or event
+        <input
+          type="search"
+          placeholder="Morphy · Hastings · Kasparov Karpov"
+          autoComplete="off"
+          {...field('text')}
+        />
+      </label>
+      <label>
+        From
+        <input type="number" placeholder="1857" {...field('yearFrom')} />
+      </label>
+      <label>
+        To
+        <input type="number" placeholder="2026" {...field('yearTo')} />
+      </label>
+      <label>
+        Result
+        <select {...field('result')}>
+          <option value="">Any</option>
+          {RESULT_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        ECO
+        <input type="text" placeholder="B44" size={4} {...field('eco')} />
+      </label>
+      <label>
+        Min rating
+        <input type="number" step={50} placeholder="2200" {...field('minRating')} />
+      </label>
+      <label>
+        Time control
+        <select {...field('speed')}>
+          <option value="">Any</option>
+          {SPEED_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {sources.length > 1 && (
+        <label>
+          File
+          <select {...field('source')}>
+            <option value="">Any</option>
+            {sources.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button className="btn ghost" type="button" onClick={browse.clear}>
+        Clear
+      </button>
+      <p className="settings-hint">
+        A name matches from the start of any word in either player or the event, so
+        <b> karp</b> finds Karpov and <b>garry</b> finds Kasparov, Garry. A year, rating or ECO
+        filter <b>leaves out the games whose file never said</b> — they are still there
+        unfiltered, and &ldquo;Unknown&rdquo; under time control is how you find them.
+      </p>
+    </div>
+  )
+}
+
+function NoMatches({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="library-empty">
+      <p className="lede">
+        No games in this database match those filters. The defaults an import runs with are
+        strict — strong players, standard time controls — so the games you are looking for may
+        never have been stored.
+      </p>
+      <button className="btn primary" type="button" onClick={onClear}>
+        Clear the filters
+      </button>
+    </div>
+  )
+}
+
+function ResultsTable({ rows, onOpen }: { rows: DbGame[]; onOpen: (game: DbGame) => void }) {
+  return (
+    <div className="table-wrap">
+      <table className="games-table results-table">
+        <thead>
+          <tr>
+            <th scope="col">White</th>
+            <th scope="col">Black</th>
+            <th scope="col">Event</th>
+            <th scope="col" className="num">
+              Year
+            </th>
+            <th scope="col">Result</th>
+            <th scope="col">ECO</th>
+            <th scope="col" className="num">
+              Moves
+            </th>
+            <th scope="col">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((g) => (
+            <tr key={g.key}>
+              <td>{playerLabel(g.white, g.whiteElo)}</td>
+              <td>{playerLabel(g.black, g.blackElo)}</td>
+              <td>{g.event ?? <span className="unknown">—</span>}</td>
+              <td className="num mono">{g.year ?? '—'}</td>
+              <td className="mono">{g.result}</td>
+              <td className="mono">{g.eco ?? '—'}</td>
+              <td className="num mono">{Math.ceil(g.plies / 2)}</td>
+              <td className="row-actions">
+                <button
+                  className="btn ghost"
+                  type="button"
+                  onClick={() => onOpen(g)}
+                  aria-label={`Open ${g.white} vs ${g.black}`}
+                >
+                  Open →
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+const playerLabel = (name: string, elo?: number) => (
+  <>
+    {name}
+    {elo != null && <span className="coverage-note mono"> {elo}</span>}
+  </>
+)
+
+/**
+ * Next and previous only.
+ *
+ * Numbered pages would need a total, and a total behind a filter is capped
+ * rather than exact — so the pager promises exactly what it can deliver: there
+ * is another page, or there isn't.
+ */
+function Pager({ browse }: { browse: DbBrowse }) {
+  const { page, goToPage, hasMore, rows } = browse
+  const first = page * PAGE_SIZE + 1
+  const last = page * PAGE_SIZE + (rows?.length ?? 0)
+  if (page === 0 && !hasMore) return null
+  return (
+    <div className="pager">
+      <button
+        className="btn ghost"
+        type="button"
+        disabled={page === 0}
+        onClick={() => goToPage(page - 1)}
+      >
+        ← Previous
+      </button>
+      <span className="mono" aria-live="polite">
+        {count(first)}–{count(last)}
+      </span>
+      <button
+        className="btn ghost"
+        type="button"
+        disabled={!hasMore}
+        onClick={() => goToPage(page + 1)}
+      >
+        Next →
+      </button>
+    </div>
+  )
+}
+
+// ---------- one game ----------
+
+/**
+ * A game from the attached database.
+ *
+ * Deliberately thin: it shows what was stored — the headers, the provenance, the
+ * moves and whatever annotations came with the file — and nothing that needs an
+ * engine. Studying it is #55, which adds its own control through `children`
+ * rather than by rewriting this.
+ */
+export function DbGameView({
+  game,
+  children,
+}: {
+  game: DbGame
+  children?: React.ReactNode
+}) {
+  const moves = game.movetext ? game.movetext.split(' ') : []
+  return (
+    <>
+      <h2 className="db-game-title">
+        {game.white} <span className="db-vs">vs</span> {game.black}{' '}
+        <span className="mono">{game.result}</span>
+      </h2>
+      <dl className="db-meta">
+        <Meta label="Event">{game.event}</Meta>
+        <Meta label="Site">{game.site}</Meta>
+        <Meta label="Date">{game.date}</Meta>
+        <Meta label="ECO">{game.eco}</Meta>
+        <Meta label="Ratings">
+          {game.whiteElo || game.blackElo
+            ? `${game.whiteElo ?? '?'} / ${game.blackElo ?? '?'}`
+            : undefined}
+        </Meta>
+        <Meta label="Time control">{game.timeControl ?? speedLabel(game)}</Meta>
+        <Meta label="Length">{`${Math.ceil(game.plies / 2)} moves`}</Meta>
+        <Meta label="From">{game.source}</Meta>
+      </dl>
+
+      {children && <div className="reveal-actions">{children}</div>}
+
+      <div className="db-moves">
+        {moves.map((san, ply) => (
+          <span key={ply} className="db-move">
+            {ply % 2 === 0 && <span className="db-movenum mono">{ply / 2 + 1}.</span>}
+            <span className="mono">{san}</span>
+            {game.comments?.[ply] && <span className="db-comment">{game.comments[ply]}</span>}
+          </span>
+        ))}
+      </div>
+      {game.comments && (
+        <p className="table-note">
+          Comments are the file&apos;s own, kept as they were written rather than stripped.
+        </p>
+      )}
+    </>
+  )
+}
+
+/** "unknown" is what the file said, so say that rather than leaving a hole. */
+const speedLabel = (game: DbGame) =>
+  game.speed === 'unknown' ? 'not stated in the file' : game.speed
+
+function Meta({ label, children }: { label: string; children?: React.ReactNode }) {
+  if (!children) return null
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </>
+  )
+}
+
 // ---------- what is attached ----------
 
 function AttachedSources({
@@ -295,6 +693,67 @@ function AttachedSources({
         </table>
       </div>
     </>
+  )
+}
+
+// ---------- where to get games ----------
+
+/**
+ * Where to find a database, including where *not* to (ADR 0018 §5).
+ *
+ * "Attach your own PGN" is only honest advice if we say where one comes from,
+ * and the dead ends are the most useful half of the list: every stale blog post
+ * about free chess databases still points at Caissabase, whose domain lapsed and
+ * now redirects to a crypto-casino affiliate. Naming it here is what stops
+ * someone following that link from somewhere else. It is deliberately **not**
+ * linked; the live sources are (docs/spikes/games-corpus.md §2).
+ *
+ * Open by default while there is nothing attached, because then this is the most
+ * useful thing on the screen.
+ */
+function SourceGuidance({ empty }: { empty: boolean }) {
+  return (
+    <details className="source-guidance" open={empty}>
+      <summary>Where to find games</summary>
+      <p className="table-note">
+        étude redistributes nothing — these are places you may lawfully get a database for
+        yourself, with what each one actually permits.
+      </p>
+      <ul className="source-list">
+        <li>
+          <a href="https://lumbrasgigabase.com/en/" target="_blank" rel="noreferrer noopener">
+            Lumbra&apos;s Gigabase
+          </a>{' '}
+          — 10M+ <b>over-the-board</b> games, updated monthly, <b>CC BY-NC-SA 4.0</b>. The only
+          cleanly-licensed maintained OTB corpus there is, and the one to start with. The
+          non-commercial clause is no obstacle here: this project is permanently open and
+          non-commercial.
+        </li>
+        <li>
+          <a href="https://theweekinchess.com/" target="_blank" rel="noreferrer noopener">
+            The Week in Chess
+          </a>{' '}
+          — weekly tournament PGN since 1994, <b>free for personal use only, all rights
+          reserved</b>. Fine for your own copy on your own machine; not something anyone may
+          pass on, which is exactly why we don&apos;t.
+        </li>
+        <li>
+          <a href="https://database.lichess.org/" target="_blank" rel="noreferrer noopener">
+            The Lichess open database
+          </a>{' '}
+          — <b>CC0</b>, so it is yours to do anything with. It is <em>online</em> play though,
+          mostly blitz and rapid, which the import filters are set to drop; raise the minimum
+          rating and lower the minimum clock if you want it anyway.
+        </li>
+      </ul>
+      <p className="table-note">
+        <b>Dead ends, so you don&apos;t waste an evening.</b> Caissabase is gone — its domain
+        lapsed and now redirects to a crypto-casino affiliate, so don&apos;t follow a link to
+        it from anywhere. KingBase and Millionbase are both down, and neither ever stated a
+        licence. The &ldquo;masters&rdquo; set behind the Lichess opening explorer is not part
+        of the CC0 dump and isn&apos;t downloadable.
+      </p>
+    </details>
   )
 }
 
