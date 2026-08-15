@@ -2,12 +2,19 @@
 // for ~1200). Game *scores* are facts, not copyrightable; any annotations here
 // are our own. Validated by games.test.ts.
 
-export interface PackGame {
-  id: string
-  title: string
-  blurb: string
-  pgn: string
-}
+import type { StudyGame } from '../domain/studyGame'
+
+/**
+ * A game from the pack.
+ *
+ * The shape itself lives in the domain (`StudyGame`) because the pack stopped
+ * being the only source of one at #55: a row from the attached database maps
+ * into the same thing, and the session machine must not be able to tell them
+ * apart. Every pack entry leaves `heroColor` unset — they are all decisive, so
+ * the winner's side is derived from the result — and none carries `annotations`
+ * yet (that is plan §7, whose notes would be *our* prose, attributed to us).
+ */
+export type PackGame = StudyGame
 
 export const GAMES: PackGame[] = [
   {

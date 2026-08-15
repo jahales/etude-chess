@@ -598,6 +598,33 @@ button {
   flex-wrap: wrap;
 }
 
+/* An imported game's own note at the reveal (#55).
+   Set apart from the "why" above it deliberately: that paragraph is ours and
+   engine-derived, this is prose out of a file the user attached, and the two
+   must never read as one voice (constitution §9, §12). Hence the rule down the
+   side, the serif quote, and a caption on each — the visual difference is the
+   attribution doing its job before anyone reads the small print. */
+.source-note {
+  margin: -0.7rem 0 1rem;
+}
+.source-quote {
+  margin: 0.5rem 0 0;
+  padding: 0 0 0 0.9rem;
+  border-left: 3px solid var(--line);
+}
+.source-quote blockquote {
+  margin: 0 0 0.35rem;
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--ink);
+}
+.whose {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+
 /* Summary */
 .summary h1 {
   font-size: clamp(1.5rem, 3.5vw, 2.1rem);
@@ -1525,6 +1552,33 @@ button {
   margin-right: 0.25rem;
   color: var(--ink-faint);
 }
+/* Studying a game out of the database (#55). The note under the button is not
+   decoration: it says how long the session is and which side you take, both of
+   which are properties of whatever was in the file rather than of a curated pack. */
+.study-controls {
+  flex: 1 1 100%;
+}
+.study-buttons {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.study-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+}
+.study-blocked {
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
 /* An annotation from the file, marked as the file's rather than as ours. */
 .db-comment {
   margin-left: 0.4rem;

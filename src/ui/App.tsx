@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react'
 import { GAMES, type PackGame } from '../content/games'
-import type { QuizItem } from '../domain/harness'
-import { explain, factBundleToText, type FactBundle } from '../domain/factBundle'
+import {
+  annotationAt,
+  planStudy,
+  studySides,
+  STUDY_BLOCKER_LABEL,
+  type StudyGame,
+} from '../domain/studyGame'
 import { summarize, type Attempt } from '../domain/session'
 import type { Color } from '../domain/types'
 import { useGuessSession } from '../app/useGuessSession'
@@ -29,9 +34,8 @@ import {
 } from '../app/sessionMachine'
 import { BoardPanel, type Arrows } from './BoardPanel'
 import { LinesPanel } from './Analysis'
+import { Reveal } from './Reveal'
 import {
-  TIER_TEXT,
-  TIER_CLASS,
   ARROW_MASTER,
   ARROW_ENGINE,
   ARROW_USER,
@@ -242,8 +246,9 @@ export function App() {
             onBack={() => setMode('database')}
             back="Database"
           >
-            {/* #55 passes a "Study this game" control in here. */}
-            <DbGameView game={dbGame} />
+            <DbGameView game={dbGame}>
+              <StudyThisGame game={dbGame} onStudy={startGuess} />
+            </DbGameView>
           </Screen>
         )}
         {mode === 'replay' && replaying && (
@@ -597,7 +602,16 @@ function Play({
 
         {phase === 'reveal' && result && (
           <>
-            <Reveal fb={result.fb} item={item} onNext={onNext} last={isLast(state)} />
+            {/* The source file's note on this move, when it wrote one (#55). It
+                renders below our "why" and clearly attributed — never merged
+                into it. A game with no note reveals exactly as it always has. */}
+            <Reveal
+              fb={result.fb}
+              item={item}
+              note={annotationAt(session.game, item.ply)}
+              onNext={onNext}
+              last={isLast(state)}
+            />
             <LinesPanel fen={item.fen} lines={lines} />
           </>
         )}
@@ -606,59 +620,75 @@ function Play({
   )
 }
 
-function Reveal({
-  fb,
-  item,
-  onNext,
-  last,
+// ---------- Studying a game from the attached database (#55) ----------
+
+/**
+ * The control #54 left a `children` seam for.
+ *
+ * It exists because a database row is not curated content: the plan is computed
+ * *before* the button is offered, so a record with no moves, one whose movetext
+ * doesn't replay, or one too short to quiz says so here rather than opening an
+ * empty session. And where the file recorded no winner there is no side to take
+ * — so both are offered and neither is chosen, which is the difference between
+ * a considered default and quietly quizzing you as White on every draw.
+ */
+function StudyThisGame({
+  game,
+  onStudy,
 }: {
-  fb: FactBundle
-  item: QuizItem
-  onNext: () => void
-  last: boolean
+  game: DbGame
+  onStudy: (g: StudyGame) => void
 }) {
-  const [copied, setCopied] = useState(false)
-  const copyFacts = async () => {
-    try {
-      await navigator.clipboard.writeText(factBundleToText(fb))
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      setCopied(false)
-    }
+  const plans = useMemo(
+    () => studySides(game.result).map((color) => ({ color, plan: planStudy(game, color) })),
+    [game],
+  )
+  const playable = plans.flatMap((p) => (p.plan.ok ? [{ color: p.color, ...p.plan }] : []))
+
+  if (playable.length === 0) {
+    const blocked = plans[0]!.plan
+    return (
+      <p className="study-blocked">
+        <b>Not one to study.</b> {!blocked.ok && STUDY_BLOCKER_LABEL[blocked.reason]}
+      </p>
+    )
   }
+
+  const pick = playable.length > 1
   return (
-    <div className="reveal">
-      <div className={`verdict ${TIER_CLASS[fb.grade.tier]}`}>
-        <span className="tier-badge">{TIER_TEXT[fb.grade.tier]}</span>
-        <span className="your-move mono">
-          you played {fb.userMoveSan} · master {item.masterMoveSan}
-        </span>
+    <div className="study-controls">
+      <div className="study-buttons">
+        {playable.map(({ color, game: studyGame }) => (
+          <button
+            key={color}
+            className="btn primary"
+            type="button"
+            onClick={() => onStudy(studyGame)}
+          >
+            {pick ? `Study as ${sideName(color)}` : 'Study this game'}
+          </button>
+        ))}
       </div>
-      <p className="why">{explain(fb)}</p>
-      <ul className="arrow-key">
-        <li>
-          <span className="swatch master" /> master&apos;s move
-        </li>
-        {fb.bestMoveSan && fb.bestMoveSan !== item.masterMoveSan && (
-          <li>
-            <span className="swatch engine" /> engine&apos;s pick ({fb.bestMoveSan})
-          </li>
-        )}
-        {!fb.matchedMaster && (
-          <li>
-            <span className="swatch user" /> your move
-          </li>
-        )}
-      </ul>
-      <div className="reveal-actions">
-        <button className="btn ghost" type="button" onClick={copyFacts}>
-          {copied ? 'Copied ✓' : 'Copy facts for an LLM'}
-        </button>
-        <button className="btn primary" type="button" onClick={onNext}>
-          {last ? 'See summary' : 'Next position →'}
-        </button>
-      </div>
+      <p className="study-note">
+        {pick ? (
+          <>
+            This game has no winner to take the side of, so pick one —{' '}
+            {playable.map((p, i) => (
+              <span key={p.color}>
+                {i > 0 && ', '}
+                {sideName(p.color)} has <b>{p.positions}</b> to guess
+              </span>
+            ))}
+            .
+          </>
+        ) : (
+          <>
+            You take <b>{sideName(playable[0]!.color)}</b>&apos;s side, the winner&apos;s —{' '}
+            <b>{playable[0]!.positions}</b> positions to guess, starting after move four.
+          </>
+        )}{' '}
+        {game.comments && 'Notes the file carries are shown at the reveal, marked as the file’s.'}
+      </p>
     </div>
   )
 }

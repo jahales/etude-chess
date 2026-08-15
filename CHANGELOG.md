@@ -77,6 +77,33 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     down. We redistribute none of it.
   - Deliberately not fuzzy below five letters: one edit on a four-letter name matches a great
     deal of a real name list and means nothing.
+- **Study any game you attached (#55).** Open a game from your database and guess-the-move runs
+  on it exactly as it does on the curated pack — commit a move and a reason, then see the
+  master's move and the engine's verdict. This closes the "bring your own game database" epic:
+  a file you already had is now training material, and the three classics we ship stop being the
+  whole of what there is to study.
+  - **A note that came with the file is shown at the reveal, in the file's own words and marked
+    as the file's.** It sits *below* our "why" and beside it, never merged into it: the sentence
+    above is ours and computed from the engine, the one quoted below is somebody else's prose
+    out of a file we did not write and have not checked. Both say so. Blending the two would
+    have been the friendlier layout and a straightforward lie about where a claim came from
+    (constitution §9/§12). A game the file never annotated reveals exactly as it did before.
+  - **A drawn game asks which side you want.** The pack takes the winner's side, which works
+    because every pack game is decisive. A real database is full of draws and of games whose
+    file recorded no result, and the obvious fallback — "no winner, so play White" — would have
+    quietly quizzed you as White for most of the strong games in it. So a game with no winner
+    offers both sides and picks neither, and says how many positions each one is.
+  - **What the session will be is stated before it starts**, because a database row is whatever
+    was in the file rather than something chosen to be instructive: which side you take and how
+    many positions it will ask for. A 100-move game is a long session, not a broken one — so the
+    number is shown and the choice is yours, rather than a cap we invented.
+  - **A game that can't make a quiz says so instead of opening an empty one.** A header-only
+    stub, a game that ends before the quiz starts, and movetext that doesn't replay as a legal
+    game are three different sentences on the screen. The last one matters more than it sounds:
+    an import stores movetext as text and deliberately never replays it — that decision is what
+    keeps a 100k-game import minutes rather than hours — so the first thing that ever checks a
+    game is legal is the thing about to study it, and finding out inside the reducer would have
+    taken the screen down with it.
 - **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
   instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
   why: rated game rating is the only real metric and it moves in months, puzzle rating moves in
