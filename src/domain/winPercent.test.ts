@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { winPercent, winPercentFromCp, whiteWinPercent, negate } from './winPercent'
+import {
+  winPercent,
+  winPercentFromCp,
+  whiteWinPercent,
+  negate,
+  swingFromWhitePercent,
+} from './winPercent'
 
 describe('winPercentFromCp', () => {
   it('is 50% at a dead-equal position', () => {
@@ -63,6 +69,35 @@ describe('whiteWinPercent', () => {
   })
   it('reads a mate for Black-to-move as 0% for White', () => {
     expect(whiteWinPercent({ type: 'mate', value: 1 }, 'b')).toBe(0)
+  })
+})
+
+describe('swingFromWhitePercent', () => {
+  it('is what White gave up when White moved', () => {
+    expect(swingFromWhitePercent(70, 45, 'w')).toBe(25)
+  })
+
+  it('is what Black gave up when Black moved — the same drop, mirrored', () => {
+    // White's win% *rising* is Black losing ground.
+    expect(swingFromWhitePercent(45, 70, 'b')).toBe(25)
+  })
+
+  it('is negative for a move that gained ground, rather than clamped here', () => {
+    // Whether a gain counts as 0 or as a gain is the caller's decision:
+    // accuracy clamps it, a ranking of mistakes just sorts it to the bottom.
+    expect(swingFromWhitePercent(45, 70, 'w')).toBe(-25)
+  })
+
+  it('is 0 across a move that changed nothing', () => {
+    expect(swingFromWhitePercent(52, 52, 'w')).toBe(0)
+    expect(swingFromWhitePercent(52, 52, 'b')).toBe(0)
+  })
+
+  it('bounds a swing into mate at 100, because the inputs are already win%', () => {
+    // A mate reaches here as 100/0 (see `winPercent`), so the worst move in
+    // chess costs 100 points and not the 32000-odd of a raw mate score.
+    expect(swingFromWhitePercent(100, 0, 'w')).toBe(100)
+    expect(swingFromWhitePercent(0, 100, 'b')).toBe(100)
   })
 })
 

@@ -29,6 +29,32 @@ export function whiteWinPercent(score: Score, sideToMove: Color): number {
   return sideToMove === 'w' ? stm : 100 - stm
 }
 
+/**
+ * Win% the mover gave up across a move, from the White-perspective readings
+ * either side of it. Positive means they gave ground; negative means the
+ * position improved for them, which the caller clamps or keeps as it needs.
+ *
+ * Here rather than in a reducer because it is the swing rule itself — the same
+ * arithmetic `app/gameAnalysis.ts:evalSwingAt` does per ply, which should come
+ * to rest on this (#133). Two parts of the app differencing evaluations with
+ * their own sign conventions is a bug that reads as a plausible number.
+ *
+ * A move into or out of mate is bounded like any other: `winPercent` maps mate
+ * to 100/0 before it ever reaches here, so the worst possible swing is 100 —
+ * not the raw difference of a centipawn mate score, which would swamp every
+ * real mistake in the game.
+ */
+export function swingFromWhitePercent(
+  beforeWhitePct: number,
+  afterWhitePct: number,
+  mover: Color,
+): number {
+  const delta = afterWhitePct - beforeWhitePct
+  // Always White's perspective, so Black's losses are positive deltas. The `+ 0`
+  // is what stops White's clean move returning -0, which formats as "-0.0".
+  return (mover === 'w' ? -delta : delta) + 0
+}
+
 /** Flip a score to the opponent's perspective (used to normalise both sides of a move). */
 export function negate(score: Score): Score {
   return score.type === 'cp'
