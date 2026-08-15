@@ -144,7 +144,11 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
   switch (action.type) {
     case 'START_GAME': {
       const parsed = parseGame(action.game.pgn)
-      const heroColor = heroColorFromResult(parsed.result) ?? 'w'
+      // A game that names its own side wins: the curated pack is all decisive
+      // and derives the winner's side from the result, but an imported game may
+      // be a draw or unfinished, and then the side is a choice the caller made
+      // rather than a fact of the game (#55, `domain/studyGame.studySides`).
+      const heroColor = action.game.heroColor ?? heroColorFromResult(parsed.result) ?? 'w'
       const quiz = buildQuiz(parsed.sanMoves, { heroColor, startPly: OPENING_CUTOFF_PLY })
       const opening = detectOpening(parsed.sanMoves)
       return {

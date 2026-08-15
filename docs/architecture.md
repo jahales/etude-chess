@@ -93,7 +93,9 @@ fast to test precisely because nothing in here can touch anything. TDD here.
   figure cannot be rendered without it.
 - **Sessions and records** — `harness` (PGN→quiz), `session` (attempt + summary),
   `gameRecord` (`CoachEntry` + `PositionEval` — the vocabulary a played game is *recorded* in,
-  in the domain so `persist` never has to import from `app`).
+  in the domain so `persist` never has to import from `app`), `studyGame` (`StudyGame` — what a
+  guess session runs on, whichever source it came from — plus the mapping and the refusals for a
+  game out of the attached database; see #55 below).
 - **Whole-game review** — `gameReview` grades a *finished* game rather than a single guess: win%
   swing per move for both sides, where win% leaked by phase against the time spent there, and
   which of the opponent's mistakes went unpunished. Each position is evaluated **once** —
@@ -140,7 +142,10 @@ extension reads as an untidiness someone will otherwise tidy away.
 ### Content — `src/content/**`
 `games.ts` (the public-domain v0.1.0 pack — game *scores* are facts, not copyrightable) and
 `openings.ts` (longest-prefix opening detection; not a full ECO database). Consumed by `app` and
-`ui`. Note that the layering test does not police this directory — keep it data-shaped.
+`ui`. Note that the layering test does not police this directory — keep it data-shaped. `games.ts`
+holds only data now: `PackGame` is an alias for `domain/studyGame`'s `StudyGame`, because at #55
+the pack stopped being the only source of a game to study and the session must not be able to
+tell one source from the other.
 
 `pgnImport.ts` is the exception to "data-shaped": it is the **streaming reader** for an attached
 PGN database (#53), and the only module in `src/` that imports **chessops** (GPL — ADR
@@ -234,6 +239,39 @@ and `alekhine` share no prefix, so no prefix index can connect them.
 Opening a game goes through `App.tsx` (`openDbGame`), not through the database screen, because
 that is the seam #55 hangs off: studying an imported game is building a `PackGame` from the row.
 
+### Studying an imported game — `domain/studyGame.ts` + `ui/Reveal.tsx` (#55, plan §11)
+A mapping, not a mode. The guess session already runs on a `StudyGame` (which is what `PackGame`
+now *is* — the pack stopped being the only source of one), so `domain/studyGame.ts` turns a
+stored row into one: a title from the players, event and year, a PGN rebuilt from the columns it
+was derived from, the file's comments, and the side you take. It consumes the row
+**structurally** (`DatabaseGame`), the same trick `pgnImport.ts` uses for its parse tree, so the
+domain still imports nothing.
+
+- **Plan §11 said "no reducer change needed"; that is nearly true and worth knowing where it
+  isn't.** Nothing about the machine's shape, actions or transitions moved, but `START_GAME` now
+  reads `game.heroColor` before falling back to `heroColorFromResult`. The plan assumed the pack's
+  world, where every game is decisive. `studySides` is the reason: a decisive game is studied from
+  the winner's side, and a **draw, an unfinished game, or a file that recorded no result offers
+  both sides and picks neither**. The fallback the pack can afford — no winner, so White — would
+  quietly quiz you as White for most of the strong games in a real database.
+- **`planStudy` is the gate, and it exists because a row is not curated content.** It builds the
+  quiz, throws it away, and returns the *count* — so the screen can promise "13 positions" before
+  a session opens, and can refuse with a reason instead of opening an empty one. Three refusals:
+  no moves, no decision for that side past the opening cutoff, and **movetext that doesn't
+  replay**. That last one is only reachable because #53 deliberately never replays a game at
+  import (~12 games/sec would make a 100k import a two-hour job), so this is the first code that
+  ever tries — and inside the reducer it would have thrown during render.
+- **A note from the file and our "why" are two attributed blocks, never one paragraph**
+  (constitution §9/§12). `Annotations` carries `byPly` *and* its `source` in one value, and
+  `annotationAt` returns both or neither, so there is no way to get the prose onto the screen
+  without the name of the file it came from. `ui/Reveal.tsx` is its own module for exactly this
+  — its test pins that the annotated reveal minus the note is byte-for-byte the un-annotated one,
+  which is §11's "a game without comments reveals exactly as today" as an assertion rather than a
+  hope.
+- The count the screen promises comes from `harness`'s `DEFAULT_START_PLY` and the session quizzes
+  from `sessionMachine`'s `OPENING_CUTOFF_PLY`. They are the same number and a test says so; if
+  they drift, the promise is wrong on every imported game and nothing else notices.
+
 ### Application — `src/app/**`
 Orchestration: **pure reducers/derivations** plus the hooks that bind them to async work.
 
@@ -318,7 +356,7 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
 
 ### UI — `src/ui/**`
 React adapter. `App.tsx` routes `home | maia-setup | maia | guess-pick | guess | library |
-replay | database` — Home is a card chooser, each mode gets a focused setup screen (`Screen`
+replay | database | database-game` — Home is a card chooser, each mode gets a focused setup screen (`Screen`
 supplies the title + back). `Database.tsx` is the attach-a-PGN screen (#53): filters shown
 *before* the import runs, per-reason skip counts after it, what is attached, and the note that an
 import is never the only copy. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
@@ -329,11 +367,17 @@ sample and caveats in the same block and a per-row count so the total is checkab
 asserted; ADR [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md) governs the
 framing, and it is the feature. `format.ts` and `useBoardWidth.ts` are the shared trivia.
 
-**Guess mode is the exception to that map: it has no file of its own.** Where every other mode
-names a component, guess-the-move lives *inline in `App.tsx`* — `GamePicker`, `Play` (board +
-reason + commit), `Reveal` and `Summary`. There is no `GuessMode.tsx`; looking for one is the
+**Guess mode is almost the exception to that map: it has no file of its own.** Where every other
+mode names a component, guess-the-move lives *inline in `App.tsx`* — `GamePicker`, `Play` (board +
+reason + commit), `Summary`, and `StudyThisGame` (the control #54 left a `children` seam for,
+which turns a database row into a session). There is no `GuessMode.tsx`; looking for one is the
 obvious wrong turn. Note too that `Play` is the **guess** screen — the play-vs-Maia screen is
 `MaiaPlay` in `MaiaMode.tsx`.
+
+The one part that *did* get its own file is `Reveal.tsx`, and the reason is not size: it is where
+an imported game's annotation sits next to our engine-derived "why", which is a claim about
+authorship rather than a layout (#55, constitution §9/§12). A component you can render in a test
+is what lets that be asserted instead of reviewed.
 
 `BoardPanel.tsx` is **the board column every mode shares**: sizing, orientation, flip, eval bar,
 material strip, plus a slot for per-screen controls. Guess, play and replay each had their own

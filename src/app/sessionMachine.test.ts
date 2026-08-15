@@ -6,8 +6,10 @@ import {
   displayFen,
   isLast,
   resolveMove,
+  OPENING_CUTOFF_PLY,
   type SessionState,
 } from './sessionMachine'
+import { DEFAULT_START_PLY } from '../domain/harness'
 import { GAMES } from '../content/games'
 import type { GradedMove } from '../engine/grading'
 
@@ -42,6 +44,29 @@ describe('START_GAME', () => {
     expect(s.session!.quiz.length).toBeGreaterThan(0)
     expect(currentItem(s)?.sideToMove).toBe('w')
     expect(s.sessionId).toBe('s1')
+  })
+
+  // #55: an imported game may be a draw or unfinished, and then there is no
+  // winner to derive a side from — the caller chose one and it must be honoured.
+  it('takes the side the game names, over the one its result implies', () => {
+    const asBlack = sessionReducer(initialState, {
+      type: 'START_GAME',
+      game: { ...opera, heroColor: 'b' },
+      sessionId: 's2',
+    })
+    expect(asBlack.session?.heroColor).toBe('b')
+    expect(asBlack.session!.quiz.every((q) => q.sideToMove === 'b')).toBe(true)
+  })
+
+  it('still derives the winner’s side when the game names none', () => {
+    expect(started().session?.heroColor).toBe('w')
+  })
+
+  it('quizzes from the same ply the study planner counted from', () => {
+    // The database screen promises "N positions to guess" from
+    // `domain/studyGame.planStudy`, which counts with the harness default. If
+    // these two ever drift, that promise is quietly wrong on every imported game.
+    expect(OPENING_CUTOFF_PLY).toBe(DEFAULT_START_PLY)
   })
 })
 
