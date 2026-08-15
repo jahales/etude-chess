@@ -110,6 +110,24 @@ export function monthsFor(account: ChesscomAccount, user: string): SyncedMonth[]
   return account.user === canonicalUser(user) ? account.months : []
 }
 
+/**
+ * Point the account at a handle and a choice of classes, for a sync about to run.
+ *
+ * **Months are dropped when the handle changes**, and that is the whole job. The
+ * months live beside the handle rather than under it, so writing the new handle
+ * over the old one while keeping the list would leave one account's record
+ * claiming another account's months — and `monthsFor` would then agree, skip
+ * every settled month of the new account, and import almost none of it.
+ */
+export function withUser(
+  account: ChesscomAccount,
+  user: string,
+  classes: readonly TimeClass[],
+): ChesscomAccount {
+  const handle = canonicalUser(user)
+  return { user: handle, classes: normalizeClasses(classes), months: monthsFor(account, handle) }
+}
+
 /** Record a finished month, keeping the account pointed at the handle it describes. */
 export function withSyncedMonth(
   account: ChesscomAccount,

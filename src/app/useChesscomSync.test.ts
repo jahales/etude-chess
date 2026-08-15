@@ -234,6 +234,35 @@ describe('useChesscomSync', () => {
     expect(await countDbGames()).toBe(2)
   })
 
+  it("does not carry one account's synced months over to another handle", async () => {
+    // The months sit beside the handle, not under it. Writing a new handle over
+    // the old one while keeping the list would have the second account skip
+    // every settled month the first had already pulled.
+    const month = currentMonth()
+    const other = 'other-player'
+    const net = stubNetwork({
+      [ARCHIVES]: () => json({ archives: [monthUrl('2020-01'), monthUrl(month)] }),
+      [monthUrl('2020-01')]: () => json({ games: [game()] }),
+      [monthUrl(month)]: () => json({ games: [] }),
+      [`https://api.chess.com/pub/player/${other}/games/archives`]: () =>
+        json({ archives: [`https://api.chess.com/pub/player/${other}/games/2020/01`] }),
+      [`https://api.chess.com/pub/player/${other}/games/2020/01`]: () =>
+        json({ games: [game({ pgn: pgn({ White: other, Black: USER }) })] }),
+    })
+    const { result } = render()
+
+    act(() => result.current.sync(USER, ['rapid']))
+    await waitFor(() => expect(result.current.state.status).toBe('done'))
+
+    net.asked.length = 0
+    act(() => result.current.sync(other, ['rapid']))
+    await waitFor(() => expect(result.current.state.status).toBe('done'))
+
+    expect(net.asked).toContain(`https://api.chess.com/pub/player/${other}/games/2020/01`)
+    expect(loadChesscomAccount()).toMatchObject({ user: other })
+    expect(await countDbGames()).toBe(2)
+  })
+
   it('remembers the handle and the classes, so the form comes back filled in', async () => {
     stubNetwork(oneMonth(currentMonth(), []))
     const { result } = render()

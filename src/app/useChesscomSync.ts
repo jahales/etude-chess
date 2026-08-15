@@ -60,6 +60,7 @@ import {
   monthsFor,
   saveChesscomAccount,
   withSyncedMonth,
+  withUser,
   type ChesscomAccount,
 } from './chesscomAccount'
 import { formatPlayerNames, loadPlayerNames, parsePlayerNames, savePlayerNames } from './settings'
@@ -122,6 +123,15 @@ export function useChesscomSync(): ChesscomSync {
   // than renders — so the running value lives on a ref and React state follows.
   const accountRef = useRef(account)
   const mounted = useRef(true)
+  /**
+   * Which run owns the state.
+   *
+   * A sync keeps running after `cancel` — the loop stops between months, but the
+   * promise is still unwinding — so without this a stopped run could land its
+   * "done" summary on top of the run the user started immediately afterwards.
+   * Bumped by both `sync` and `cancel`, so a superseded run goes quiet.
+   */
+  const runId = useRef(0)
 
   useEffect(() => {
     mounted.current = true
@@ -160,13 +170,21 @@ export function useChesscomSync(): ChesscomSync {
 
       const abort = new AbortController()
       controller.current = abort
+      const run = ++runId.current
+      /** Whether this run still owns the state — see `runId`. */
+      const live = () => mounted.current && runId.current === run
       setState({ ...IDLE, status: 'syncing', user })
 
+      // The months to skip have to be read *before* the account is repointed:
+      // `withUser` drops them when the handle changes, and reading after would
+      // read the new handle's (empty) list either way — but reading before is
+      // what makes that ordering deliberate rather than incidental.
+      const synced = monthsFor(accountRef.current, user)
       // Remember the handle and the choice now, so a sync that fails halfway
       // still leaves the form filled in the way it was run.
-      updateAccount({ ...accountRef.current, user, classes: [...classes] })
+      updateAccount(withUser(accountRef.current, user, classes))
       void ensurePersistence().then((persisted) => {
-        if (mounted.current) setState((s) => ({ ...s, persisted }))
+        if (live()) setState((s) => ({ ...s, persisted }))
       })
 
       const source = chesscomSourceName(user)
@@ -196,30 +214,30 @@ export function useChesscomSync(): ChesscomSync {
           const progress = await syncChesscomGames({
             user,
             classes,
-            synced: monthsFor(accountRef.current, user),
+            synced,
             signal: abort.signal,
             onBatch: async (records) => {
               await storeBatch(
                 records.map(({ game, facts }) => toDbGame(game, facts, { source, importedAt })),
               )
               if (storageError) abort.abort()
-              if (mounted.current) setState((s) => ({ ...s, written, alreadyPresent }))
+              if (live()) setState((s) => ({ ...s, written, alreadyPresent }))
             },
             onMonth: (month: SyncedMonth) => {
               // Only once the month's games are actually stored — otherwise a
               // failed write would leave a month recorded as done and its games
               // permanently missing.
-              if (storageError) return
+              if (storageError || !live()) return
               updateAccount(withSyncedMonth(accountRef.current, user, month))
             },
             onProgress: (progress) => {
-              if (mounted.current) setState((s) => ({ ...s, progress, written, alreadyPresent }))
+              if (live()) setState((s) => ({ ...s, progress, written, alreadyPresent }))
             },
           })
 
-          controller.current = null
+          if (runId.current === run) controller.current = null
           if (storageError) {
-            if (mounted.current) {
+            if (live()) {
               setState((s) => ({
                 ...s,
                 status: 'error',
@@ -232,15 +250,18 @@ export function useChesscomSync(): ChesscomSync {
             return
           }
 
+          // Recorded even when the run was superseded: the games are stored, so
+          // the source row and the player name describe the database as it now
+          // is, not as this particular run left the screen.
           await finishSource(source, progress)
           rememberPlayerName(user)
-          if (mounted.current) {
+          if (live()) {
             setState((s) => ({ ...s, status: 'done', progress, written, alreadyPresent }))
             setCompleted((n) => n + 1)
           }
         } catch (e) {
-          controller.current = null
-          if (!mounted.current) return
+          if (runId.current === run) controller.current = null
+          if (!live()) return
           const failure = e instanceof ChesscomError ? e.failure : undefined
           setState((s) => ({
             ...s,
@@ -264,6 +285,9 @@ export function useChesscomSync(): ChesscomSync {
     if (!controller.current) return
     controller.current.abort()
     controller.current = null
+    // The run this stops is still unwinding. Bumping the id disowns it, so its
+    // "done" summary cannot land on a sync the user starts a moment later.
+    runId.current++
     setState((s) => ({ ...s, status: 'idle' }))
   }, [])
 
