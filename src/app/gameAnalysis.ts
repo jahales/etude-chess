@@ -16,11 +16,146 @@ import type { StoredGame } from '../persist/db'
  */
 
 /**
- * Nodes per position for a full-game pass. Lower than the live coach's grading
- * budget on purpose: the point here is *coverage* of every position, not depth
- * on one. Deep analysis stays available per-position on request.
+ * The budget this project's measurements are stated against.
+ *
+ * `npm run review`'s default, and the number every claim in the `game-review`
+ * skill is calibrated on. **Not reachable in the browser** — it is here as the
+ * yardstick the in-app budgets are described against, and as the budget an
+ * off-app pass would file its results under (see `supersedes`).
+ *
+ * Measured on this machine: native Stockfish takes ~4.13 s per search at 4M
+ * single-threaded, ~0.50 s effective across a pool of ten. A whole-game pass is
+ * ~240 searches, so ~2 min on the native pool and ~16.5 min on one native
+ * engine. WASM is 2–3× slower again than native single-thread and cannot run
+ * that pool, which puts a 4M in-app pass at roughly three quarters of an hour
+ * per game. That is not a budget, it is a different piece of software.
  */
-export const BATCH_NODES = 150_000
+export const REFERENCE_NODES = 4_000_000
+
+/**
+ * Nodes per position for the in-app full-game pass.
+ *
+ * **Read the honest framing below before changing this.** 150k was justified as
+ * "coverage, not depth on one", which was defensible while the output was
+ * annotation glyphs and is not defensible now that `domain/keyMoments.ts` (#132)
+ * picks which positions you are quizzed on out of these same evaluations, and
+ * #144 builds a mode on that.
+ *
+ * The project has measured the direction of the error. From
+ * `scripts/review/game.mjs`: grading the reference game at **800k** against 4M
+ * produced *one false negative* — 44…Nd4+ (−5.9%, Tier B) looked clean and would
+ * never have reached the deep pass — *zero phantoms*, and understated the total
+ * win% given away by 10% (53.4 vs 58.9). A cheap pass **misses** mistakes rather
+ * than inventing them, which the `game-review` skill calls out as the worse
+ * direction for coaching.
+ *
+ * So the honest position is not a bigger number. **No budget a browser can
+ * afford makes an absence trustworthy** — 800k already loses a real Tier B move
+ * and a WASM pass cannot get near 800k over a whole game in a tolerable time.
+ * The consequences are two, and both are load-bearing:
+ *
+ * - The UI never says "the critical positions in this game". It says **the
+ *   positions this pass could see**, everywhere, at every budget (§9, §12).
+ * - The deep pass belongs off-app, where `scripts/` already has the engine pool,
+ *   writing into the same `dbAnalysis` table. `supersedes` below is the seam:
+ *   a stored complete pass at a deeper budget wins and no WASM work is done.
+ *
+ * Within that, this is a *time* choice, and it is set where a full game is a
+ * couple of minutes rather than a coffee break — see `ANALYSIS_BUDGETS`.
+ *
+ * One budget serves both passes (`useGameAnalysis`, `useDbGameAnalysis`) and
+ * both must keep taking it from here — evaluations recorded at two budgets and
+ * differenced against each other manufacture swings out of nothing
+ * (docs/architecture.md, cross-cutting rules).
+ */
+export const BATCH_NODES = 400_000
+
+/**
+ * A pass budget the user may choose, with what choosing it costs.
+ *
+ * The note is not marketing copy. It is on the type so a screen cannot offer a
+ * budget without being able to say what it buys and what it does not
+ * (constitution §9, §12) — and what none of them buys is a trustworthy absence.
+ */
+export interface AnalysisBudget {
+  id: string
+  label: string
+  nodes: number
+  /** What this budget is for, in one sentence, on screen. */
+  note: string
+}
+
+/**
+ * The in-app budgets, cheapest first.
+ *
+ * A time/thoroughness trade and nothing more — every one of them is far below
+ * the budget at which a missing finding starts to mean something, so the caveat
+ * that goes with them is the same caveat at all three and is written once, in
+ * the UI, rather than varied per option as though the top one were safe.
+ *
+ * The old 150k is gone rather than kept as the fast option: it is the setting
+ * this project's own measurement condemns most directly, and leaving it on the
+ * menu would let the mode be opened at it by habit.
+ */
+export const ANALYSIS_BUDGETS: AnalysisBudget[] = [
+  {
+    id: 'quick',
+    label: 'Quick — 250k nodes per position',
+    nodes: 250_000,
+    note: 'For a long game you mainly want a shape of. Roughly two thirds the time of Standard, and correspondingly more likely to walk past something.',
+  },
+  {
+    id: 'standard',
+    label: 'Standard — 400k nodes per position',
+    nodes: 400_000,
+    note: 'The default. A whole game in a couple of minutes on this machine, and about two and a half times the search the old pass did per position.',
+  },
+  {
+    id: 'thorough',
+    label: 'Thorough — 800k nodes per position',
+    nodes: 800_000,
+    note: 'The most a browser pass is worth spending: twice Standard for a whole game. Still the budget measured to miss a real Tier B move on the reference game — deeper than this belongs in an off-app pass, not in this tab.',
+  },
+]
+
+/** The budget matching a node count, when it is one we offer. */
+export function budgetForNodes(nodes: number): AnalysisBudget | undefined {
+  return ANALYSIS_BUDGETS.find((b) => b.nodes === nodes)
+}
+
+/**
+ * Whether a pass at this budget is one whose **absences** can be trusted.
+ *
+ * False for every budget a browser can afford, and that is the point: it is not
+ * a knob to get above, it is the flag that keeps the wording honest until a
+ * deeper analysis is imported from off-app. When one is, the same stored
+ * `analysisNodes` that drives `supersedes` flips this to true and the screens
+ * stop hedging — which is the whole reason the check is a function of the budget
+ * rather than a sentence hard-coded into a component.
+ */
+export function trustworthyAbsences(nodes: number): boolean {
+  return nodes >= REFERENCE_NODES
+}
+
+/**
+ * Whether stored work already answers a request for a pass at `wanted`.
+ *
+ * **This is the seam for an off-app deep pass** (filed separately). An import
+ * writes a `DbGameAnalysis` row with `analysedAt` set and `analysisNodes` at the
+ * budget it ran at; from that moment this returns true for every in-app budget,
+ * the WASM pass is skipped entirely, and everything downstream reports the
+ * deeper number. No screen has to learn where the evaluations came from.
+ *
+ * The rule is deliberately narrow. A *complete* pass at a budget at least as
+ * deep is authoritative — nothing further is searched, so nothing can be mixed.
+ * A **partial** deeper pass is not: topping it up with cheaper searches would
+ * leave one game holding evaluations from two budgets, and differencing those
+ * manufactures swings out of nothing. Such a row is reusable only by a pass at
+ * exactly its own budget, which is what `useDbGameAnalysis` does with it.
+ */
+export function supersedes(record: AnalysisRecord, wanted: number): boolean {
+  return record.analysedAt != null && (record.analysisNodes ?? 0) >= wanted
+}
 
 export interface AnalysisProgress {
   done: number
@@ -86,9 +221,21 @@ export function pliesNeedingAnalysis(
   return Array.from({ length: measurable }, (_, ply) => ply)
 }
 
-/** Whether a completed pass at this budget already covers the game. */
+/**
+ * Whether a completed pass already covers the game to at least this depth.
+ *
+ * "At least" rather than "exactly" (#144): a game carrying an imported off-app
+ * pass at a deeper budget is *more* analysed than the in-app pass would leave
+ * it, and asking for the shallower work to be redone over the top of it would
+ * throw away better evaluations and replace them with worse. `supersedes` holds
+ * the rule and the caveat about partial passes.
+ *
+ * A pass at a *shallower* budget than asked for is still not analysed, which is
+ * what invalidates the old 150k work rather than serving it at a depth the
+ * selection in `domain/keyMoments.ts` is no longer willing to rest on.
+ */
 export function isAnalysed(record: AnalysisRecord, nodes = BATCH_NODES): boolean {
-  return record.analysedAt != null && record.analysisNodes === nodes
+  return supersedes(record, nodes)
 }
 
 /** Which colour moved at this ply, for a game starting at move 1 with White. */

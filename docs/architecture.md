@@ -96,6 +96,14 @@ fast to test precisely because nothing in here can touch anything. TDD here.
   in the domain so `persist` never has to import from `app`), `studyGame` (`StudyGame` — what a
   guess session runs on, whichever source it came from — plus the mapping and the refusals for a
   game out of the attached database; see #55 below).
+- **Choosing what to re-decide** — `keyMoments` (#132) picks the handful of your moves worth
+  asking about again, on `grade.ts`'s own tier boundaries and never a second scale, and reports
+  `measured`/`total` so an empty list can be told apart from an unmeasured game. `reviewPlan`
+  (#144) is the judgment between that and a screen: which games to open first (losses, then
+  draws, then wins; unanalysed ahead of analysed — and `not-yours` is a real bucket, not a
+  fallback), and whether the list may be offered at all. It refuses on anything short of a
+  complete pass and names which of four things happened, because three of them are *not* "you
+  played clean" and all four render as no list.
 - **Whole-game review** — `gameReview` grades a *finished* game rather than a single guess: win%
   swing per move for both sides, where win% leaked by phase against the time spent there, and
   which of the opponent's mistakes went unpunished. Each position is evaluated **once** —
@@ -336,10 +344,16 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
   dominated by the opponent's blunders would bury the point; moves the analysis couldn't measure
   are omitted rather than assumed fine).
 - `gameAnalysis.ts` (pure) + `useGameAnalysis.ts` — the whole-game pass (#68): *coverage* at a
-  uniform budget (`BATCH_NODES`, deliberately **lower** than the live coach's grading budget)
-  as opposed to the *depth* of a single-position analysis. Persists `evalByPly` and `startEval`
-  plus `analysedAt`/`analysisNodes`, so a later pass can tell whether the stored work still
-  counts; a partial run is kept but never marked complete. `accuracyReport` is the accuracy
+  uniform budget (`BATCH_NODES`) as opposed to the *depth* of a single-position analysis.
+  Persists `evalByPly` and `startEval` plus `analysedAt`/`analysisNodes`, so a later pass can
+  tell whether the stored work still counts; a partial run is kept but never marked complete
+  (and, since #144, still records the budget it ran at, so it can only be topped up by a pass at
+  the same one). **The budget is a bounded choice, and its bound is the honest part** (#144):
+  `ANALYSIS_BUDGETS` offers 250k/400k/800k, `REFERENCE_NODES` is the 4M every measurement in this
+  repo is stated against, and `trustworthyAbsences` is false for every budget a browser can
+  afford — so a screen may report what a pass *found* and must not report what it did not.
+  `supersedes` is the seam for an off-app deep pass: a stored complete pass at a deeper budget
+  wins outright and no WASM search runs over it. `accuracyReport` is the accuracy
   figure everything *after* the game reads: Home (`useHomeStats.ts`) and both halves of
   `Library.tsx`, the stored-game table and replay. The play screen's post-game review is the
   one that doesn't — it reports `gameAccuracy` (`playMachine.ts`) off the live coach log, which
@@ -409,8 +423,15 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
 
 ### UI — `src/ui/**`
 React adapter. `App.tsx` routes `home | maia-setup | maia | guess-pick | guess | library |
-replay | database | database-game` — Home is a card chooser, each mode gets a focused setup screen (`Screen`
-supplies the title + back). `Database.tsx` is the attach-a-PGN screen (#53): filters shown
+replay | database | database-game | review-pick | review-game` — Home is a card chooser, each mode gets a focused setup screen (`Screen`
+supplies the title + back). `Review.tsx` is review mode (#144): the picker reuses #54's browse
+*machinery* (`useDbBrowse` + `app/useReviewList.ts`, which adds the one thing an index cannot
+answer — has this been analysed at this budget) while drawing its own table, and the review
+screen runs the pass, states its cost and its limits before it starts, and offers either the
+plies `reviewPlan` selected or the whole game. Both go through the ordinary `startGuess`;
+`focusPlies` on `START_GAME` is the only thing the session machine learned. `YourNames.tsx` is
+the shared "who are you" fold (#130), used by review and by the study control.
+`Database.tsx` is the attach-a-PGN screen (#53): filters shown
 *before* the import runs, per-reason skip counts after it, what is attached, and the note that an
 import is never the only copy. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
 material strip and engine lines; `Library.tsx` is the stored-game table **and** the replay

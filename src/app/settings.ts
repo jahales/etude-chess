@@ -1,6 +1,8 @@
 // Tuneable analysis settings (#6). Kept pure and separate so the presets are
 // testable and the hook just holds one of these in state.
 
+import { ANALYSIS_BUDGETS, BATCH_NODES } from './gameAnalysis'
+
 export interface AnalysisSettings {
   /** Node budget for grading + the alternatives (reproducible; never movetime). */
   nodes: number
@@ -32,6 +34,52 @@ export function presetIdForNodes(nodes: number): string {
 /** Node budget for the fast live "who's ahead" bar — never heavier than a strength preset. */
 export function liveEvalNodes(settings: AnalysisSettings): number {
   return Math.min(settings.nodes, 300_000)
+}
+
+// ---------- the whole-game pass budget (#144) ----------
+
+/**
+ * The node budget a review pass runs at, remembered between visits.
+ *
+ * Kept apart from `AnalysisSettings` above, which is per-move grading during a
+ * session: that number can be changed mid-session with no consequence beyond the
+ * next move, whereas this one decides what a *stored* pass means. A pass is
+ * filed with the budget it ran at (`AnalysisRecord.analysisNodes`), so changing
+ * this invalidates stored work rather than reinterpreting it — which is the
+ * point, and why it lives where a deliberate choice lives rather than behind the
+ * grading gear.
+ *
+ * `localStorage` for the same reason the names are: it is read while deciding
+ * what a screen may offer, before any database read has landed.
+ */
+export const REVIEW_NODES_KEY = 'etude-chess:review-nodes'
+
+/**
+ * The remembered budget, or the default.
+ *
+ * Validated against the budgets we actually offer rather than trusted as a
+ * number. A hand-edited or stale value would otherwise run a pass at a budget
+ * nothing has measured, and then store it as though it had — and every claim
+ * this app makes about a game rests on knowing which budget produced it.
+ */
+export function loadReviewNodes(): number {
+  try {
+    const raw = localStorage.getItem(REVIEW_NODES_KEY)
+    if (!raw) return BATCH_NODES
+    const nodes = Number(raw)
+    return ANALYSIS_BUDGETS.some((b) => b.nodes === nodes) ? nodes : BATCH_NODES
+  } catch {
+    return BATCH_NODES
+  }
+}
+
+/** Remember the budget. Best-effort: an embedded context can refuse storage outright. */
+export function saveReviewNodes(nodes: number): void {
+  try {
+    localStorage.setItem(REVIEW_NODES_KEY, String(nodes))
+  } catch {
+    // The choice still holds for this session; it just won't outlive it.
+  }
 }
 
 // ---------- who you are (#130) ----------

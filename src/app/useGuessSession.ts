@@ -61,8 +61,18 @@ export function useGuessSession(engine: AnalyserState) {
     p.count = state.attempts.length
   }, [state.attempts, state.session, state.sessionId])
 
+  // `focusPlies` narrows the session to a chosen set of the hero's moves —
+  // #144's critical positions. Optional, so every existing caller still gets the
+  // whole game, and passed through rather than interpreted here: which plies are
+  // worth re-deciding is `domain/reviewPlan`'s judgment, not this hook's.
   const startGame = useCallback(
-    (game: PackGame) => dispatch({ type: 'START_GAME', game, sessionId: `s${Date.now()}` }),
+    (game: PackGame, focusPlies?: readonly number[]) =>
+      dispatch({
+        type: 'START_GAME',
+        game,
+        sessionId: `s${Date.now()}`,
+        ...(focusPlies ? { focusPlies } : {}),
+      }),
     [],
   )
   const goHome = useCallback(() => dispatch({ type: 'GO_HOME' }), [])

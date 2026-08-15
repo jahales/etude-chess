@@ -9,7 +9,11 @@ import {
   loadPlayerNames,
   savePlayerNames,
   PLAYER_NAMES_KEY,
+  REVIEW_NODES_KEY,
+  loadReviewNodes,
+  saveReviewNodes,
 } from './settings'
+import { ANALYSIS_BUDGETS, BATCH_NODES } from './gameAnalysis'
 
 describe('analysis settings', () => {
   it('has ascending, distinct strength presets', () => {
@@ -130,5 +134,53 @@ describe('remembering the names between sessions', () => {
     vi.stubGlobal('localStorage', undefined)
     expect(loadPlayerNames()).toEqual([])
     expect(() => savePlayerNames(['quiet_etude'])).not.toThrow()
+  })
+})
+
+// #144: the budget a whole-game pass runs at. Unlike the grading settings above,
+// this one decides what a *stored* pass means, so a value we cannot place is
+// more dangerous than a missing one.
+describe('the review pass budget', () => {
+  // Same seam as the names above: Node 24 defines `localStorage` itself, as
+  // nothing, so the browser API is supplied rather than assumed.
+  beforeEach(() => vi.stubGlobal('localStorage', memoryStorage()))
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('defaults to the shared pass budget', () => {
+    expect(loadReviewNodes()).toBe(BATCH_NODES)
+  })
+
+  it('remembers a budget that is one we offer', () => {
+    const quick = ANALYSIS_BUDGETS.find((b) => b.nodes !== BATCH_NODES)!
+    saveReviewNodes(quick.nodes)
+    expect(loadReviewNodes()).toBe(quick.nodes)
+  })
+
+  it('refuses a stored budget that is not one of ours', () => {
+    // A hand-edited or stale value would otherwise run a pass at a budget
+    // nothing has measured, and then file it as though it had — and every claim
+    // this app makes about a game rests on knowing which budget produced it.
+    localStorage.setItem(REVIEW_NODES_KEY, '150000')
+    expect(loadReviewNodes()).toBe(BATCH_NODES)
+    localStorage.setItem(REVIEW_NODES_KEY, 'lots')
+    expect(loadReviewNodes()).toBe(BATCH_NODES)
+  })
+
+  it('survives storage being unavailable, in both directions', () => {
+    const refuses = (): never => {
+      throw new Error('storage denied')
+    }
+    vi.stubGlobal('localStorage', { getItem: refuses, setItem: refuses, removeItem: refuses })
+    expect(loadReviewNodes()).toBe(BATCH_NODES)
+    expect(() => saveReviewNodes(800_000)).not.toThrow()
+  })
+
+  it('offers only budgets that say what they cost', () => {
+    // The note is the reason the knob is honest; a budget without one is a knob
+    // whose settings cannot be described (constitution §9, §12).
+    for (const budget of ANALYSIS_BUDGETS) expect(budget.note.length).toBeGreaterThan(40)
+    expect(ANALYSIS_BUDGETS.some((b) => b.nodes === BATCH_NODES)).toBe(true)
+    // The budget the measurement condemns is not on the menu.
+    expect(ANALYSIS_BUDGETS.every((b) => b.nodes > 150_000)).toBe(true)
   })
 })
