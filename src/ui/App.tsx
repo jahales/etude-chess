@@ -4,6 +4,7 @@ import {
   annotationAt,
   planStudy,
   studySides,
+  yourSide,
   STUDY_BLOCKER_LABEL,
   type StudyGame,
 } from '../domain/studyGame'
@@ -23,6 +24,10 @@ import {
   STRENGTH_PRESETS,
   MULTIPV_OPTIONS,
   presetIdForNodes,
+  formatPlayerNames,
+  parsePlayerNames,
+  loadPlayerNames,
+  savePlayerNames,
   type AnalysisSettings,
 } from '../app/settings'
 import {
@@ -674,6 +679,12 @@ function Play({
  * empty session. And where the file recorded no winner there is no side to take
  * — so both are offered and neither is chosen, which is the difference between
  * a considered default and quietly quizzing you as White on every draw.
+ *
+ * A game with **your** name on it is the third case (#130): your side comes
+ * first, whatever the result, because the game you lost is the one worth
+ * reviewing. The names that decide this are read from storage here rather than
+ * held above, so the answer survives a reload — you say who you are once, not
+ * once per game.
  */
 function StudyThisGame({
   game,
@@ -682,9 +693,11 @@ function StudyThisGame({
   game: DbGame
   onStudy: (g: StudyGame) => void
 }) {
+  const [names, setNames] = useState(loadPlayerNames)
+  const yours = useMemo(() => yourSide(game, names), [game, names])
   const plans = useMemo(
-    () => studySides(game.result).map((color) => ({ color, plan: planStudy(game, color) })),
-    [game],
+    () => studySides(game.result, yours).map((color) => ({ color, plan: planStudy(game, color) })),
+    [game, yours],
   )
   const playable = plans.flatMap((p) => (p.plan.ok ? [{ color: p.color, ...p.plan }] : []))
 
@@ -698,22 +711,45 @@ function StudyThisGame({
   }
 
   const pick = playable.length > 1
+  // Your side leads the list when it can be studied at all; when it can't, the
+  // note says so rather than offering the other side as though it were yours.
+  const mine = yours ? playable.find((p) => p.color === yours) : undefined
+  const yoursBlocked = yours && !mine ? plans.find((p) => p.color === yours)?.plan : undefined
   return (
     <div className="study-controls">
       <div className="study-buttons">
         {playable.map(({ color, game: studyGame }) => (
           <button
             key={color}
-            className="btn primary"
+            // Your side leads; a game with no winner still emphasises both,
+            // because there the point is that neither was chosen for you.
+            className={`btn ${!yours || color === yours ? 'primary' : 'ghost'}`}
             type="button"
             onClick={() => onStudy(studyGame)}
           >
-            {pick ? `Study as ${sideName(color)}` : 'Study this game'}
+            {!pick
+              ? 'Study this game'
+              : color === yours
+                ? `Study your side (${sideName(color)})`
+                : `Study as ${sideName(color)}`}
           </button>
         ))}
       </div>
       <p className="study-note">
-        {pick ? (
+        {mine ? (
+          <>
+            You played <b>{sideName(mine.color)}</b> here, so your side comes first —{' '}
+            <b>{mine.positions}</b> positions to guess, starting after move four. Every move is
+            graded against the engine rather than against what was played, so a game you lost is
+            still a session about your own decisions.
+          </>
+        ) : yoursBlocked ? (
+          <>
+            You played <b>{sideName(yours!)}</b> here.{' '}
+            {!yoursBlocked.ok && STUDY_BLOCKER_LABEL[yoursBlocked.reason]} The other side is
+            offered instead — <b>{playable[0]!.positions}</b> positions to guess.
+          </>
+        ) : pick ? (
           <>
             This game has no winner to take the side of, so pick one —{' '}
             {playable.map((p, i) => (
@@ -732,7 +768,66 @@ function StudyThisGame({
         )}{' '}
         {game.comments && 'Notes the file carries are shown at the reveal, marked as the file’s.'}
       </p>
+      <YourNames names={names} onChange={setNames} claimed={yours !== null} />
     </div>
+  )
+}
+
+/**
+ * Who you are, so a game of yours can be recognised as one (#130).
+ *
+ * Folded away because it is answered once and then never again, and it sits on
+ * the study control rather than in the settings panel because this is the only
+ * screen where knowing the answer changes anything.
+ *
+ * A list and not a field: a site writes your handle into the `White` tag, a PGN
+ * you exported by hand writes `Lastname, Firstname`, and both are you. One per
+ * line, because that comma is part of a name. Nothing is guessed for you — the
+ * list starts empty and stays on this machine.
+ */
+function YourNames({
+  names,
+  onChange,
+  claimed,
+}: {
+  names: string[]
+  onChange: (names: string[]) => void
+  claimed: boolean
+}) {
+  const [draft, setDraft] = useState(() => formatPlayerNames(names))
+  const save = () => {
+    const parsed = parsePlayerNames(draft)
+    savePlayerNames(parsed)
+    onChange(parsed)
+    setDraft(formatPlayerNames(parsed))
+  }
+  return (
+    <details className="study-you">
+      <summary>{claimed ? 'This is one of your games' : 'Is this one of your games?'}</summary>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          save()
+        }}
+      >
+        <label htmlFor="your-names">The names you play under — one per line</label>
+        <textarea
+          id="your-names"
+          rows={2}
+          value={draft}
+          spellCheck={false}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+        />
+        <button className="btn ghost" type="submit">
+          Save
+        </button>
+        <span className="study-note">
+          Matched against the game&apos;s White and Black tags, ignoring case. Kept in this browser
+          and nowhere else.
+        </span>
+      </form>
+    </details>
   )
 }
 

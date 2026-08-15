@@ -125,6 +125,26 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     keeps a 100k-game import minutes rather than hours — so the first thing that ever checks a
     game is legal is the thing about to study it, and finding out inside the reducer would have
     taken the screen down with it.
+- **Take your own side of a game you played, including the ones you lost (#130).** Tell the
+  study screen which names you play under, and a game from your database carrying one of them is
+  studied from **your** side first, whatever the result. Until now a decisive game was always
+  studied from the winner's side — so importing a game you lost quizzed you as the player who
+  beat you, which locked you out of exactly the games most worth reviewing. The other side is
+  still offered, and a game with none of your names on it is unchanged: the winner's side when
+  there is a winner, both sides when there isn't. **Grading needed no change and got none.** A
+  move is graded against the engine rather than against the move that was played, so the losing
+  side of your own game is a session about your decisions rather than a re-run of them, and a
+  move better than the one you found is still Tier A. Only the side *selection* was in the way.
+  - **The names are a list, not a field, and case doesn't count.** A site writes your handle into
+    the `White` tag; a PGN you exported by hand writes `Lastname, Firstname`. Both are you, so
+    both can be listed — one per line, because that comma is part of a name. Matching is
+    whole-name: a substring rule would hand you the wrong side of every game against someone
+    whose name contains yours, and a short name would claim the database.
+  - **The list is yours, starts empty and stays on your machine** — typed in the app, kept in
+    this browser. There is no handle in the source and there will not be one.
+  - Two cases are said out loud rather than guessed: a game you played **against yourself** has
+    no side that is more yours, so it falls back to the ordinary rule, and a game where your side
+    has nothing to guess says so and offers the other side rather than pretending it is yours.
 - **Your blunder rate per game, in the library (#65).** The project's leading indicator is now
   instrumented. [development-focus.md](docs/development-focus.md) §Measurement is blunt about
   why: rated game rating is the only real metric and it moves in months, puzzle rating moves in

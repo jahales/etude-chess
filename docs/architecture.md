@@ -254,6 +254,15 @@ domain still imports nothing.
   the winner's side, and a **draw, an unfinished game, or a file that recorded no result offers
   both sides and picks neither**. The fallback the pack can afford — no winner, so White — would
   quietly quiz you as White for most of the strong games in a real database.
+- **A game *you* played is the case that rule gets backwards** (#130). The winner is the player
+  worth imitating in content someone else made; in your own game you are the player being
+  trained, so `yourSide` matches **the names you play under** (kept by `app/settings.ts` — a
+  list, compared whole-name and case-insensitively, because a site writes your handle into the
+  tag and a hand-made export writes `Lastname, Firstname`) and `studySides` puts that side
+  first, with the other still offered. Nothing in grading moved and nothing needed to:
+  `planStudy` grades against the engine rather than against the move played, so the side that
+  lost is a session about your decisions. Side *selection* was the whole of what made the games
+  most worth reviewing unreachable.
 - **`planStudy` is the gate, and it exists because a row is not curated content.** It builds the
   quiz, throws it away, and returns the *count* — so the screen can promise "13 positions" before
   a session opens, and can refuse with a reason instead of opening an empty one. Three refusals:
@@ -311,7 +320,12 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
   a component so the staleness rule lives in one place.
 - `useHomeStats.ts` — the Home cards' history counters, read from a count plus a short scan
   rather than by loading every stored game.
-- `settings.ts` — analysis strength / lines-shown presets (pure).
+- `settings.ts` — analysis strength / lines-shown presets (pure), plus **the names you play
+  under** (#130): the list itself and its `localStorage` round trip. `localStorage` rather than
+  the IndexedDB adapter because it is a preference read *synchronously* while deciding which
+  side a study control offers — a screen that awaited a database read would render the wrong
+  side and correct itself. Whether a name matches a game is `domain/studyGame.yourSide`; only
+  the list lives here, and it has no default.
 
 ### Ports & adapters — the edges
 - `src/engine/analyser.ts` — the **`Analyser` port**. Grading depends only on it.
@@ -370,8 +384,10 @@ framing, and it is the feature. `format.ts` and `useBoardWidth.ts` are the share
 **Guess mode is almost the exception to that map: it has no file of its own.** Where every other
 mode names a component, guess-the-move lives *inline in `App.tsx`* — `GamePicker`, `Play` (board +
 reason + commit), `Summary`, and `StudyThisGame` (the control #54 left a `children` seam for,
-which turns a database row into a session). There is no `GuessMode.tsx`; looking for one is the
-obvious wrong turn. Note too that `Play` is the **guess** screen — the play-vs-Maia screen is
+which turns a database row into a session) with `YourNames` folded under it — the names you play
+under sit on the study control rather than in the settings panel because this is the only screen
+where knowing who you are changes anything (#130). There is no `GuessMode.tsx`; looking for one
+is the obvious wrong turn. Note too that `Play` is the **guess** screen — the play-vs-Maia screen is
 `MaiaPlay` in `MaiaMode.tsx`.
 
 The one part that *did* get its own file is `Reveal.tsx`, and the reason is not size: it is where
