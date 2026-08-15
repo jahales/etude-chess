@@ -1,9 +1,11 @@
 import Dexie, { type Table } from 'dexie'
 import type { Attempt } from '../domain/session'
 import type { CoachEntry, PositionEval } from '../domain/gameRecord'
+import { nameTokens } from '../domain/dbQuery'
 // Type-only, so this stays a one-way runtime dependency: dbGames.ts imports
 // `getDb` from here, and nothing here imports it back.
 import type { DbGame, DbSource } from './dbGames'
+import type { StoredSearchIndex } from './searchIndex'
 import { ensurePersistence } from './storage'
 
 // Local-first persistence (constitution: no backend/accounts in v0.1.0). Every
@@ -70,6 +72,11 @@ export class EtudeDb extends Dexie {
   // here because the schema for the whole database lives in one place.
   dbGames!: Table<DbGame, string>
   dbSources!: Table<DbSource, string>
+  // v0.3 (#54): the serialized MiniSearch index over the name vocabulary. One
+  // row, no secondary indexes — it is fetched by a constant key and never
+  // queried. See searchIndex.ts for why it indexes the vocabulary rather than
+  // the games (10.1 MB → 0.8 MB at 100k games).
+  dbSearch!: Table<StoredSearchIndex, string>
   constructor() {
     super('etude-chess')
     this.version(1).stores({ attempts: '++id, gameId, sessionId, tier, createdAt' })
@@ -82,6 +89,39 @@ export class EtudeDb extends Dexie {
       dbGames: 'key, white, black, year, eco, result, speed, minElo, source, [white+year], [black+year]',
       dbSources: 'name, importedAt',
     })
+    // v0.3 (#54): browsing what was imported. `*names` is a **multiEntry** index
+    // over the tokens of White, Black and Event (`domain/dbQuery.nameTokens`) —
+    // what turns "games by Morphy" and "games at Hastings" into an index lookup
+    // instead of a scan of every row. It stands alone because a compound index
+    // cannot be multiEntry (plan §10), and every query through it is paired with
+    // `.distinct()` in dbGames.ts: a game whose players and event share a token
+    // matches the same key range more than once.
+    //
+    // A version re-declares a table's indexes in full, so the v3 list is
+    // repeated here rather than added to. Dexie diffs the two.
+    this.version(4)
+      .stores({
+        dbGames:
+          'key, white, black, year, eco, result, speed, minElo, source, *names, [white+year], [black+year]',
+        dbSources: 'name, importedAt',
+      })
+      .upgrade((tx) =>
+        // Rows written by #53 carry no `names`, and IndexedDB indexes only what a
+        // row actually holds — so without this backfill every game imported
+        // before this version would be missing from search, and *silently*: the
+        // filter would work, return fewer games, and look right.
+        tx
+          .table<DbGame>('dbGames')
+          .toCollection()
+          .modify((row) => {
+            row.names = nameTokens(row)
+          }),
+      )
+    // v0.3 (#54): somewhere to keep the serialized search index. A new table
+    // only — nothing existing is touched, and an absent row simply means the
+    // index gets built on the next search, which is exactly what a database
+    // attached before this version needs to happen.
+    this.version(5).stores({ dbSearch: 'id' })
   }
 }
 

@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_IMPORT_FILTERS, type ImportFilters } from '../domain/pgnImport'
 import type { ImportProgress } from '../content/pgnImport'
 import { putDbGames, recordDbSource } from '../persist/dbGames'
+import { warmSearchIndex } from '../persist/searchIndex'
 import { ensurePersistence } from '../persist/storage'
 import type { ImportEvent } from './pgnImportWorker'
 
@@ -151,7 +152,16 @@ export function usePgnImport(createWorker: ImportWorkerFactory = defaultWorkerFa
           parsed: progress.parsed,
           skipped: progress.skipped,
           ...(progress.totalBytes === undefined ? {} : { sizeBytes: progress.totalBytes }),
-        }).then(() => setCompleted((n) => n + 1))
+        }).then(() => {
+          setCompleted((n) => n + 1)
+          // Rebuild the search index over the vocabulary the import just changed
+          // (§10: build it after import and persist it), but **do not hold the
+          // listing behind it**. A search issued while it is still building
+          // waits for it — `expandTerms` awaits the same build — so the only
+          // difference is that the games appear as soon as they are stored
+          // rather than when the index catches up.
+          void warmSearchIndex()
+        })
       }
 
       w.postMessage({ type: 'import', file, filters })
