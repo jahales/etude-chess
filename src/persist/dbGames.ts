@@ -220,6 +220,43 @@ export async function putDbGames(games: DbGame[], chunkSize = BULK_CHUNK): Promi
   return { written }
 }
 
+/**
+ * Which of these games are already stored (#145).
+ *
+ * A `bulkPut` overwrites by key without saying whether it landed on a row or
+ * made one, so a sync that re-fetches a month it partly had could only report
+ * "12 imported" for twelve games that were all already there. Asked *before* the
+ * write, and against the index alone — `primaryKeys()` reads keys, never the
+ * movetext beside them, which is the difference between a few kB and a few MB
+ * for a busy month.
+ */
+export async function existingDbGameKeys(keys: readonly string[]): Promise<Set<string>> {
+  const d = getDb()
+  if (!d || keys.length === 0) return new Set()
+  try {
+    // `anyOf` wants its keys sorted; Dexie then walks the index once.
+    const found = await d.dbGames.where(':id').anyOf([...keys].sort()).primaryKeys()
+    return new Set(found)
+  } catch (e) {
+    // Not knowing is not a reason to refuse to import: the write below still
+    // deduplicates by key, and the count is a report, not a gate.
+    console.warn('etude-chess: could not check for games already stored', e)
+    return new Set()
+  }
+}
+
+/** How many stored games came from one source. Counts an index; loads no rows. */
+export async function countDbGamesFromSource(source: string): Promise<number> {
+  const d = getDb()
+  if (!d) return 0
+  try {
+    return await d.dbGames.where('source').equals(source).count()
+  } catch (e) {
+    console.warn('etude-chess: could not count the games from that source', e)
+    return 0
+  }
+}
+
 // ---------- browsing (#54, plan §10) ----------
 
 /**

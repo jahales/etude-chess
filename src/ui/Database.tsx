@@ -1,10 +1,15 @@
 /**
- * Attach, browse and search your own game database (#53 + #54, ADR 0018).
+ * Attach, browse and search your own game database (#53 + #54 + #145, ADR 0018).
  *
  * We ship no corpus — that is the decision that makes this legally clean — so
  * this screen takes a PGN file the user already has, shows honestly what will be
  * kept and what will be dropped, says plainly that an import is never the only
  * copy of anything, and then lets you find a game in what you attached.
+ *
+ * Or it fetches your own games from chess.com for you (#145), which is the same
+ * decision rather than an exception to it: your games, fetched from a public
+ * read-only API straight to your browser, stored on your device, redistributed
+ * nowhere. Both routes end in the same rows through the same `putDbGames`.
  *
  * The browse half (plan §10) holds one page of results and never more. At the
  * 10k–100k games an import is written for, a results table that renders its
@@ -25,8 +30,16 @@ import {
   type ImportFilters,
   type SkipReason,
 } from '../domain/pgnImport'
+import {
+  chesscomUserOfSource,
+  normalizeClasses,
+  TIME_CLASSES,
+  TIME_CLASS_LABEL,
+  type TimeClass,
+} from '../domain/chesscom'
 import { PAGE_SIZE, isEmptyQuery, type GameQuery } from '../domain/dbQuery'
 import { usePgnImport } from '../app/usePgnImport'
+import { useChesscomSync, type ChesscomSync } from '../app/useChesscomSync'
 import { useDbBrowse, type DbBrowse } from '../app/useDbBrowse'
 import {
   countDbGames,
@@ -43,6 +56,7 @@ const count = (n: number) => n.toLocaleString()
 export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => void }) {
   const [filters, setFilters] = useState<ImportFilters>(DEFAULT_IMPORT_FILTERS)
   const { state, attach, cancel, completed } = usePgnImport()
+  const chesscom = useChesscomSync()
   const [sources, setSources] = useState<DbSource[]>([])
   const [total, setTotal] = useState(0)
   const [storage, setStorage] = useState<StorageStatus | null>(null)
@@ -60,7 +74,7 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
     return () => {
       cancelled = true
     }
-  }, [reload, completed])
+  }, [reload, completed, chesscom.completed])
 
   const importing = state.status === 'importing'
 
@@ -73,18 +87,24 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
 
   const detach = async (source: DbSource) => {
     const ok = window.confirm(
-      `Detach ${source.name} and remove its ${count(source.games)} games? You can attach the file again at any time.`,
+      `Detach ${source.name} and remove its ${count(source.games)} games? You can attach the file — or sync the account — again at any time.`,
     )
     if (!ok) return
     await deleteDbSource(source.name)
+    // A synced account also has to forget *which months* it pulled. The games
+    // are gone, so a record saying those months are done would make the next
+    // sync a no-op — "detach and sync again" has to actually work.
+    const user = chesscomUserOfSource(source.name)
+    if (user) chesscom.forget(user)
     setReload((n) => n + 1)
   }
 
   return (
     <>
       <p className="lede">
-        étude ships no game database. Attach a PGN file you already have and it is parsed and
-        indexed <em>on this device</em> — nothing is uploaded, and nothing is redistributed.
+        étude ships no game database. Attach a PGN file you already have — or sync your own games
+        from chess.com, below — and it is parsed and indexed <em>on this device</em>: nothing is
+        uploaded, and nothing is redistributed.
       </p>
 
       <ImportFiltersPanel filters={filters} onChange={setFilters} disabled={importing} />
@@ -123,8 +143,10 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
       )}
       {state.status === 'done' && <ImportSummary state={state} />}
 
+      <ChesscomPanel chesscom={chesscom} />
+
       <BrowseDatabase
-        reload={completed + reload}
+        reload={completed + reload + chesscom.completed}
         importing={importing}
         sources={sources}
         onOpen={onOpenGame}
@@ -315,6 +337,165 @@ function ImportSummary({ state }: { state: ImportState }) {
   )
 }
 
+// ---------- your own games from chess.com (#145) ----------
+
+/**
+ * Fetch your own games instead of exporting a PGN by hand.
+ *
+ * Three things this screen has to be honest about, because each one is a way the
+ * feature could quietly mislead:
+ *
+ * - **It is a button, never a background job.** chess.com's API is free, public
+ *   and unauthenticated, and nothing here runs because the app loaded.
+ * - **Which time controls come in is your choice, and there is no default.** The
+ *   sync will not start until you pick at least one. Pooling blitz with rapid
+ *   and daily is a real analysis error — it describes a mixture of players
+ *   rather than a player — so choosing for you would be choosing silently.
+ * - **A wrong handle says so.** A 404 is "no such user", never a run that
+ *   finishes with zero games and reads like success.
+ *
+ * The handle is typed here and stored on this device (`app/chesscomAccount.ts`),
+ * the same way #130 keeps the names you play under. There is no default and
+ * there will not be one.
+ */
+export function ChesscomPanel({ chesscom }: { chesscom: ChesscomSync }) {
+  const { state, account, sync, cancel } = chesscom
+  const [user, setUser] = useState(account.user)
+  const [classes, setClasses] = useState<TimeClass[]>(account.classes)
+  const syncing = state.status === 'syncing'
+
+  const toggle = (time: TimeClass, on: boolean) =>
+    setClasses((current) =>
+      normalizeClasses(on ? [...current, time] : current.filter((c) => c !== time)),
+    )
+
+  return (
+    <>
+      <h2 className="section-title">Or sync your own games from chess.com</h2>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          sync(user, classes)
+        }}
+      >
+        <fieldset className="import-filters chesscom-sync" disabled={syncing}>
+          <legend>Your chess.com account</legend>
+          <label>
+            Username
+            <input
+              type="text"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="your handle"
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
+            />
+          </label>
+          {TIME_CLASSES.map((time) => (
+            <label key={time} className="check">
+              <input
+                type="checkbox"
+                checked={classes.includes(time)}
+                onChange={(e) => toggle(time, e.target.checked)}
+              />
+              {TIME_CLASS_LABEL[time]}
+            </label>
+          ))}
+          <button className="btn primary" type="submit" disabled={!user.trim() || classes.length === 0}>
+            Sync
+          </button>
+          <p className="settings-hint">
+            Fetched from chess.com&apos;s public API straight to this browser — your handle stays
+            on this device, nothing is uploaded, and no games are redistributed. Months already
+            pulled are not asked for again, so the first sync is the slow one and every one after
+            it is the current month.
+          </p>
+          <p className="settings-hint">
+            <b>Pick the time controls deliberately.</b> Pooling blitz with rapid and daily
+            describes a mixture of players rather than a player, so there is no default here.
+            Everything you pick is kept whatever its rating or clock — only games under five
+            moves are dropped, because there is no position in them to ask a question about.
+          </p>
+        </fieldset>
+      </form>
+
+      {syncing && <SyncProgressLine state={state} onCancel={cancel} />}
+      {state.status === 'error' && (
+        <p className="banner error" role="alert">
+          {state.error}
+        </p>
+      )}
+      {state.status === 'done' && <SyncSummary state={state} />}
+    </>
+  )
+}
+
+type SyncState = ChesscomSync['state']
+
+function SyncProgressLine({ state, onCancel }: { state: SyncState; onCancel: () => void }) {
+  const { progress } = state
+  return (
+    <div className="import-progress">
+      <p className="import-progress-label mono" aria-live="polite">
+        {progress.month
+          ? `Fetching ${progress.month} · month ${count(progress.monthsDone + 1)} of ${count(progress.months)}`
+          : 'Asking chess.com which months you have games in…'}
+        {progress.fetched > 0 && ` · ${count(progress.fetched)} games read`}
+      </p>
+      <button className="btn ghost" type="button" onClick={onCancel}>
+        Stop
+      </button>
+    </div>
+  )
+}
+
+/**
+ * What the sync did, in the same vocabulary the file import uses.
+ *
+ * "Already in your database" is its own number rather than folded into the
+ * total: a re-sync re-fetches the month you are in, and reporting those games as
+ * freshly imported would make an idempotent operation look like it doubled your
+ * database every time you pressed the button.
+ */
+function SyncSummary({ state }: { state: SyncState }) {
+  const { progress, written, alreadyPresent } = state
+  const fresh = Math.max(0, written - alreadyPresent)
+  const reasons = Object.entries(progress.skippedByReason) as [SkipReason, number][]
+  return (
+    <div className="import-summary">
+      <p className="banner">
+        Imported <b>{count(fresh)}</b> new {fresh === 1 ? 'game' : 'games'} from{' '}
+        {count(progress.fetched)} fetched
+        {alreadyPresent > 0 && <> · {count(alreadyPresent)} were already in your database</>}.
+      </p>
+      {reasons.length > 0 && (
+        <p className="table-note">
+          Skipped {count(progress.skipped)}:{' '}
+          {reasons
+            .sort((a, b) => b[1] - a[1])
+            .map(([reason, n]) => `${count(n)} ${SKIP_REASON_LABEL[reason]}`)
+            .join(' · ')}
+          .
+        </p>
+      )}
+      {progress.monthsSkipped > 0 && (
+        <p className="table-note">
+          {count(progress.monthsSkipped)}{' '}
+          {progress.monthsSkipped === 1 ? 'month was' : 'months were'} already complete and{' '}
+          {progress.monthsSkipped === 1 ? 'was' : 'were'} not fetched again.
+        </p>
+      )}
+      {progress.fetched === 0 && progress.months === 0 && (
+        <p className="table-note">
+          Nothing to fetch — every month of this account has already been pulled for the time
+          controls you picked.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ---------- browse + search (#54, plan §10) ----------
 
 /** Prose for the index that answered a query — which is also the order rows are in. */
@@ -483,7 +664,8 @@ function BrowseFilters({ browse, sources }: { browse: DbBrowse; sources: DbSourc
       </label>
       {sources.length > 1 && (
         <label>
-          File
+          {/* Not "File": a synced chess.com account is a source too (#145). */}
+          Source
           <select {...field('source')}>
             <option value="">Any</option>
             {sources.map((s) => (
@@ -712,7 +894,8 @@ function AttachedSources({
         <table className="games-table">
           <thead>
             <tr>
-              <th scope="col">File</th>
+              {/* A file you attached or an account you synced — both are sources. */}
+              <th scope="col">Source</th>
               <th scope="col">Attached</th>
               <th scope="col" className="num">
                 Games
@@ -834,7 +1017,8 @@ function ReimportNote({
     <p className="storage-note">
       <b>Keep the PGN file.</b> An attached database lives in this browser, so re-attaching the
       file is the way back from a cleared browser, another machine, or a different profile —
-      importing the same file again updates what is here instead of duplicating it.
+      importing the same file again updates what is here instead of duplicating it. A synced
+      chess.com account needs no file: syncing again refetches it, and lands on the same rows.
       {storage?.supported && (
         <>
           {' '}
