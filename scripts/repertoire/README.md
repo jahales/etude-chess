@@ -210,6 +210,23 @@ size. That matters: 2013-01 is 17 MB, 2016-01 is 831 MB, a 2026 month is ~27 GB.
                            The build warns when the table passes 50% loaded.
 ```
 
+This script kept a **third** copy of the argument parser after
+[#115](https://github.com/jahales/etude-chess/issues/115) unified the rest, with both of that
+issue's defects: a typo was accepted silently, and a bare `--max-games` arrived as
+`Number(true)` = **1**, so the book was built from one game and reported as a success. It is the
+front of the pipeline, so everything downstream — every crawl, every trap statistic, every study
+ranking — was then computed against it, and the only symptom was numbers that looked slightly
+odd hours later. Fixed in [#122](https://github.com/jahales/etude-chess/issues/122): one parser
+from [`args.mjs`](args.mjs), and the whole command line read and rejected before a byte is
+downloaded.
+
+`--ratings` is a **`min-max` range** and is now checked as one. `1600,1800` (the explorer bucket
+syntax `crawl.mjs` takes) used to parse as a single `NaN`, and `1600` alone silently kept the
+default 2000 as its maximum; both scanned the entire month and wrote a book nobody asked for.
+A misspelled `--speeds` did worse — the scan excludes *known-wrong* speeds rather than requiring
+a known-right one, so `blizt` kept only games naming no speed at all, which on a Lichess month
+is none of them.
+
 Then point the crawler at it with `--book db/book-band-2026-07.json`.
 
 > **Note on the dump format.** These are *seekable* zstd: a leading skippable frame, many
