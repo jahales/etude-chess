@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   DEFAULT_IMPORT_FILTERS,
+  MY_GAMES_FILTERS,
   SKIP_REASON_LABEL,
   type ImportFilters,
   type SkipReason,
@@ -138,6 +139,36 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
 
 // ---------- filters ----------
 
+/**
+ * The two corpora this screen is used for, one click each (#129).
+ *
+ * The defaults are ADR 0018 §4's and stay exactly as they are — they are right
+ * for the master database the trainer is built on. They are also, measured on a
+ * real chess.com account, a filter that keeps **none** of your own games: rapid
+ * and blitz are rejected on the clock and a club rating is under the 2200 floor.
+ * Every field below already allowed that to be fixed by hand; what was missing
+ * was any way to know which four numbers to change, before an import that keeps
+ * nothing has told you.
+ */
+const PRESETS: { label: string; filters: ImportFilters }[] = [
+  { label: 'Master games', filters: DEFAULT_IMPORT_FILTERS },
+  { label: 'My own games', filters: MY_GAMES_FILTERS },
+]
+
+/**
+ * Whether the fields currently say exactly what a preset says.
+ *
+ * Compared by value rather than tracked as a "selected preset", so editing one
+ * field by hand leaves *neither* button pressed — which is the truth. A
+ * remembered selection would keep claiming "Master games" over settings that
+ * were no longer them.
+ */
+const isPreset = (a: ImportFilters, b: ImportFilters): boolean =>
+  a.minBaseSeconds === b.minBaseSeconds &&
+  a.excludeFastSpeeds === b.excludeFastSpeeds &&
+  a.minElo === b.minElo &&
+  a.minFullMoves === b.minFullMoves
+
 function ImportFiltersPanel({
   filters,
   onChange,
@@ -151,6 +182,20 @@ function ImportFiltersPanel({
   return (
     <fieldset className="import-filters" disabled={disabled}>
       <legend>What to keep</legend>
+      {PRESETS.map(({ label, filters: preset }) => {
+        const applied = isPreset(filters, preset)
+        return (
+          <button
+            key={label}
+            type="button"
+            className={`btn ${applied ? 'primary' : 'ghost'}`}
+            aria-pressed={applied}
+            onClick={() => onChange(preset)}
+          >
+            {label}
+          </button>
+        )
+      })}
       <label>
         Minimum rating
         <input
@@ -188,6 +233,13 @@ function ImportFiltersPanel({
         />
         Exclude blitz, rapid and bullet
       </label>
+      <p className="settings-hint">
+        <b>Master games</b> is aimed at a strong OTB database — 2200 and up, no blitz, rapid or
+        bullet. <b>My own games</b> is aimed at your own export from chess.com or Lichess: it
+        keeps every time control, has no rating floor, and only drops games too short to ask a
+        question about. Either is a starting point — change any field and you are on your own
+        settings, which is fine.
+      </p>
       <p className="settings-hint">
         A game whose rating or time control the file doesn&apos;t state is <b>kept and marked
         unknown</b> — we never guess at one to filter on it. Excluding blitz, rapid and bullet
@@ -255,7 +307,8 @@ function ImportSummary({ state }: { state: ImportState }) {
       {written === 0 && progress.parsed > 0 && (
         <p className="table-note">
           Every game in this file was filtered out. The defaults are aimed at strong, standard
-          time controls — lower the minimum rating above and attach it again.
+          time controls, which is the whole of an online account&apos;s rapid and blitz — if
+          these are your own games, pick <b>My own games</b> above and attach the file again.
         </p>
       )}
     </div>
@@ -615,7 +668,9 @@ export function DbGameView({
       </div>
       {game.comments && (
         <p className="table-note">
-          Comments are the file&apos;s own, kept as they were written rather than stripped.
+          Comments are the file&apos;s own, kept as they were written. The one thing dropped is
+          the machine data an export writes into them — clock readings, another engine&apos;s
+          evaluations, arrows — which is nobody&apos;s annotation.
         </p>
       )}
     </>
@@ -743,8 +798,9 @@ function SourceGuidance({ empty }: { empty: boolean }) {
             The Lichess open database
           </a>{' '}
           — <b>CC0</b>, so it is yours to do anything with. It is <em>online</em> play though,
-          mostly blitz and rapid, which the import filters are set to drop; raise the minimum
-          rating and lower the minimum clock if you want it anyway.
+          mostly blitz and rapid, which the default filters are set to drop; raise the minimum
+          rating and lower the minimum clock if you want it anyway. Your own export from
+          Lichess or chess.com is what <b>My own games</b> is for.
         </li>
       </ul>
       <p className="table-note">
