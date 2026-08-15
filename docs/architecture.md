@@ -105,6 +105,13 @@ fast to test precisely because nothing in here can touch anything. TDD here.
   fact, not an evaluation, which matters most in exactly the phase the owner is weakest. Its one
   real trap is the perspective flip — the API reports each move's category from the position
   *after* it, so a move leaving the opponent lost is a win.
+- **Archive-wide coaching** — `coachReport` ranks buckets of the owner's moves across every game
+  he has played (#137, `scripts/coach/`). Three rules are in the code rather than in a comment,
+  because each one produced a wrong conclusion when it was only convention: the headline is
+  **total win% given away, not error rate**; every bucket carries its **share of the moves**
+  beside its share of the loss; and `bucketsBy` **throws on a sample spanning two time classes**.
+  `pieceMatchBaseline` is the module's reason to exist — a chance baseline computed on the same
+  positions, which turned "82% of his errors moved the wrong piece" back into a coincidence.
 - **Repertoire rules (shared with the CLI tooling)** — `repertoire` (coverage, trap scoring, the
   quiet-position test), `repertoirePgn` (PGN-with-variations rendering), `repertoirePlan`
   (branch ownership across a manifest of crawls — ADR
@@ -431,6 +438,18 @@ parsers `src/engine/uci.ts` and `src/engine/evalTable.ts`. It ships no UI and is
   inferring the pipeline from here.
 - `scripts/review/game.mjs` — engine-reviews one of the owner's finished games end to end
   (`npm run review`), over `src/domain/gameReview.ts`, `mistakeKind.ts` and `tablebase.ts`.
+- `scripts/coach/` — the same grading over the *whole* chess.com archive (#137): `archive.mjs`
+  grades every move the owner has played at the review's own 4M nodes and appends JSON-lines,
+  resumable per game because a full run is hours; `assess.mjs` (`npm run coach`) prints the
+  ranked report over `src/domain/coachReport.ts`. Ranked by **total win% given away**, never by
+  error rate — frequency × severity is the question, and a rate ranks the rare-and-dramatic
+  above the common-and-expensive. `coachReport.ts` **refuses a sample spanning two time
+  classes** rather than trusting the caller to have split it. The process for coaching off the
+  output, and the base-rate checks without which its tables produce confident wrong findings,
+  is the `coach` skill (`.claude/skills/coach/`).
+- `scripts/chesscom.mjs` — reading a player's public archive, shared by the two above. Extracted
+  rather than copied at #137: two archive scans is two places for the "no public endpoint takes
+  a game id" workaround to drift.
 - `scripts/setup-maia.mjs` — fetches the Maia nets into `public/models/`.
 
 Three things about this boundary:
@@ -506,7 +525,9 @@ and games · Home as a mode chooser with live stats from your own history.
 
 Off-app: `npm run review -- --me <chess.com user> --last` (engine-review your own last game;
 takes a game URL/id or `--pgn <file>` instead, `--deep` for alternatives + WDL + per-piece values
-+ tablebase, and `STOCKFISH_PATH` to point at a different binary) · `npm run rep:build` /
++ tablebase, and `STOCKFISH_PATH` to point at a different binary) ·
+`node scripts/coach/archive.mjs --me <user>` then `npm run coach` (grade the whole archive —
+hours, resumable, `--limit` to try it — and rank where the win% goes) · `npm run rep:build` /
 `rep:build:e4` (crawl the repertoire) · `rep:decks` (stage the study decks) · `rep:audit` ·
 `rep:study` · `rep:verify` (assert the eval index is right). The `rep:*` scripts need `db/`
 populated — see [../scripts/repertoire/README.md](../scripts/repertoire/README.md).

@@ -14,10 +14,12 @@
 // judgment of its own.
 //
 // Stockfish comes from scripts/repertoire/engine.mjs, so STOCKFISH_PATH applies
-// here too; without it the En Croissant install is used.
+// here too; without it the En Croissant install is used. Reading the chess.com
+// archive lives in scripts/chesscom.mjs, shared with `npm run coach`.
 
 import { readFileSync } from 'node:fs'
 import { Chess } from 'chess.js'
+import { USER_AGENT, fetchGame, gameId } from '../chesscom.mjs'
 import { createEngine } from '../repertoire/engine.mjs'
 import { createEnginePool } from '../repertoire/enginePool.mjs'
 import {
@@ -32,8 +34,6 @@ import { diagnoseMistake } from '../../src/domain/mistakeKind.ts'
 import { QUIET_BREADTH_WINDOW } from '../../src/domain/repertoire.ts'
 import { judgeTablebase, pieceCount, tablebaseEligible } from '../../src/domain/tablebase.ts'
 import { winPercent, negate } from '../../src/domain/winPercent.ts'
-
-const USER_AGENT = 'etude-chess game review (https://github.com/jahales/etude-chess)'
 
 const arg = (name, fallback = null) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -51,37 +51,6 @@ const ME = (arg('me') ?? process.env.CHESSCOM_USER ?? '').toLowerCase()
 // 800k did on one.
 const NODES = Number(arg('nodes', 4_000_000))
 const PGN_FILE = arg('pgn')
-
-/** The bare game id out of a chess.com URL, or the argument if it is already one. */
-function gameId(value) {
-  const m = /(\d{6,})/.exec(value ?? '')
-  return m ? m[1] : null
-}
-
-async function json(url) {
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
-  return res.json()
-}
-
-/**
- * Find a game in the player's public archives, newest month first. There is no
- * public endpoint that takes a game id, so this is a scan — it stops at the
- * first hit, which for a game you just played is the first request.
- */
-async function fetchGame({ user, id, last }) {
-  const { archives } = await json(`https://api.chess.com/pub/player/${user}/games/archives`)
-  for (const month of [...archives].reverse()) {
-    const { games } = await json(month)
-    if (last) {
-      if (games.length) return games[games.length - 1]
-      continue
-    }
-    const hit = games.find((g) => gameId(g.url) === id)
-    if (hit) return hit
-  }
-  return null
-}
 
 function usage(message) {
   console.error(`${message}

@@ -196,6 +196,56 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     every reveal of every online game — the file credited with prose it never contained
     (constitution §9/§12). A game with no real notes now reveals exactly as it did before, and a
     test states that property rather than leaving it to be noticed.
+- **Coach mode — rank your weaknesses across the whole archive (#137).** `npm run review`
+  coaches off *one* game; this answers the question the owner actually asks between sessions:
+  across everything I've played, where is my time worth spending? `scripts/coach/archive.mjs`
+  grades every move you have played on chess.com at the same 4M nodes and with the same rule
+  the single-game review uses — `gradeMove` on two evaluations from the mover's perspective —
+  so a number here is comparable to a number there rather than a second scale nobody can
+  reconcile. `scripts/coach/assess.mjs` prints the ranked report; the bucketing, aggregation and
+  base-rate arithmetic are pure and tested in `domain/coachReport.ts`. **CLI plus a skill, no
+  UI** — the capability was asked for, not a screen.
+
+  **The headline is total win% given away, not error rate.** "Where is my time worth spending"
+  is frequency × severity, and ranking by rate puts the rare-and-dramatic above the
+  common-and-expensive — precisely the wrong advice for someone with a few hours a week. Every
+  bucket carries its share of the *moves* beside its share of the loss, because a bucket holding
+  a third of the loss over a third of the moves is not a weakness, it is a third of the game.
+
+  **Time controls are never pooled, and the code refuses rather than advises.** The owner's
+  archive is 232 blitz (all July, ~840–880) against 27 rapid and 17 daily, and he moved off
+  blitz around 2026-08-08 — so a pooled ranking lets blitz outvote his current chess 5:1 and
+  describes a player he no longer is, with numbers that look perfectly healthy. `bucketsBy`
+  throws on a mixed sample; the archive fetcher will not default its time-class filter to
+  "everything".
+
+  **What earned the work is the discipline, in `.claude/skills/coach/SKILL.md` §4.** Doing this
+  by hand on 2026-08-15 produced two near-misses that only a base rate caught. The one the skill
+  is built around: 82% of the owner's middlegame errors moved a different piece than the
+  engine's best, which reads as a clean candidate-generation finding and had already been
+  drafted as a coaching conclusion — until those positions turned out to average 29.3 legal
+  moves across 8.8 movable pieces, so a blind guess lands on the engine's piece 22% of the time
+  and he was at 18%. The finding was chance, about one standard deviation into the direction
+  that would have been reported as a discovery. `pieceMatchBaseline` now computes that
+  comparison on the same positions, and the denominator it uses is load-bearing: one-over-pieces
+  gives 11%, against which 18% reads as *above* chance and a null result becomes a finding
+  pointing the opposite way.
+
+  Three more refusals ride along. **The think-time curve carries its confound as a field, not a
+  comment** — error rate rises monotonically from 3% under 5s to 34% over 60s, and the obvious
+  reading is wrong in both directions, since hard positions cause the long think *and* the
+  error; the claim it supports is only the weaker "extra time is not converting into accuracy",
+  which is still enough to rule out "slow down" as advice. **A mechanism is not diagnosable from
+  a move list** — "didn't consider it" and "considered it and misjudged it" are identical in a
+  swing table, and separating them needs the stated reason from before the reveal (#49), not
+  more engine depth. And **one session is one session**: the sample is reported with every
+  ranking, buckets under 50 moves are marked thin, and under 30 games the report says outright
+  that it describes these games rather than a pattern to train against (constitution §9, §12).
+
+  A full run is hours, so it is resumable per game — a crash costs the game in flight — and
+  `--limit` is there to try it. The chess.com archive reader moved out of
+  `scripts/review/game.mjs` into `scripts/chesscom.mjs` rather than being copied; `npm run
+  review` behaves exactly as before.
 
 ### Changed
 - **The licence is AGPL-3.0, and `package.json` finally agrees (#121, ADR
