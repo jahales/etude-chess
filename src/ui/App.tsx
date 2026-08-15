@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { GAMES, type PackGame } from '../content/games'
 import {
   annotationAt,
@@ -118,6 +118,22 @@ export function App() {
    * them saved. Storage is still the source of truth; this is the one reader.
    */
   const [names, setNames] = useState(loadPlayerNames)
+  /**
+   * Re-read them on every screen change, because this is not the only writer.
+   *
+   * #145's chess.com sync appends the handle you synced under straight to
+   * storage from `useChesscomSync`, outside React — so without this, syncing and
+   * then opening the review picker would find none of the games it just
+   * imported recognised as yours, and the ordering would silently be the
+   * "not-yours" one. Compared before setting so the array keeps its identity and
+   * the memos hanging off it do not all recompute on every navigation.
+   */
+  useEffect(() => {
+    setNames((prev) => {
+      const next = loadPlayerNames()
+      return prev.length === next.length && prev.every((n, i) => n === next[i]) ? prev : next
+    })
+  }, [mode])
   /** The pass budget, remembered between visits. See `app/settings.loadReviewNodes`. */
   const [reviewNodes, setReviewNodes] = useState(loadReviewNodes)
   const changeReviewNodes = (nodes: number) => {
