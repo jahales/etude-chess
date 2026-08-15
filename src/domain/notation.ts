@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js'
 import type { Color, Score } from './types'
-import { negate } from './winPercent'
+import { negate } from './winPercent.ts'
 
 /** Render a UCI principal variation as SAN moves, from the given position. */
 export function pvToSan(fen: string, pv: string[], maxPlies = 6): string[] {

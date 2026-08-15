@@ -1,4 +1,4 @@
-import { annotationForSwing } from './annotation'
+import { annotationForSwing } from './annotation.ts'
 
 /**
  * Blunder rate per game — the project's **leading indicator**

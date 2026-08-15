@@ -1,4 +1,4 @@
-import { TIER_A_MAX_SWING, TIER_B_MAX_SWING } from './grade'
+import { TIER_A_MAX_SWING, TIER_B_MAX_SWING } from './grade.ts'
 
 /**
  * Classical move annotations, derived only from what we can actually measure.

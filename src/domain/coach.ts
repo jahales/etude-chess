@@ -1,7 +1,7 @@
 import { Chess } from 'chess.js'
 import type { Color, Tier } from './types'
 import type { MoveGrade } from './grade'
-import { hangingAfterMove, uciToSan, PIECE_NAME, type HangingPiece } from './factBundle'
+import { hangingAfterMove, uciToSan, PIECE_NAME, type HangingPiece } from './factBundle.ts'
 
 // The in-game coach's verdict on one of *your* moves (ADR 0017). Like the fact
 // bundle, but engine-based (there is no master move in a live game vs Maia): it
