@@ -28,15 +28,25 @@ import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { createInterface } from 'node:readline'
 import { pathToFileURL } from 'node:url'
-import { createPositionFilter } from './positionFilter.mjs'
+import { createPositionFilter, DEFAULT_BITS } from './positionFilter.mjs'
 import { Chess } from 'chess.js'
 import { fenKey } from '../../src/domain/repertoirePgn.ts'
 import { sniffAndDecompress } from './decompress.mjs'
+import { numberFlag, parseArgs, stringFlag } from './args.mjs'
 
 const DUMP = (month) =>
   `https://database.lichess.org/standard/lichess_db_standard_rated_${month}.pgn.zst`
 
-const SPEED_RE = /\b(ultrabullet|bullet|blitz|rapid|classical)\b/i
+/**
+ * The time controls a Lichess dump names in its `Event` header.
+ *
+ * One list, two readers: the scan matches it against a game, and `--speeds`
+ * validates against it. A speed the scan cannot see is one `--speeds` must not
+ * accept — asking for a name nothing matches empties the book rather than
+ * narrowing it.
+ */
+export const KNOWN_SPEEDS = ['ultrabullet', 'bullet', 'blitz', 'rapid', 'classical']
+const SPEED_RE = new RegExp(`\\b(${KNOWN_SPEEDS.join('|')})\\b`, 'i')
 const WANTED_HEADERS = new Set(['Event', 'Result', 'WhiteElo', 'BlackElo', 'Variant'])
 
 /**
@@ -53,6 +63,40 @@ const MAX_TRANSITIONS = 1_500_000
  * names neither the book nor the flag responsible.
  */
 export const MAX_BOOK_POSITIONS = 2 ** 24
+
+/**
+ * What this script does when the command line says nothing.
+ *
+ * Named rather than written straight into the destructuring below, because
+ * `--help` quotes them. #115 found this help text advertising `--ratings
+ * 1600-2000 --max-games 400000` — a band and a game count that had never been
+ * either the defaults or what shipped — which is what a number copied into
+ * prose does the first time the code moves. Every default in {@link HELP} is
+ * interpolated from here, so the two cannot drift again.
+ *
+ * `minGames` is read by {@link buildBook} and {@link buildBookFiltered} both,
+ * and they have to agree: the counting pass decides what the real pass is
+ * allowed to build, so two different fives would let the filter discard
+ * positions the prune would have kept.
+ */
+export const DEFAULTS = Object.freeze({
+  minRating: 1600,
+  maxRating: 2000,
+  speeds: Object.freeze(['blitz', 'rapid', 'classical']),
+  maxPly: 16,
+  maxGames: 200_000,
+  minGames: 5,
+})
+
+/**
+ * Where the CLI keeps downloaded dump bytes unless told otherwise.
+ *
+ * This is the *command line's* default, not `buildBook()`'s: called as a
+ * library it caches nothing unless asked, because a caller passing a month has
+ * not necessarily agreed to spend 27 GB of disk on it. `--no-cache` is the
+ * explicit way to say no from the command line.
+ */
+export const DEFAULT_CACHE = 'db/cache'
 
 /**
  * Turn the byte source into a stream readline can consume.
@@ -383,7 +427,7 @@ function outcomeIndex(result) {
  * network stream, so the caller decides; `main` uses it for `--file`.
  */
 export async function buildBookFiltered(opts) {
-  const { onProgress, minGames = 5, filterBits } = opts
+  const { onProgress, minGames = DEFAULTS.minGames, filterBits } = opts
 
   onProgress?.({ phase: 'counting' })
   const filter = createPositionFilter({ minGames, ...(filterBits ? { bits: filterBits } : {}) })
@@ -399,12 +443,14 @@ export async function buildBook(opts) {
     month,
     file,
     out,
-    minRating = 1600,
-    maxRating = 2000,
-    speeds = ['blitz', 'rapid', 'classical'],
-    maxPly = 16,
-    maxGames = 200_000,
-    minGames = 5,
+    minRating = DEFAULTS.minRating,
+    maxRating = DEFAULTS.maxRating,
+    // Copied, not shared: this array reaches the serialised meta, and a frozen
+    // module-level one would be the same object in every book built in a run.
+    speeds = [...DEFAULTS.speeds],
+    maxPly = DEFAULTS.maxPly,
+    maxGames = DEFAULTS.maxGames,
+    minGames = DEFAULTS.minGames,
     cache = null,
     onProgress,
     /**
@@ -640,22 +686,45 @@ export async function buildBook(opts) {
 
 // ---------------------------------------------------------------------------
 
-function parseArgs(argv) {
-  const out = {}
-  for (let i = 0; i < argv.length; i++) {
-    if (!argv[i].startsWith('--')) continue
-    const key = argv[i].slice(2)
-    const next = argv[i + 1]
-    if (next === undefined || next.startsWith('--')) out[key] = true
-    else {
-      out[key] = next
-      i++
-    }
-  }
-  return out
-}
+/**
+ * Every flag this script accepts.
+ *
+ * `buildBook.mjs` was the third copy of the parser #115 unified, and it kept
+ * both defects: it took any flag you gave it, and it read numbers with
+ * `Number()`, so a bare `--max-games` was `Number(true)` — a whole book built
+ * from **one game**, written, and reported as a success (#122). It is the front
+ * of the pipeline, so every crawl, trap statistic and study ranking after it is
+ * computed against whatever this produced; the symptom arrives hours later as
+ * numbers that look slightly odd.
+ *
+ * Kept in the order `HELP` lists them, because a test asserts the two name the
+ * same set and a mismatch is easier to read that way. Missing a flag from this
+ * list is worse than the bug it fixes: it turns a working invocation into a
+ * hard error.
+ */
+export const FLAGS = [
+  'month',
+  'file',
+  'out',
+  'ratings',
+  'speeds',
+  'max-ply',
+  'max-games',
+  'min-games',
+  'one-pass',
+  'filter-bits',
+  'cache',
+  'no-cache',
+  'help',
+]
 
-const HELP = `
+/**
+ * What `--help` prints — and, via `FLAGS`, a promise that every flag named here
+ * is one the parser accepts. Every default is interpolated from the constant it
+ * describes, because the last hand-written copy of these numbers advertised a
+ * band and a game count that had never shipped (#115).
+ */
+export const HELP = `
 Build a local opening book from the Lichess database dumps (issue #88).
 
 The command the shipped band book was built with — 1300–1800, ply 20, 8M games:
@@ -667,54 +736,150 @@ None of those are the defaults below; the defaults are what this script does
 when you say nothing, not what the repertoire was built from.
 
   --month     2026-07           which monthly dump to stream       (required unless --file)
-  --file      games.pgn         a local file instead: .pgn, .pgn.gz or .pgn.zst
+  --file      games.pgn         a local file instead: .pgn, .pgn.gz, .pgn.zst or .7z
                                 (format is sniffed, not taken from the name).
                                 This is the route for a PGN exported from En
                                 Croissant, ChessBase or SCID — set --ratings to
                                 match that database's strength.
   --out       out/book.json     where to write                     (required)
-  --ratings   1600-2000         both players must fall in this band
-  --speeds    blitz,rapid       time controls  (default: blitz,rapid,classical)
-  --max-ply   16                plies recorded per game
-  --max-games 200000            stop (and abort the download) after this many
-  --min-games 5                 drop moves seen fewer times than this
+  --ratings   ${`${DEFAULTS.minRating}-${DEFAULTS.maxRating}`.padEnd(18)}both players must fall in this band, min-max
+  --speeds    blitz,rapid       time controls  (default: ${DEFAULTS.speeds.join(',')})
+  --max-ply   ${String(DEFAULTS.maxPly).padEnd(18)}plies recorded per game
+  --max-games ${String(DEFAULTS.maxGames).padEnd(18)}stop (and abort the download) after this many
+  --min-games ${String(DEFAULTS.minGames).padEnd(18)}drop moves seen fewer times than this
   --one-pass                    skip the counting pass (uses far more memory)
-  --filter-bits 26              counting-table width; memory is 2^bits bytes
-  --cache     db/cache          keep downloaded dump bytes here and reuse them
+  --filter-bits ${String(DEFAULT_BITS).padEnd(16)}counting-table width; memory is 2^bits bytes
+  --cache     ${DEFAULT_CACHE.padEnd(18)}keep downloaded dump bytes here and reuse them
                                 next run (only what --max-games actually reads)
   --no-cache                    stream without keeping anything on disk
+  --help                        this text
 
 Dumps grow fast: 2013-01 is 17 MB, 2016-01 is 831 MB, a 2026 month is ~27 GB.
 Streaming means --max-games decides the real cost, not the file size.
+
+Anything not in that list is an error, not a default (issues #115, #122).
 `
 
+/**
+ * The rating band `--ratings` names, or undefined for {@link DEFAULTS}.
+ *
+ * Validated rather than mapped straight through `Number`, because every way of
+ * getting it wrong produced a band the scan accepted and no game fell inside:
+ * a bare `--ratings` was `String(true)` → `[NaN]`, and `--ratings 1600,1800` —
+ * the bucket syntax `crawl.mjs` takes — parses the same way. Both scanned the
+ * whole dump and wrote an empty book. `--ratings 1600` was quieter still: one
+ * number, so the maximum fell back to the default and the scan ran a band
+ * nobody asked for — and said so only in the meta, hours later.
+ */
+export function ratingBand(args) {
+  const raw = stringFlag(args, 'ratings')
+  if (raw === undefined) return undefined
+  const band = raw.split('-').map((s) => Number(s.trim()))
+  if (band.length !== 2 || band.some((n) => !Number.isFinite(n))) {
+    throw new Error(
+      `--ratings takes a min-max range, e.g. ${DEFAULTS.minRating}-${DEFAULTS.maxRating} — got "${raw}"` +
+        ' (crawl.mjs takes comma-separated explorer buckets; this is not that)',
+    )
+  }
+  if (band[0] > band[1]) throw new Error(`--ratings is min-max, and ${band[0]} is above ${band[1]}`)
+  return band
+}
+
+/**
+ * The time controls `--speeds` names, or undefined for {@link DEFAULTS}.
+ *
+ * Checked against the speeds a dump actually names, because the scan *excludes
+ * known-wrong* speeds rather than requiring a known-right one — so a typo does
+ * not narrow the book, it empties it. `--speeds blizt` keeps only games whose
+ * Event names no speed at all, which on a Lichess month is none of them: hours
+ * of scanning, then a book of nothing, reported as a clean run.
+ */
+export function speedList(args) {
+  const raw = stringFlag(args, 'speeds')
+  if (raw === undefined) return undefined
+  const speeds = raw
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  const unknown = speeds.filter((s) => !KNOWN_SPEEDS.includes(s))
+  if (!speeds.length || unknown.length) {
+    throw new Error(
+      `--speeds takes any of ${KNOWN_SPEEDS.join(',')}${unknown.length ? ` — got "${unknown.join(',')}"` : ''}`,
+    )
+  }
+  return speeds
+}
+
+/**
+ * Where the CLI caches dump bytes: a path, or null for "keep nothing".
+ *
+ * `--no-cache` is the explicit off switch and absence is not — a plain run
+ * caches at {@link DEFAULT_CACHE} and reuses those bytes next time, and getting
+ * that backwards means silently re-downloading 27 GB (or silently writing it to
+ * a disk that was not offered). `--no-cache` wins over `--cache`, as it always
+ * has. It is a boolean, so it does not go through `stringFlag`: a bare
+ * `--no-cache` is the only way anyone writes it.
+ */
+export function cachePath(args) {
+  if (args['no-cache']) return null
+  return stringFlag(args, 'cache') ?? DEFAULT_CACHE
+}
+
+/**
+ * Whether to make a counting pass before building.
+ *
+ * Two passes for a local file: counting first costs a second read and saves
+ * most of the memory, which is what lets `--max-ply` go deep. A network month
+ * is single-pass — re-reading it means re-downloading it.
+ */
+export function twoPassBuild(args) {
+  return Boolean(stringFlag(args, 'file')) && !args['one-pass']
+}
+
+/**
+ * The {@link buildBook} options a parsed command line asks for.
+ *
+ * Everything that decides what ends up in the book is decided here, and all of
+ * it is read before a byte is downloaded — a 27 GB month must not begin on a
+ * command line that was never going to work. Separated from `main` so a test
+ * can drive it without a dump.
+ *
+ * A flag that was not given is passed as `undefined` on purpose: `buildBook`
+ * takes its defaults in the destructuring, which skips `undefined`, so this
+ * does not need `crawl.mjs`'s `maybe()` — that exists because `crawl()` merges
+ * with a spread, where an explicit `undefined` overwrites the default instead.
+ */
+export function bookOptions(args) {
+  const band = ratingBand(args)
+  return {
+    month: stringFlag(args, 'month'),
+    file: stringFlag(args, 'file'),
+    out: stringFlag(args, 'out'),
+    minRating: band?.[0],
+    maxRating: band?.[1],
+    speeds: speedList(args),
+    maxPly: numberFlag(args, 'max-ply'),
+    maxGames: numberFlag(args, 'max-games'),
+    minGames: numberFlag(args, 'min-games'),
+    filterBits: numberFlag(args, 'filter-bits'),
+    cache: cachePath(args),
+  }
+}
+
 async function main() {
-  const a = parseArgs(process.argv.slice(2))
+  const a = parseArgs(process.argv.slice(2), FLAGS)
   if (a.help || !a.out || (!a.month && !a.file)) {
     console.log(HELP)
     process.exit(a.help ? 0 : 1)
   }
-  const [minRating, maxRating] = String(a.ratings ?? '1600-2000').split('-').map(Number)
+
+  // Read — and reject — the whole command line before anything is opened.
+  const options = bookOptions(a)
+  const build = twoPassBuild(a) ? buildBookFiltered : buildBook
   const started = Date.now()
 
-  // Two passes for a local file: counting first costs a second read and saves
-  // most of the memory, which is what lets --max-ply go deep. A network month
-  // is single-pass — re-reading it means re-downloading it.
-  const twoPass = Boolean(a.file) && !a['one-pass']
-  const build = twoPass ? buildBookFiltered : buildBook
-
   const { meta, pruned } = await build({
-    month: a.month ? String(a.month) : undefined,
-    file: a.file ? String(a.file) : undefined,
-    out: String(a.out),
-    minRating,
-    maxRating,
-    speeds: a.speeds ? String(a.speeds).split(',') : undefined,
-    maxPly: a['max-ply'] ? Number(a['max-ply']) : undefined,
-    maxGames: a['max-games'] ? Number(a['max-games']) : undefined,
-    minGames: a['min-games'] ? Number(a['min-games']) : undefined,
-    filterBits: a['filter-bits'] ? Number(a['filter-bits']) : undefined,
-    cache: a['no-cache'] ? null : String(a.cache ?? 'db/cache'),
+    ...options,
     onProgress: ({ phase, seen, kept, positions, transitions, heapMb, live, load }) => {
       if (phase === 'counting') return process.stdout.write('  pass 1: counting positions\n')
       if (phase === 'counted') {
@@ -732,7 +897,7 @@ async function main() {
   })
 
   console.log(
-    `\n\nbook written to ${a.out}` +
+    `\n\nbook written to ${options.out}` +
       `\n  scanned ${meta.gamesScanned} games, used ${meta.gamesUsed}` +
       ` (${((100 * meta.gamesUsed) / Math.max(1, meta.gamesScanned)).toFixed(1)}% in band)` +
       `\n  ${meta.positions} positions kept, ${pruned} rare moves pruned` +

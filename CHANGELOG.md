@@ -69,7 +69,8 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 
 Nothing here ships in the browser bundle — it is the offline repertoire pipeline under
 `scripts/repertoire/`. Closes the second half of #115; the first half (`studyOrder.mjs`
-defaulting to a superseded book) shipped in #117.
+defaulting to a superseded book) shipped in #117. #122 finishes the job on `buildBook.mjs`,
+which had been left out of #115's scope.
 
 - **`crawl.mjs` rejects a flag it does not know, instead of running for hours without it.**
   It had its own argument parser that took anything, so `--nodez 4000000` crawled at the
@@ -100,6 +101,28 @@ defaulting to a superseded book) shipped in #117.
   script's `--help` and its list of known flags name exactly the same set — in both
   directions, since a flag documented but unparsed turns a correct invocation into a hard
   error.
+- **`buildBook.mjs` uses that parser too, and it is the one that mattered most (#122).** It
+  kept a third local copy, with both of #115's defects. A typo ran the whole scan at the
+  defaults and wrote a book that looks right; a bare `--max-games` was `Number(true)` = **1**,
+  so the book was built from **one game**, written, and reported as a success. This is the
+  front of the pipeline — every crawl, every trap statistic and every study ranking after it is
+  computed against whatever book it produced — so the failure arrives hours later as numbers
+  that look slightly odd, from scripts that all ran correctly. `verifyBook.mjs` catches the
+  extreme cases, but it is a separate step you have to remember, and the point of #115 was that
+  the failure should be impossible rather than detectable. The whole command line is now read,
+  and rejected, before a byte is downloaded.
+- **`--ratings` is a range, and is checked as one.** `1600,1800` — the explorer bucket syntax
+  `crawl.mjs` takes — parsed as a single `NaN` that no game falls inside, and `1600` alone kept
+  the default 2000 as its maximum. Both scanned an entire 27 GB month in order to write a book
+  nobody asked for. A misspelled `--speeds` was worse: the scan excludes *known-wrong* speeds
+  rather than requiring a known-right one, so `blizt` kept only games naming no speed at all,
+  which on a Lichess month is none of them.
+- **`--no-cache` still means exactly what it always meant.** It is the explicit off switch,
+  absence is not, and it wins over `--cache` — with a test on each, because backwards this
+  silently re-downloads 27 GB, or silently writes it to a disk that was never offered.
+- **`--help` describes this script too.** Every default it quotes is interpolated from the
+  constant it describes, `--help` itself is no longer the one flag it forgot to document, and
+  the same two-directional test now holds its known-flag list and its `--help` to the same set.
 
 ## [0.3.0] — 2026-08-14
 
