@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "description": "A personal chess coach — guess-the-move on master games, play vs Maia, and review your own games.",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

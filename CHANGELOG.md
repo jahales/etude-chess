@@ -129,6 +129,14 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   rate at all, rather than a 0.00 that reads as a perfect record.
 
 ### Changed
+- **The licence is AGPL-3.0, and `package.json` finally agrees (#121, ADR
+  [0029](docs/decisions/0029-agpl-3-0-is-the-licence.md)).** The repo had declared MIT in
+  `package.json` and AGPL-3.0 in `LICENSE` since its first commit — two different answers to
+  what anyone may do with the code, in a public repository. The dependencies settle it rather
+  than taste: **chessops is GPL-3.0-or-later and is linked into the bundle** for streaming PGN
+  parsing, and Stockfish 18 ships as GPL-3.0 WASM, so the distributed work has to be
+  GPL-compatible and MIT was never available. `LICENSE` was already right; the declaration was
+  the bug. README now states the licence and points at the third-party notices.
 - Home gained a fourth card, **Your game database**, with a live count of the games attached.
 - **chessops joins the app for PGN parsing only** (ADR 0028, amending ADR 0009). It is GPL, and
   ADR 0009 set out to avoid it — but it ships the only JavaScript PGN parser that doesn't need
