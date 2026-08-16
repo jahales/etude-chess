@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { positionEvalOf } from './gameAnalysis'
 import type { AnalysisLine } from '../engine/analyser'
-import { whiteWinPercent } from '../domain/winPercent'
-import { whiteScoreLabel } from '../domain/notation'
 import { sideToMoveOf } from '../domain/replay'
 import type { PositionEval } from '../domain/gameRecord'
 import type { AnalyserState } from './useAnalyser'
@@ -62,10 +61,7 @@ export function usePositionAnalysis(
         const perspective = sideToMoveOf(fen)
         setResult({
           fen,
-          evaluation: {
-            whitePct: whiteWinPercent(best.score, perspective),
-            label: whiteScoreLabel(best.score, perspective),
-          },
+          evaluation: positionEvalOf(best, perspective),
           lines,
         })
       })

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { positionEvalOf } from './gameAnalysis'
 import type { Color } from '../domain/types'
 import { coachVerdict } from '../domain/coach'
-import { whiteWinPercent } from '../domain/winPercent'
-import { whiteScoreLabel } from '../domain/notation'
 import { evaluateAndGrade } from '../engine/grading'
 import { MaiaOnnxOpponent, maiaModelUrl } from '../engine/maia/maiaOpponent'
 import { DEFAULT_LEVEL, type MaiaLevel } from '../engine/maia/opponent'
@@ -98,10 +97,12 @@ export function usePlaySession(engine: AnalyserState) {
           type: 'SET_EVAL',
           ply,
           fen: state.positions[ply + 1]!, // the position after your move
-          eval: {
-            whitePct: whiteWinPercent(graded.playedScoreMover, yourColor),
-            label: whiteScoreLabel(graded.playedScoreMover, yourColor),
-          },
+          // The score is already the mover's; so is `playedWdlMover`, which is
+          // why both take the same perspective (#161).
+          eval: positionEvalOf(
+            { score: graded.playedScoreMover, ...(graded.playedWdlMover ? { wdl: graded.playedWdlMover } : {}) },
+            yourColor,
+          ),
         })
       })
       .catch(() => {}) // engine hiccup: no verdict, game plays on
@@ -149,7 +150,7 @@ export function usePlaySession(engine: AnalyserState) {
             type: 'SET_EVAL',
             ply,
             fen,
-            eval: { whitePct: whiteWinPercent(r.score, perspective), label: whiteScoreLabel(r.score, perspective) },
+            eval: positionEvalOf(r, perspective),
           })
       })
       .catch(() => {})

@@ -50,6 +50,7 @@ import { useDbBrowse } from '../app/useDbBrowse'
 import { useDbGameAnalysis } from '../app/useDbGameAnalysis'
 import { useReviewList, type ReviewRow } from '../app/useReviewList'
 import type { AnalyserState } from '../app/useAnalyser'
+import type { SessionAnalysis } from '../app/sessionMachine'
 import type { DbGame } from '../persist/dbGames'
 import { moveLabel, sideName, TIER_CLASS } from './format'
 import { YourNames } from './YourNames'
@@ -299,7 +300,7 @@ export function ReviewGame({
   onChangeNames: (names: string[]) => void
   nodes: number
   onChangeNodes: (nodes: number) => void
-  onStart: (game: StudyGame, focusPlies?: readonly number[]) => void
+  onStart: (game: StudyGame, focusPlies?: readonly number[], analysis?: SessionAnalysis) => void
 }) {
   const pass = useDbGameAnalysis(engine, game, nodes)
 
@@ -320,6 +321,25 @@ export function ReviewGame({
   const sanHistory = useMemo(
     () => game.movetext.split(/\s+/).filter(Boolean),
     [game.movetext],
+  )
+
+  /**
+   * What the pass has produced, or `undefined` when it has produced nothing.
+   *
+   * The distinction is load-bearing rather than tidiness: `undefined` is how a
+   * whole-game session learns there is no pass behind it, and a session that
+   * knows that hides the skip control instead of showing a disabled one that
+   * would read as a verdict on the game.
+   */
+  const passAnalysis = useMemo<SessionAnalysis | undefined>(
+    () =>
+      pass.evalByPly || pass.startEval
+        ? {
+            evalByPly: pass.evalByPly,
+            ...(pass.startEval ? { startEval: pass.startEval } : {}),
+          }
+        : undefined,
+    [pass.evalByPly, pass.startEval],
   )
 
   /**
@@ -395,7 +415,21 @@ export function ReviewGame({
             heroColor={heroColor}
             onStart={(plies) => onStart(plan.game, plies)}
           />
-          <WholeGamePath positions={plan.positions} onStart={() => onStart(plan.game)} />
+          {/* The whole-game session gets the pass's evaluations (#161), which is
+              what lets its reveal offer to skip forward to the next move that
+              changed the result — a question about positions you have not
+              reached yet, and answerable only because the pass already scored
+              them. Handed over only when a pass has actually produced
+              something: with nothing behind it the control is absent rather
+              than disabled, since "no more important moves" is a claim and
+              "nobody has analysed this" is not the same sentence.
+
+              The critical path deliberately gets none. Every position there was
+              chosen for costing win%, so there is nothing to skip past. */}
+          <WholeGamePath
+            positions={plan.positions}
+            onStart={() => onStart(plan.game, undefined, passAnalysis)}
+          />
         </div>
       )}
     </>

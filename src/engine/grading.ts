@@ -1,8 +1,9 @@
 import { Chess } from 'chess.js'
 import type { Analyser, AnalyseOptions } from './analyser'
-import type { EngineEvaluation, Score } from '../domain/types'
+import type { EngineEvaluation, Score, Wdl } from '../domain/types'
 import { gradeMove, type MoveGrade } from '../domain/grade'
 import { negate } from '../domain/winPercent'
+import { flipWdl } from '../domain/resultCategory'
 
 export interface GradedMove {
   grade: MoveGrade
@@ -22,6 +23,19 @@ export interface GradedMove {
    * a caller may not read "no continuation" as "nothing follows".
    */
   afterPv: string[]
+  /**
+   * Win/draw/loss for the position you were asked about, side-to-move's
+   * perspective — the same perspective as `bestScore`. Absent when the adapter
+   * did not report one (#161).
+   */
+  bestWdl?: Wdl
+  /**
+   * Win/draw/loss for the position your move leaves, normalised to the
+   * **mover's** perspective exactly as `playedScoreMover` is, so the two
+   * readings can be compared across the move without one of them being the
+   * mirror of the other.
+   */
+  playedWdlMover?: Wdl
 }
 
 /**
@@ -60,14 +74,26 @@ export async function gradeAfterMove(
   // one: grading is two searches and #151 is explicit that it stays two. A
   // terminal position keeps its empty line, since there is nothing to play on.
   let afterPv: string[] = []
+  // WDL rides along with both, and is normalised to the mover the same way the
+  // score is (#161).
+  let playedWdlMover: Wdl | undefined
   if (chess.isCheckmate()) {
     playedScoreMover = { type: 'mate', value: 1 } // the mover delivered mate
+    // Not an estimate and not the engine's opinion — the game is over and the
+    // mover won. Synthesised rather than left absent because absent means "not
+    // reported", and a delivered mate is the one position whose result is a
+    // fact of the rules. The same goes for the draw below.
+    playedWdlMover = { win: 1000, draw: 0, loss: 0 }
   } else if (chess.isGameOver()) {
     playedScoreMover = { type: 'cp', value: 0 } // stalemate / draw
+    playedWdlMover = { win: 0, draw: 1000, loss: 0 }
   } else {
     const played = await analyser.evaluate(chess.fen(), opts)
     playedScoreMover = negate(played.score)
     afterPv = played.pv ?? (played.bestMove ? [played.bestMove] : [])
+    // `played` is from the opponent's point of view — they are to move — so the
+    // flip is what makes "before" and "after" comparable at all.
+    if (played.wdl) playedWdlMover = flipWdl(played.wdl)
   }
 
   return {
@@ -78,5 +104,7 @@ export async function gradeAfterMove(
     afterFen: chess.fen(),
     userMoveSan: applied.san,
     afterPv,
+    ...(best.wdl ? { bestWdl: best.wdl } : {}),
+    ...(playedWdlMover ? { playedWdlMover } : {}),
   }
 }

@@ -8,6 +8,27 @@ export type Score =
 /** Move-quality tier. A = as good as best, B = a concession, C = a mistake/blunder. */
 export type Tier = 'A' | 'B' | 'C'
 
+/**
+ * Win/draw/loss expectancy in permille, from the side to move, as Stockfish
+ * reports it when `UCI_ShowWDL` is on. The three always sum to 1000.
+ *
+ * This answers a different question from the score, and in a decided position it
+ * is the better one: +4.9 and +4.3 are indistinguishable results, while
+ * `1000/0/0` and `600/400/0` are not the same position at all. That distinction
+ * is what the `game-review` skill §4 tells a reader to check before calling a
+ * win% swing decisive, and `domain/resultCategory.ts` is where it becomes a rule.
+ *
+ * In the domain rather than beside the UCI parser that produces it, because the
+ * dependency runs domain ← app ← adapters (ADR 0015): `EngineEvaluation` carries
+ * one, so the domain has to own the word. `engine/uci.ts` re-exports it for the
+ * adapters that only ever see the parser.
+ */
+export interface Wdl {
+  win: number
+  draw: number
+  loss: number
+}
+
 export type Color = 'w' | 'b'
 
 /** One engine evaluation of a position. `bestMove` is UCI/LAN (e.g. "e2e4", "e7e8q"). */
@@ -26,4 +47,15 @@ export interface EngineEvaluation {
    * treating an empty line as a claim about the position.
    */
   pv?: string[]
+  /**
+   * Win/draw/loss for the position, from the side to move — the same
+   * perspective as `score`.
+   *
+   * **Optional on the same terms as `pv`**: absent means "the adapter did not
+   * report one", never "the result is not in doubt". Only an adapter that has
+   * turned `UCI_ShowWDL` on fills it in, so a caller must handle its absence
+   * rather than reading a missing value as a decided position — which is the
+   * exact inversion of the truth.
+   */
+  wdl?: Wdl
 }

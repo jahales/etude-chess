@@ -1,4 +1,9 @@
-import type { Score } from '../domain/types'
+import type { Score, Wdl } from '../domain/types'
+
+// `Wdl` is the domain's word (see the note on it in domain/types.ts); re-exported
+// here so an adapter that only deals in parsed UCI lines can keep importing it
+// from the parser it comes out of.
+export type { Wdl }
 
 // Pure parsers for the UCI lines Stockfish streams. Kept separate from the
 // Worker plumbing so they're directly unit-testable.
@@ -24,20 +29,6 @@ export function parseBestMove(line: string): { move: string | null } | null {
   const m = line.match(/^bestmove (\S+)/)
   if (!m) return null
   return { move: m[1] === '(none)' ? null : m[1]! }
-}
-
-/**
- * Win/draw/loss expectancy in permille, from the side to move, as reported when
- * `UCI_ShowWDL` is on. The three always sum to 1000.
- *
- * This answers a different question from the score, and in a decided position it
- * is the better one: +4.9 and +4.3 are indistinguishable results, while
- * `1000/0/0` and `600/400/0` are not the same position at all.
- */
-export interface Wdl {
-  win: number
-  draw: number
-  loss: number
 }
 
 /** Parse `… wdl W D L …`. Null when the engine was not asked for it. */

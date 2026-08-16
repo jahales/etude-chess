@@ -10,6 +10,7 @@ import {
   initialState,
   currentItem,
   resolveMove,
+  type SessionAnalysis,
   type SessionState,
 } from './sessionMachine'
 import { DEFAULT_SETTINGS, liveEvalNodes, type AnalysisSettings } from './settings'
@@ -65,13 +66,17 @@ export function useGuessSession(engine: AnalyserState) {
   // #144's critical positions. Optional, so every existing caller still gets the
   // whole game, and passed through rather than interpreted here: which plies are
   // worth re-deciding is `domain/reviewPlan`'s judgment, not this hook's.
+  // `analysis` is what a completed pass already computed (#161). Passed through
+  // for the same reason `focusPlies` is: whether a move changed the result is
+  // `domain/resultCategory`'s judgment, not this hook's.
   const startGame = useCallback(
-    (game: PackGame, focusPlies?: readonly number[]) =>
+    (game: PackGame, focusPlies?: readonly number[], analysis?: SessionAnalysis) =>
       dispatch({
         type: 'START_GAME',
         game,
         sessionId: `s${Date.now()}`,
         ...(focusPlies ? { focusPlies } : {}),
+        ...(analysis ? { analysis } : {}),
       }),
     [],
   )
@@ -81,6 +86,7 @@ export function useGuessSession(engine: AnalyserState) {
   const setPromotion = useCallback((piece: string) => dispatch({ type: 'SET_PROMOTION', piece }), [])
   const setReason = useCallback((reason: string) => dispatch({ type: 'SET_REASON', reason }), [])
   const next = useCallback(() => dispatch({ type: 'NEXT' }), [])
+  const skipToImportant = useCallback(() => dispatch({ type: 'SKIP_TO_IMPORTANT' }), [])
 
   // Drag: validate synchronously (react-chessboard needs a boolean) via the same
   // resolver the reducer uses, then dispatch.
@@ -142,5 +148,6 @@ export function useGuessSession(engine: AnalyserState) {
     setReason,
     commit,
     next,
+    skipToImportant,
   } satisfies { state: SessionState } & Record<string, unknown>
 }

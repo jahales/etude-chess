@@ -136,3 +136,113 @@ describe('what the reveal calls the game’s own move', () => {
     ])
   })
 })
+
+// ---------- the result either side of your move (#161) ----------
+
+describe('the win/draw/loss line at the reveal', () => {
+  const shift = (
+    before: [number, number, number],
+    after: [number, number, number],
+  ) => ({
+    before: { win: before[0], draw: before[1], loss: before[2] },
+    after: { win: after[0], draw: after[1], loss: after[2] },
+  })
+
+  it('says the result held when a big win% swing changed nothing', () => {
+    // The `game-review` skill §4 case, at the screen it is about: the badge says
+    // "Inaccuracy" and the game was already over. Without this line the reveal
+    // implied the game hung on a move that risked nothing.
+    const c = reveal({ resultShift: shift([1000, 0, 0], [1000, 0, 0]) })
+    expect(c.textContent).toContain('The likely result did not change')
+    expect(c.textContent).toContain('White wins')
+    expect(c.querySelector('.result-shift')!.className).toContain('held')
+  })
+
+  it('says the result changed when a small swing lost the game', () => {
+    const c = reveal({ resultShift: shift([600, 350, 50], [50, 350, 600]) })
+    expect(c.textContent).toContain('Your move changed the likely result')
+    expect(c.textContent).toContain('from White wins to Black wins')
+    expect(c.querySelector('.result-shift')!.className).toContain('changed')
+  })
+
+  it('shows both readings as percentages, before then after', () => {
+    const c = reveal({ resultShift: shift([820, 150, 30], [410, 500, 90]) })
+    const numbers = c.querySelector('.result-numbers')!.textContent!
+    expect(numbers).toContain('82/15/3')
+    expect(numbers).toContain('41/50/9')
+    expect(numbers).toContain('win/draw/loss for White')
+  })
+
+  it('names it as the engine’s expectancy, not a prediction', () => {
+    // Constitution §12: no number on this screen may imply we know how the game
+    // would actually have gone.
+    const c = reveal({ resultShift: shift([1000, 0, 0], [1000, 0, 0]) })
+    expect(c.querySelector('.result-caveat')!.textContent).toContain('not a prediction')
+  })
+
+  it('renders exactly the reveal it always did when there is no WDL', () => {
+    const c = reveal()
+    expect(c.querySelector('.result-shift')).toBeNull()
+    expect(c.textContent).toContain(explain(fb))
+  })
+})
+
+// ---------- skipping to the next important move (#161) ----------
+
+describe('the skip-ahead control', () => {
+  const target = { index: 4, ply: 12, before: 'white-wins' as const, after: 'draw' as const }
+
+  it('offers the jump when there is a later move that changed the result', () => {
+    const c = reveal({ skip: { target, measured: 6, unmeasured: 0 }, onSkip: () => {} })
+    expect(c.querySelector('.btn.skip')!.textContent).toContain(
+      'Skip to the next move that changed the result',
+    )
+    expect(c.querySelector('.skip-note')).toBeNull()
+  })
+
+  it('says "no later move changed the result" only when everything ahead was measured', () => {
+    const c = reveal({ skip: { target: null, measured: 6, unmeasured: 0 }, onSkip: () => {} })
+    expect(c.querySelector('.btn.skip')).toBeNull()
+    expect(c.textContent).toContain('No later move in this game changed the result')
+  })
+
+  it('names the gap instead of claiming nothing is left, when nothing was measured', () => {
+    // The #132 distinction at the screen it would be lost on: an old stored pass
+    // carries no WDL, and reporting "nothing more to skip to" would tell the
+    // reader they played a clean second half of a game nobody looked at.
+    const c = reveal({ skip: { target: null, measured: 0, unmeasured: 9 }, onSkip: () => {} })
+    expect(c.textContent).toContain('No win/draw/loss recorded for the 9 positions ahead')
+    expect(c.textContent).not.toContain('No later move in this game changed the result')
+  })
+
+  it('reports both counts when the pass covered only part of what is ahead', () => {
+    const c = reveal({ skip: { target: null, measured: 4, unmeasured: 3 }, onSkip: () => {} })
+    expect(c.textContent).toContain('of the 4 positions ahead we could measure')
+    expect(c.textContent).toContain('other 3 have no win/draw/loss recorded')
+  })
+
+  it('warns that a jump over unmeasured positions may have stepped past one', () => {
+    const c = reveal({ skip: { target, measured: 4, unmeasured: 3 }, onSkip: () => {} })
+    expect(c.querySelector('.btn.skip')).not.toBeNull()
+    expect(c.textContent).toContain('not necessarily the next one there is')
+  })
+
+  it('says nothing at all on the last question', () => {
+    const c = reveal({ skip: { target: null, measured: 0, unmeasured: 0 }, onSkip: () => {} })
+    expect(c.querySelector('.skip-ahead')).toBeNull()
+  })
+
+  it('is absent entirely when the session must not offer it', () => {
+    // A critical-positions session, or the curated pack: `skip` is null and no
+    // sentence is rendered, because neither has a claim to make.
+    expect(reveal({ skip: null, onSkip: () => {} }).querySelector('.skip-ahead')).toBeNull()
+    expect(reveal().querySelector('.skip-ahead')).toBeNull()
+  })
+
+  it('fires the jump when clicked', () => {
+    let jumped = 0
+    const c = reveal({ skip: { target, measured: 6, unmeasured: 0 }, onSkip: () => jumped++ })
+    ;(c.querySelector('.btn.skip') as HTMLButtonElement).click()
+    expect(jumped).toBe(1)
+  })
+})

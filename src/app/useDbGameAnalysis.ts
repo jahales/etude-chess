@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { whiteWinPercent } from '../domain/winPercent'
-import { whiteScoreLabel } from '../domain/notation'
 import { replayPositions, sideToMoveOf } from '../domain/replay'
 import type { PositionEval } from '../domain/gameRecord'
 import { getDbAnalysis, saveDbAnalysis, type DbGame } from '../persist/dbGames'
@@ -12,6 +10,7 @@ import {
   progressOf,
   supersedes,
   withEvalAt,
+  positionEvalOf,
   type AnalysisProgress,
   type AnalysisRecord,
 } from './gameAnalysis'
@@ -173,11 +172,8 @@ export function useDbGameAnalysis(
       // Without it the first move of every game is permanently unscorable (#74).
       if (!atStart && positions[0]) {
         try {
-          const { score } = await analyser.evaluate(positions[0], { nodes })
-          atStart = {
-            whitePct: whiteWinPercent(score, sideToMoveOf(positions[0])),
-            label: whiteScoreLabel(score, sideToMoveOf(positions[0])),
-          }
+          const ev = await analyser.evaluate(positions[0], { nodes })
+          atStart = positionEvalOf(ev, sideToMoveOf(positions[0]))
         } catch {
           // Non-fatal: the first move simply stays unmeasured.
         }
@@ -190,12 +186,8 @@ export function useDbGameAnalysis(
         const fen = positions[ply + 1]
         if (!fen) break
         try {
-          const { score } = await analyser.evaluate(fen, { nodes })
-          const perspective = sideToMoveOf(fen)
-          acc = withEvalAt(acc, ply, {
-            whitePct: whiteWinPercent(score, perspective),
-            label: whiteScoreLabel(score, perspective),
-          })
+          const ev = await analyser.evaluate(fen, { nodes })
+          acc = withEvalAt(acc, ply, positionEvalOf(ev, sideToMoveOf(fen)))
           scored++
         } catch {
           // One unanalysable position shouldn't abandon the game; it stays a gap.

@@ -1,4 +1,4 @@
-import type { EngineEvaluation, Score } from '../domain/types'
+import type { EngineEvaluation, Score, Wdl } from '../domain/types'
 import { parseScore, parseBestMove, parseInfoLine } from './uci'
 import {
   type Analyser,
@@ -44,6 +44,18 @@ export class StockfishAnalyser implements Analyser {
 
   private async handshake(): Promise<void> {
     await this.waitFor('uciok', () => this.worker.postMessage('uci'))
+    // Ask for win/draw/loss on every `info` line, the same thing the offline
+    // driver asks for (`scripts/repertoire/engine.mjs`). The property that makes
+    // this safe is the one recorded there: `UCI_ShowWDL` is **display-only and
+    // changes no search**, so it adds a field to the output and moves no score,
+    // no bestmove and therefore no grade. That was *measured* against this exact
+    // WASM build rather than taken on trust — nine positions graded twice at the
+    // app's node budget, identical tier, swing and bestmove every time. The run
+    // is described in `stockfish.test.ts`.
+    //
+    // Sent before `isready` so the option is set while the engine is idle, which
+    // is the only time UCI permits it.
+    this.worker.postMessage('setoption name UCI_ShowWDL value true')
     await this.waitFor('readyok', () => this.worker.postMessage('isready'))
   }
 
@@ -58,21 +70,30 @@ export class StockfishAnalyser implements Analyser {
       return new Promise<EngineEvaluation>((resolve) => {
         let lastScore: Score | null = null
         let lastPv: string[] | null = null
+        let lastWdl: Wdl | null = null
         this.listener = (line: string) => {
           // The pv is only ever kept alongside the score it was reported with:
           // an `info` line carrying a score but no pv replaces both, so the
           // continuation can never be one iteration's line captioned by another
           // iteration's number (#151). Score handling is otherwise unchanged —
           // the last complete (non-bound) score before `bestmove` wins.
+          //
+          // The WDL rides with the score on exactly the same terms (#161), and
+          // for a sharper version of the same reason: a stale `1000/0/0` left
+          // over from a previous iteration would read as "the result was never
+          // in doubt", which is a claim about the position rather than a
+          // mismatched decoration. So it is cleared wherever the pv is cleared.
           const info = parseInfoLine(line)
           if (info) {
             lastScore = info.score
             lastPv = info.pv
+            lastWdl = info.wdl
           } else {
             const s = parseScore(line)
             if (s) {
               lastScore = s
               lastPv = null
+              lastWdl = null
             }
           }
           const bm = parseBestMove(line)
@@ -82,6 +103,7 @@ export class StockfishAnalyser implements Analyser {
               score: lastScore ?? { type: 'cp', value: 0 },
               bestMove: bm.move,
               ...(lastPv ? { pv: lastPv } : {}),
+              ...(lastWdl ? { wdl: lastWdl } : {}),
             })
           }
         }
@@ -104,7 +126,17 @@ export class StockfishAnalyser implements Analyser {
         const byRank = new Map<number, AnalysisLine>()
         this.listener = (line: string) => {
           const info = parseInfoLine(line)
-          if (info) byRank.set(info.multipv, info)
+          // Mapped field by field rather than stored as-is: the parser reports
+          // "not asked for" as `null` and the port's contract is an absent
+          // optional, so the two vocabularies are converted here rather than
+          // leaking `wdl: null` to every consumer.
+          if (info)
+            byRank.set(info.multipv, {
+              multipv: info.multipv,
+              score: info.score,
+              pv: info.pv,
+              ...(info.wdl ? { wdl: info.wdl } : {}),
+            })
           const bm = parseBestMove(line)
           if (bm) {
             this.listener = null

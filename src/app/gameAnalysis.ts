@@ -1,6 +1,9 @@
 import { meanAccuracy } from '../domain/accuracy'
-import { swingFromWhitePercent } from '../domain/winPercent'
+import { whiteScoreLabel } from '../domain/notation'
+import { whiteWdl } from '../domain/resultCategory'
+import { swingFromWhitePercent, whiteWinPercent } from '../domain/winPercent'
 import type { PositionEval } from '../domain/gameRecord'
+import type { Color, Score, Wdl } from '../domain/types'
 import type { StoredGame } from '../persist/db'
 
 /**
@@ -14,6 +17,33 @@ import type { StoredGame } from '../persist/db'
  * play* below (`yourPlies`, `accuracyReport`) deliberately stay on `StoredGame`:
  * a coach log and a side of yours are things only a game you played has.
  */
+
+/**
+ * One engine answer, recorded the way every stored evaluation is recorded.
+ *
+ * One function rather than the literal that used to sit at each of the seven
+ * call sites, because #161 added a third field and a `PositionEval` built
+ * *without* it is not a smaller record — it is a position the "skip to the next
+ * important move" scan has to treat as unmeasured. Seven places each remembering
+ * to carry the WDL, and to flip it the same way as the score, is seven chances
+ * for a game to come out silently unskippable.
+ *
+ * `perspective` is the **side to move in the position being evaluated**, which
+ * is the perspective the engine reports both the score and the WDL from. Both
+ * are turned into White's here, once.
+ */
+export function positionEvalOf(
+  evaluation: { score: Score; wdl?: Wdl },
+  perspective: Color,
+): PositionEval {
+  return {
+    whitePct: whiteWinPercent(evaluation.score, perspective),
+    label: whiteScoreLabel(evaluation.score, perspective),
+    // Absent stays absent: an adapter that reported no WDL has said nothing
+    // about the result, and a zeroed triple would be a claim.
+    ...(evaluation.wdl ? { wdl: whiteWdl(evaluation.wdl, perspective) } : {}),
+  }
+}
 
 /**
  * The budget this project's measurements are stated against.
