@@ -38,9 +38,17 @@ import {
   type TimeClass,
 } from '../domain/chesscom'
 import { PAGE_SIZE, isEmptyQuery, type GameQuery } from '../domain/dbQuery'
+import {
+  ARCHIVE_SECTIONS,
+  SECTION_LABEL,
+  changedNothing,
+  type ArchiveSection,
+  type MergeReport,
+} from '../domain/historyArchive'
 import { usePgnImport } from '../app/usePgnImport'
 import { useChesscomSync, type ChesscomSync } from '../app/useChesscomSync'
 import { useDbBrowse, type DbBrowse } from '../app/useDbBrowse'
+import { useHistoryTransfer, type HistoryTransfer } from '../app/useHistoryTransfer'
 import {
   countDbGames,
   deleteDbSource,
@@ -57,6 +65,7 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
   const [filters, setFilters] = useState<ImportFilters>(DEFAULT_IMPORT_FILTERS)
   const { state, attach, cancel, completed } = usePgnImport()
   const chesscom = useChesscomSync()
+  const transfer = useHistoryTransfer()
   const [sources, setSources] = useState<DbSource[]>([])
   const [total, setTotal] = useState(0)
   const [storage, setStorage] = useState<StorageStatus | null>(null)
@@ -74,7 +83,7 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
     return () => {
       cancelled = true
     }
-  }, [reload, completed, chesscom.completed])
+  }, [reload, completed, chesscom.completed, transfer.completed])
 
   const importing = state.status === 'importing'
 
@@ -146,13 +155,14 @@ export function GameDatabase({ onOpenGame }: { onOpenGame: (game: DbGame) => voi
       <ChesscomPanel chesscom={chesscom} />
 
       <BrowseDatabase
-        reload={completed + reload + chesscom.completed}
+        reload={completed + reload + chesscom.completed + transfer.completed}
         importing={importing}
         sources={sources}
         onOpen={onOpenGame}
       />
 
       <AttachedSources sources={sources} total={total} onDetach={detach} />
+      <HistoryTransferPanel transfer={transfer} />
       <SourceGuidance empty={total === 0} />
       <ReimportNote storage={storage} persisted={state.persisted} />
     </>
@@ -933,6 +943,313 @@ function AttachedSources({
       </div>
     </>
   )
+}
+
+// ---------- moving your history between browsers (#152) ----------
+
+/**
+ * Export and import the history that cannot be re-fetched.
+ *
+ * IndexedDB is per-origin and per-profile, so none of this travels on its own —
+ * sync your games in one browser and the review screen is empty in another. The
+ * framing on this panel is deliberate and it is the point of the feature: the
+ * **games are the cheap part**, one click of #145 away from being back. What an
+ * export is *for* is the engine analysis (#133 — minutes per game) and the
+ * attempts: your answers, your tiers and the reasons you typed before each
+ * reveal, which have no other source anywhere.
+ *
+ * Three things the screen has to be honest about, one for each way this could
+ * quietly do the wrong thing:
+ *
+ * - **What it costs, before it costs it.** The attached database can be
+ *   gigabytes while everything else is kilobytes, so the size is on screen
+ *   before a file is built, and the exact size is on the button that saves it.
+ * - **What an import did, and that it took nothing away.** Importing merges;
+ *   there is no path in it that removes a row. Saying so is not reassurance, it
+ *   is the difference between an import you dare run twice and one you don't.
+ * - **A file it does not understand is refused whole.** Not read as far as it
+ *   can and then abandoned — a training history missing an unknown fraction of
+ *   itself is worse than one that never arrived.
+ *
+ * No backend is involved in any of it (constitution, ADR 0009): a download from
+ * this tab to your disk, and a file picker back. Nothing is uploaded anywhere.
+ */
+export function HistoryTransferPanel({ transfer }: { transfer: HistoryTransfer }) {
+  const [includeDatabase, setIncludeDatabase] = useState(true)
+  const { estimate, exportState, importState } = transfer
+  const busy = exportState.status === 'preparing'
+  const importing = importState.status === 'checking' || importState.status === 'importing'
+
+  return (
+    <>
+      <h2 className="section-title">Move your history to another browser</h2>
+      <p className="table-note">
+        Everything étude knows lives in <em>this</em> browser profile, on this origin — so a
+        second browser, a second machine, or a cleared profile starts empty. Your games are the
+        cheap half of that: one sync brings them back. What an export is really for is the{' '}
+        <b>engine analysis</b>, which is minutes of Stockfish per game, and your <b>attempts</b>
+        — the moves you committed, the tiers they earned, and the reasons you typed before each
+        reveal. There is nowhere to re-fetch those from.
+      </p>
+
+      <fieldset className="import-filters" disabled={busy}>
+        <legend>Export</legend>
+        {estimate === null ? (
+          <p className="table-note">Reading what is stored…</p>
+        ) : (
+          <ExportContents
+            estimate={estimate}
+            includeDatabase={includeDatabase}
+            onIncludeDatabase={setIncludeDatabase}
+          />
+        )}
+        {exportState.status === 'ready' && exportState.file ? (
+          <>
+            {/* The size is on the control that writes the file, which is the last
+                moment it can still be acted on. */}
+            <a className="btn primary" href={exportState.file.url} download={exportState.file.name}>
+              Save {exportState.file.name} ({formatBytes(exportState.file.bytes)})
+            </a>
+            <button className="btn ghost" type="button" onClick={transfer.discard}>
+              Discard
+            </button>
+          </>
+        ) : (
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => transfer.prepare({ includeDatabase })}
+            disabled={busy}
+          >
+            {busy ? 'Building the file…' : 'Prepare an export'}
+          </button>
+        )}
+        {exportState.status === 'error' && (
+          <p className="banner error" role="alert">
+            {exportState.error}
+          </p>
+        )}
+        <p className="settings-hint">
+          The file is written by this tab straight to your disk — nothing is uploaded and no
+          server is involved. It is <b>your own data</b>: your games, your answers and engine
+          output computed on your machine. Keep it wherever you keep backups.
+        </p>
+      </fieldset>
+
+      <fieldset className="import-filters" disabled={importing}>
+        <legend>Import</legend>
+        <input
+          id="history-file"
+          className="sr-only"
+          type="file"
+          accept=".jsonl,.ndjson,.json,application/x-ndjson,application/json,text/plain"
+          disabled={importing}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) transfer.importFile(file)
+            e.target.value = '' // so importing the same file twice fires a change
+          }}
+        />
+        <label className="btn primary" htmlFor="history-file">
+          Choose a history file
+        </label>
+        <p className="settings-hint">
+          Importing <b>merges</b>: nothing already on this device is removed or overwritten with
+          something worse, and importing the same file twice leaves one copy rather than two. An
+          analysis only replaces one here if it is a completed pass at a deeper budget. A file
+          this version cannot read is refused whole, with nothing written.
+        </p>
+        {importing && <ImportHistoryProgress state={importState} />}
+        {importState.status === 'error' && !importState.report && (
+          <p className="banner error" role="alert">
+            {importState.error}
+          </p>
+        )}
+        {importState.report && (
+          <ImportHistoryReport report={importState.report} error={importState.error} />
+        )}
+      </fieldset>
+    </>
+  )
+}
+
+/** What is here, section by section, and about what it weighs. */
+function ExportContents({
+  estimate,
+  includeDatabase,
+  onIncludeDatabase,
+}: {
+  estimate: NonNullable<HistoryTransfer['estimate']>
+  includeDatabase: boolean
+  onIncludeDatabase: (on: boolean) => void
+}) {
+  const total = estimate.historyBytes + (includeDatabase ? estimate.databaseBytes : 0)
+  const empty = ARCHIVE_SECTIONS.every((s) => estimate.sections[s].rows === 0)
+  if (empty) {
+    return (
+      <p className="table-note">
+        There is nothing stored in this profile yet, so an export would be an empty file. Play a
+        game, study one, or attach a database first.
+      </p>
+    )
+  }
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="games-table">
+          <thead>
+            <tr>
+              <th scope="col">What</th>
+              <th scope="col" className="num">
+                Rows
+              </th>
+              <th scope="col" className="num">
+                Size
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ARCHIVE_SECTIONS.map((section) => (
+              <tr key={section}>
+                <td>
+                  {SECTION_LABEL[section]}
+                  {section === 'dbGame' && !includeDatabase && (
+                    <span className="coverage-note"> not included</span>
+                  )}
+                </td>
+                <td className="num mono">{count(estimate.sections[section].rows)}</td>
+                <td className="num mono">
+                  {section === 'dbGame' && !includeDatabase
+                    ? '—'
+                    : approx(estimate.sections[section])}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="table-note" aria-live="polite">
+        The file will be about <b>{formatBytes(total)}</b>. Sizes are measured on a sample of your
+        own rows rather than assumed, so they are an order of magnitude rather than a promise.
+      </p>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={includeDatabase}
+          onChange={(e) => onIncludeDatabase(e.target.checked)}
+        />
+        Include the {count(estimate.sections.dbGame.rows)} games in the attached database (
+        {approx(estimate.sections.dbGame)})
+      </label>
+      <p className="settings-hint">
+        The attached database is the only part that can be enormous, and the only part you can
+        get back without this file — the PGN is on your disk somewhere, and a synced chess.com
+        account re-syncs in one click. Turn it off for a small file you can move around easily;
+        leave it on for one you could restore a machine from offline. The <b>analyses</b> of
+        those games travel either way: they are the expensive half, they are small, and they find
+        their games again by the dedup key whenever the database is attached.
+      </p>
+    </>
+  )
+}
+
+const approx = (size: { rows: number; bytes: number; exact: boolean }) =>
+  size.rows === 0 ? '—' : `${size.exact ? '' : '≈'}${formatBytes(size.bytes)}`
+
+function ImportHistoryProgress({ state }: { state: HistoryImportState }) {
+  const percent =
+    state.totalBytes && state.totalBytes > 0
+      ? Math.round((state.bytesRead / state.totalBytes) * 100)
+      : 0
+  return (
+    <p className="import-progress-label mono" aria-live="polite">
+      {state.status === 'checking'
+        ? `Checking ${state.fileName} · ${percent}%`
+        : `Merging ${state.fileName} into what is already here…`}
+    </p>
+  )
+}
+
+type HistoryImportState = HistoryTransfer['importState']
+
+/**
+ * What the merge did, per section.
+ *
+ * Four columns because four things happen and folding them together is how an
+ * idempotent operation comes to look like a destructive one — the same reason
+ * #145's sync counts "already in your database" separately from what it
+ * imported. "Not applicable" is the honest home for an analysis of a game this
+ * device has under a different starting position (#133's trap): it was not
+ * dropped for being bad, it is about something else.
+ */
+function ImportHistoryReport({ report, error }: { report: MergeReport; error?: string }) {
+  const rows = ARCHIVE_SECTIONS.filter((s) => touched(report, s))
+  return (
+    <div className="import-summary">
+      {error ? (
+        <p className="banner error" role="alert">
+          {error}
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="banner" role="status">
+          That file held nothing this profile did not already have — which is what a second
+          import of the same file should look like.
+        </p>
+      ) : (
+        <p className="banner" role="status">
+          {changedNothing(report)
+            ? 'Everything in that file was already here. Nothing was added and nothing was changed.'
+            : 'Imported. Nothing already on this device was removed or overwritten.'}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="games-table">
+            <thead>
+              <tr>
+                <th scope="col">What</th>
+                <th scope="col" className="num">
+                  Added
+                </th>
+                <th scope="col" className="num">
+                  Updated
+                </th>
+                <th scope="col" className="num">
+                  Already here
+                </th>
+                <th scope="col" className="num">
+                  Not applicable
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((section) => (
+                <tr key={section}>
+                  <td>{SECTION_LABEL[section]}</td>
+                  <td className="num mono">{count(report.sections[section].added)}</td>
+                  <td className="num mono">{count(report.sections[section].updated)}</td>
+                  <td className="num mono">{count(report.sections[section].unchanged)}</td>
+                  <td className="num mono">{count(report.sections[section].skipped)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {report.renamed > 0 && (
+        <p className="table-note">
+          {count(report.renamed)} played {report.renamed === 1 ? 'game' : 'games'} arrived under a
+          new id, because the id it was written under was already taken here by a different game.
+          Both are in your library; nothing was overwritten.
+        </p>
+      )}
+    </div>
+  )
+}
+
+const touched = (report: MergeReport, section: ArchiveSection): boolean => {
+  const r = report.sections[section]
+  return r.added + r.updated + r.unchanged + r.skipped > 0
 }
 
 // ---------- where to get games ----------

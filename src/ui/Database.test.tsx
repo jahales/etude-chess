@@ -6,10 +6,12 @@
 // summary, and that a re-sync's "already there" games are reported as such
 // rather than as a fresh import.
 import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { EMPTY_ACCOUNT } from '../app/chesscomAccount'
 import type { ChesscomSync } from '../app/useChesscomSync'
-import { ChesscomPanel } from './Database'
+import { emptyReport, type ArchiveSection } from '../domain/historyArchive'
+import type { HistoryTransfer } from '../app/useHistoryTransfer'
+import { ChesscomPanel, HistoryTransferPanel } from './Database'
 
 const EMPTY_PROGRESS = {
   months: 0,
@@ -109,5 +111,172 @@ describe('the chess.com sync panel', () => {
     expect(screen.getByText(/already in your database/)).toBeInTheDocument()
     expect(screen.getByText(/Skipped 18/)).toHaveTextContent('in a time control you did not pick')
     expect(screen.getByText(/3 months were already complete/)).toBeInTheDocument()
+  })
+})
+
+// ---------- moving your history between browsers (#152) ----------
+//
+// The hook is faked here too. What matters on this panel is not the merge (that
+// is proven against a real IndexedDB in persist/historyArchive.roundtrip.test.ts)
+// but the three things the *screen* is responsible for: saying what an export
+// will cost before it is written, saying what an import did, and saying plainly
+// that it took nothing away.
+
+const size = (rows: number, bytes: number) => ({ rows, bytes, exact: false })
+
+const transfer = (over: Partial<HistoryTransfer> = {}): HistoryTransfer => ({
+  estimate: {
+    sections: {
+      attempt: size(412, 90_000),
+      game: size(12, 40_000),
+      dbSource: size(1, 200),
+      dbGame: size(41_238, 38_000_000),
+      dbAnalysis: size(40, 300_000),
+    },
+    historyBytes: 430_200,
+    databaseBytes: 38_000_000,
+  },
+  exportState: { status: 'idle' },
+  prepare: vi.fn(),
+  discard: vi.fn(),
+  importState: { status: 'idle', bytesRead: 0 },
+  importFile: vi.fn(),
+  completed: 0,
+  ...over,
+})
+
+const reportWith = (counts: Partial<Record<ArchiveSection, Partial<{ added: number; updated: number; unchanged: number; skipped: number }>>>) => {
+  const report = emptyReport()
+  for (const [section, values] of Object.entries(counts)) {
+    Object.assign(report.sections[section as ArchiveSection], values)
+  }
+  return report
+}
+
+describe('moving your history between browsers', () => {
+  it('states the size before anything is written, and the database on its own', () => {
+    // 200 kB or 2 GB is entirely a question of what is attached, and the user
+    // should know which one they are about to save.
+    render(<HistoryTransferPanel transfer={transfer()} />)
+
+    expect(screen.getByText(/The file will be about/)).toHaveTextContent('37 MB')
+    expect(
+      screen.getByLabelText(/Include the 41,238 games in the attached database/),
+    ).toBeChecked()
+  })
+
+  it('drops the database out of the total when it is not included', () => {
+    render(<HistoryTransferPanel transfer={transfer()} />)
+
+    fireEvent.click(screen.getByLabelText(/Include the 41,238 games/))
+
+    // What is left is the part that cannot be re-fetched.
+    expect(screen.getByText(/The file will be about/)).toHaveTextContent('420 KB')
+  })
+
+  it('asks for the export with the choice that was actually made', () => {
+    const t = transfer()
+    render(<HistoryTransferPanel transfer={t} />)
+
+    fireEvent.click(screen.getByLabelText(/Include the 41,238 games/))
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare an export' }))
+
+    expect(t.prepare).toHaveBeenCalledWith({ includeDatabase: false })
+  })
+
+  it('puts the exact size on the control that writes the file', () => {
+    render(
+      <HistoryTransferPanel
+        transfer={transfer({
+          exportState: {
+            status: 'ready',
+            file: { url: 'blob:x', name: 'etude-history-2026-08-15.jsonl', bytes: 1_932_735_283 },
+          },
+        })}
+      />,
+    )
+
+    const save = screen.getByRole('link', { name: /Save etude-history-2026-08-15.jsonl/ })
+    expect(save).toHaveTextContent('1.8 GB')
+    expect(save).toHaveAttribute('download', 'etude-history-2026-08-15.jsonl')
+  })
+
+  it('says nothing has been imported when a file is refused, and shows no report', () => {
+    render(
+      <HistoryTransferPanel
+        transfer={transfer({
+          importState: {
+            status: 'error',
+            bytesRead: 0,
+            fileName: 'broken.jsonl',
+            error: 'This history file ends part-way through — it has no end marker. Nothing has been imported.',
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Nothing has been imported')
+    expect(screen.queryByText(/Already here/)).not.toBeInTheDocument()
+  })
+
+  it('says what it added and that it removed nothing', () => {
+    render(
+      <HistoryTransferPanel
+        transfer={transfer({
+          importState: {
+            status: 'done',
+            bytesRead: 0,
+            report: reportWith({
+              attempt: { added: 412 },
+              dbAnalysis: { added: 38, updated: 1, unchanged: 1, skipped: 2 },
+            }),
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Nothing already on this device was removed',
+    )
+    // Four separate columns — added, updated, already here, not applicable —
+    // because folding them together is how an idempotent operation comes to
+    // look like a destructive one. The two skipped analyses are the #133 case:
+    // a pass about a game this device holds a different starting position for.
+    const summary = within(screen.getByRole('status').closest('.import-summary')!)
+    expect(summary.getByRole('row', { name: /Engine analyses 38 1 1 2/ })).toBeInTheDocument()
+    // A section the file had nothing for is not a row of zeroes.
+    expect(summary.queryByRole('row', { name: /Games you played/ })).not.toBeInTheDocument()
+  })
+
+  it('reports a second import of the same file as having changed nothing', () => {
+    render(
+      <HistoryTransferPanel
+        transfer={transfer({
+          importState: {
+            status: 'done',
+            bytesRead: 0,
+            report: reportWith({ attempt: { unchanged: 412 }, dbGame: { unchanged: 41_238 } }),
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('Everything in that file was already here')
+  })
+
+  it('says when a played game had to be filed under a new id', () => {
+    render(
+      <HistoryTransferPanel
+        transfer={transfer({
+          importState: {
+            status: 'done',
+            bytesRead: 0,
+            report: { ...reportWith({ game: { added: 3 } }), renamed: 1 },
+          },
+        })}
+      />,
+    )
+
+    expect(screen.getByText(/arrived under a new id/)).toHaveTextContent('nothing was overwritten')
   })
 })
