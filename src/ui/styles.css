@@ -173,6 +173,18 @@ button {
   margin: 0 auto;
   padding: 28px 20px 60px;
 }
+/*
+ * A board screen is not a prose screen (#150).
+ *
+ * The 960px shell above is a typography decision — reading measures in this app
+ * are set in `ch` — so board screens step out of it rather than widening it,
+ * which would stretch every text column in the app to match. Keyed off `.play`,
+ * the layout class the three board screens already share, so a fourth cannot
+ * forget to opt in.
+ */
+.main:has(> .play) {
+  max-width: none;
+}
 
 /* Buttons */
 .btn {
@@ -353,11 +365,78 @@ button {
 }
 
 /* Play */
+
+/*
+ * How big the board is allowed to be (#150).
+ *
+ * Against the viewport *height* as well as the width its column has, because a
+ * board sized on width alone is taller than a short, wide window — and then the
+ * board and the controls under it scroll out of sight in the same motion, which
+ * is worse than a board that is merely small. `min(width, height)` is what keeps
+ * it square and whole at any window size.
+ *
+ * `--board-top` is the one term CSS cannot see: how far down the page the board
+ * starts. `useBoardWidth` measures it and publishes it here. The fallback is the
+ * common case — a 56px top bar plus 28px of main's padding — so the very first
+ * paint is already the right size.
+ */
+:root {
+  --board-top: 84px;
+  /* Everything below the board that has to stay on screen with it: the material
+     strip, the control row, and main's bottom padding. Reserved rather than
+     scrolled to, because the controls are half of what the board is for. */
+  --board-chrome: 142px;
+  --board-min: 260px;
+  /* Past this the board is bigger than the eye needs and the side panel starts
+     to read as abandoned. The height cap binds first on anything shorter than
+     about 1250px, so this only applies on very tall displays. */
+  --board-max: 1024px;
+  --board-cap: clamp(
+    var(--board-min),
+    calc(100dvh - var(--board-top) - var(--board-chrome)),
+    var(--board-max)
+  );
+}
+
 .play {
+  /* The eval bar and its gap ride in the board column, so the column is that
+     much wider than the board itself — and exactly nothing wider when the bar is
+     hidden (play mode can turn it off), or the strip and controls below would
+     end 24px past the board they belong to. */
+  --board-gutter: 0px;
+  --play-gap: 28px;
+  /* The side column carries prose, so it has a measure rather than a share: it
+     takes what the board leaves, between these two. */
+  --side-min: 20rem;
+  --side-max: 28rem;
   display: grid;
-  grid-template-columns: minmax(280px, 560px) 1fr;
-  gap: 28px;
+  /*
+   * The board track is a length, not a `minmax`, and that is the point: a
+   * `minmax` pair splits spare width evenly between the two columns, which on a
+   * 1000px-wide window left the board at 460px — smaller than the 560px this
+   * issue set out to fix. Written this way the board takes everything it can
+   * carry, its own cap or whatever is left once the side column has its
+   * minimum, and the side column takes the remainder up to its measure.
+   */
+  grid-template-columns:
+    min(
+      calc(var(--board-cap) + var(--board-gutter)),
+      calc(100% - var(--play-gap) - var(--side-min))
+    )
+    minmax(var(--side-min), var(--side-max));
+  gap: var(--play-gap);
   align-items: start;
+  /* Width the board cannot use goes to the margins, never into the side panel. */
+  justify-content: center;
+}
+.play:has(.evalbar) {
+  --board-gutter: 24px;
+}
+/* Grid items are min-content wide at their smallest, so a long engine line or a
+   wide move list would otherwise push its track past the size set above. */
+.board-col,
+.side-col {
+  min-width: 0;
 }
 .board-row {
   display: flex;
@@ -366,7 +445,12 @@ button {
 }
 .board-frame {
   width: 100%;
-  max-width: 560px;
+  /* A flex item will not shrink below its content, and its content is a board
+     rendered at the *last* measured size. Without this the frame stayed at the
+     old width when a window was made shorter — the board hung 24px past its own
+     column, and the measurement that would have corrected it read the stale
+     width back. It only shows up on a live resize, never on a fresh load. */
+  min-width: 0;
 }
 
 /* Eval bar */
@@ -856,12 +940,17 @@ button {
 }
 
 @media (max-width: 760px) {
-  .play {
-    grid-template-columns: 1fr;
+  :root {
+    /* The control row wraps onto a second line down here, so more of the column
+       sits below the board than on a desktop. */
+    --board-chrome: 170px;
   }
-  .board-frame {
-    max-width: 100%;
-    margin: 0 auto;
+  /* One track, still capped, and centred by the base rule's `justify-content`.
+     Not `margin-inline: auto` on the column: an auto margin makes a grid item
+     shrink to fit its contents, which sized the board off the width of the
+     control row under it — a 271px board on a 760px screen. */
+  .play {
+    grid-template-columns: minmax(0, calc(var(--board-cap) + var(--board-gutter)));
   }
   .game-card {
     flex-direction: column;

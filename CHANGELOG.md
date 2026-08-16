@@ -382,6 +382,30 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   don't know it exists.
 
 ### Fixed
+- **The board is sized to the window now, height included (#150).** On a 1920×1080 screen it
+  rendered at 560px — 29% of the width, the smallest thing on the screen, on the surface where
+  the whole product happens. Three caps stacked to produce that: a 960px page shell, a 560px
+  grid track and a 560px cap on the board frame itself. It is **854px** on that screen now, and
+  **574px** on a 1920×800 one.
+  - **The 960px shell stayed**, because it is a typography decision — this app's reading
+    measures are set in `ch` — and widening it would have stretched every text column to match.
+    Board screens step out of the prose shell instead; the side panel keeps a measure of its
+    own (20–28rem) and the board takes the rest.
+  - **Height is the input that was missing.** A board sized on width alone is taller than a
+    short, wide window, and then the board and the controls under it leave the screen in the
+    same motion — worse than a small board, because you lose the position and the way to move
+    in it together. The size is `min(width available, height available − the strip and the
+    controls)`, so the board stays square and whole at any window size, which is what a
+    resizable board is for.
+  - The eval bar, the material strip and the board controls are all bounded by the board rather
+    than by the column, so they still start and end exactly where it does at every size.
+  - **Verified by driving a browser**, because jsdom lays nothing out and cannot tell a
+    correctly sized board from a collapsed one: the invariants — square, big enough, controls on
+    screen without scrolling, strip and bar aligned, and click-to-move still landing on the
+    square you clicked after a resize — are now
+    [`e2e/board-size.spec.ts`](e2e/board-size.spec.ts). It caught two of its own kind while
+    being written: a board that collapsed to 271px on a 760px screen, and one that hung past its
+    own column when a window was made shorter.
 - **A game that starts from a set-up position is studiable, instead of being reported as a
   broken file.** Studies, endgame collections and puzzle sets carry their starting position in
   a `FEN` tag, and many carry no `Variant` tag at all — so nothing rejected them and nothing
