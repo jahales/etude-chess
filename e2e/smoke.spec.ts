@@ -27,4 +27,14 @@ test('play the master move through to the graded analysis reveal', async ({ page
   await expect(page.getByText(/Well played|Inaccuracy|Mistake/)).toBeVisible({ timeout: 60_000 })
   await expect(page.getByText('Engine lines')).toBeVisible()
   await expect(page.getByRole('button', { name: /Next position|See summary/ })).toBeVisible()
+
+  // …and the move *you* played, scored and continued (#151). The second move
+  // being on screen is the assertion that matters: the continuation is the
+  // second search's own pv coming back through the real Worker, and a version
+  // of this that lost it would still render your move and still pass every
+  // other check on this page.
+  const played = page.locator('.played-line')
+  await expect(played).toContainText('The move you played')
+  await expect(played.locator('.line-move').first()).toHaveText('Qxf3')
+  await expect(played.locator('.line-move').nth(1)).toBeVisible()
 })
