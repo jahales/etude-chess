@@ -7,6 +7,31 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Win/draw/loss at the reveal, so a swing can be read for what it cost (#161).** The tier is
+  win% swing, and win% swing does not distinguish a move from +8.0 to +4.0 — an enormous number
+  that risked nothing — from one at +0.3 to −0.3, a small number that lost the game. The project
+  already knew this: the `game-review` skill §4 tells a reader to *check the WDL* before calling a
+  swing decisive, and the app had no WDL to check. Now every reveal carries the result the
+  position was heading for before your move and after it, as one sentence and then the numbers.
+  - **The plumbing was mostly already there.** `engine/uci.ts` has parsed `wdl W D L` since it was
+    written, and the offline driver (`scripts/repertoire/engine.mjs`) has always asked for it. The
+    in-app adapter never turned the option on, so the field never arrived. It does now, and `wdl`
+    rides on `EngineEvaluation` and `AnalysisLine` on the same terms as the pv: **optional, and
+    absent means "not reported", never "the result is not in doubt"** — the inverse of the truth
+    is exactly what a zeroed default would say.
+  - **No grade moved, and that was measured rather than assumed.** `UCI_ShowWDL` is documented as
+    display-only. Nine positions — opening, sharp Italian, K+P endgame, decided middlegame, a
+    tactic, a delivered mate, a declined mate-in-one — were graded twice against the app's own
+    WASM build at its own 700k-node budget, once with the option on and once off. Tier, win% swing
+    to six decimal places, and `bestmove` came back identical every time.
+  - **A stale reading is dropped, not shown.** WDL rides with the score it was reported with, so
+    an `info` line carrying a score but no WDL clears it — a leftover `1000/0/0` from an earlier
+    iteration would read as a claim that the game was already decided.
+  - **It is not a second verdict.** The line says what happened to the *game*; the badge says how
+    good the move was. It is deliberately drawn in a neutral, never the tier colours, because a
+    green "the result held" beside a Mistake badge would read as a kinder second opinion (ADR
+    [0010](docs/decisions/0010-engine-architecture.md), constitution §9). And it is labelled as
+    the engine's expectancy for the position, not a prediction about your game (§12).
 - **The move that led into the position, marked on the board (#160).** A quiz position arrived
   with no indication of how it got there, so the first thing you did at every item was reconstruct
   the opponent's last move from the board — work that teaches nothing and that every other chess

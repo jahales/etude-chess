@@ -855,6 +855,46 @@ button {
    must never read as one voice (constitution §9, §12). Hence the rule down the
    side, the serif quote, and a caption on each — the visual difference is the
    attribution doing its job before anyone reads the small print. */
+/* Win/draw/loss either side of your move (#161). The left rule darkens when the
+   result changed, so the answer is legible before the sentence is read. It is
+   deliberately a *neutral* — never --good/--warn/--bad, which are the tier
+   colours: this says what happened to the game, not how good the move was, and
+   a green "result held" beside a Mistake badge would read as a second, kinder
+   verdict (ADR 0010, constitution §9). */
+.result-shift {
+  margin: -0.4rem 0 1rem;
+  padding: 0.6rem 0 0.6rem 0.9rem;
+  border-left: 3px solid var(--line);
+}
+.result-shift.changed {
+  border-left-color: var(--ink-soft);
+}
+.result-verdict {
+  margin: 0 0 0.3rem;
+  font-size: 0.94rem;
+}
+.result-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.wdl-label {
+  color: var(--ink-faint);
+}
+.wdl-arrow {
+  color: var(--ink-faint);
+}
+.result-caveat {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+
 .source-note {
   margin: -0.7rem 0 1rem;
 }

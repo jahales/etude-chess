@@ -6,7 +6,8 @@ import { buildFactBundle, type FactBundle } from '../domain/factBundle'
 import type { Attempt } from '../domain/session'
 import type { GradedMove } from '../engine/grading'
 import type { AnalysisLine } from '../engine/analyser'
-import type { Color, Score } from '../domain/types'
+import type { Color, Score, Wdl } from '../domain/types'
+import { whiteWdl } from '../domain/resultCategory'
 
 // The application layer (ADR 0015): a *pure* reducer for the guess→commit→grade→
 // reveal→next state machine. No engine calls, no I/O, no Date.now — the async
@@ -47,10 +48,28 @@ export interface PlayedMove {
   pv: string[]
 }
 
+/**
+ * The result the position was heading for, before your move and after it — both
+ * **White's perspective**, like every other number on screen (#161).
+ *
+ * One value holding both rather than two optional fields, because a single
+ * reading answers nothing: the whole point is the comparison, and the skill's
+ * rule (`game-review` §4) is stated as one — *if it reads `1000/0/0` before and
+ * after, the move cost win% but never risked the result*. Present only when the
+ * engine reported both, so an adapter that cannot supply WDL simply reveals
+ * exactly what it revealed before.
+ */
+export interface ResultShift {
+  before: Wdl
+  after: Wdl
+}
+
 export interface Result {
   fb: FactBundle
   bestMoveUci: string | null
   played: PlayedMove
+  /** Absent when the engine reported no WDL — never a claim that nothing moved. */
+  resultShift?: ResultShift
 }
 
 export type Screen = 'home' | 'play' | 'summary'
@@ -270,6 +289,19 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
         tier: action.graded.grade.tier,
         swing: action.graded.grade.swing,
       }
+      // Both readings come off the two searches that graded the move, and both
+      // are turned into White's here — the one place that knows whose move it
+      // was. `playedWdlMover` is already the mover's, so both take the *same*
+      // `sideToMove`; flipping only one of them would report a reversal on every
+      // move. Set only as a pair: one half of a comparison is not a comparison.
+      const { bestWdl, playedWdlMover } = action.graded
+      const resultShift: ResultShift | undefined =
+        bestWdl && playedWdlMover
+          ? {
+              before: whiteWdl(bestWdl, item.sideToMove),
+              after: whiteWdl(playedWdlMover, item.sideToMove),
+            }
+          : undefined
       return {
         ...state,
         phase: 'reveal',
@@ -283,6 +315,7 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
             score: action.graded.playedScoreMover,
             pv: action.graded.afterPv,
           },
+          ...(resultShift ? { resultShift } : {}),
         },
         lines: action.lines,
         positionWhitePct: action.whitePct,

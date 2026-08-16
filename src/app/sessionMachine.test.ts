@@ -218,3 +218,93 @@ describe('GO_HOME', () => {
     expect(s).toEqual(initialState)
   })
 })
+
+// ---------- the result picture at the reveal (#161) ----------
+
+describe('the result either side of your move', () => {
+  /** `gradeA` plus the two WDL readings a WDL-capable adapter supplies. */
+  const withWdl = (best: [number, number, number], played: [number, number, number]): GradedMove => ({
+    ...gradeA,
+    bestWdl: { win: best[0], draw: best[1], loss: best[2] },
+    playedWdlMover: { win: played[0], draw: played[1], loss: played[2] },
+  })
+
+  it('puts both readings in White’s perspective when the hero is White', () => {
+    let s = started()
+    expect(currentItem(s)!.sideToMove).toBe('w')
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, {
+      type: 'GRADE_RESULT',
+      graded: withWdl([900, 90, 10], [200, 500, 300]),
+      lines: [],
+      whitePct: 80,
+    })
+    // White to move, so both are already White's and neither is flipped.
+    expect(s.result?.resultShift).toEqual({
+      before: { win: 900, draw: 90, loss: 10 },
+      after: { win: 200, draw: 500, loss: 300 },
+    })
+  })
+
+  it('flips both readings together when the hero is Black', () => {
+    // The bug this pins: `playedWdlMover` is already the mover's, so it takes
+    // the *same* side as `bestWdl`. Flipping only one of them would report a
+    // reversal of the result on every single move, and look entirely plausible.
+    let s = sessionReducer(initialState, {
+      type: 'START_GAME',
+      game: { ...opera, heroColor: 'b' },
+      sessionId: 'sb',
+    })
+    const item = currentItem(s)!
+    expect(item.sideToMove).toBe('b')
+    const [from, to] = [item.masterMoveUci.slice(0, 2), item.masterMoveUci.slice(2, 4)]
+    s = sessionReducer(s, { type: 'TRY_MOVE', from, to })
+    s = sessionReducer(s, {
+      type: 'GRADE_RESULT',
+      graded: withWdl([900, 90, 10], [800, 150, 50]),
+      lines: [],
+      whitePct: 20,
+    })
+    // Black was winning both before and after; read as White's, that is a loss
+    // both times — and, crucially, still the *same* category either side.
+    expect(s.result?.resultShift).toEqual({
+      before: { win: 10, draw: 90, loss: 900 },
+      after: { win: 50, draw: 150, loss: 800 },
+    })
+  })
+
+  it('says nothing at all when the engine reported no WDL', () => {
+    let s = started()
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, { type: 'GRADE_RESULT', graded: gradeA, lines: [], whitePct: 80 })
+    expect(s.result?.resultShift).toBeUndefined()
+  })
+
+  it('says nothing when only one of the two readings came back', () => {
+    // Half a comparison is not a comparison, and a lone "1000/0/0 before" would
+    // invite exactly the reading the pair exists to prevent.
+    let s = started()
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, {
+      type: 'GRADE_RESULT',
+      graded: { ...gradeA, bestWdl: { win: 900, draw: 90, loss: 10 } },
+      lines: [],
+      whitePct: 80,
+    })
+    expect(s.result?.resultShift).toBeUndefined()
+  })
+
+  it('clears it with the rest of the reveal on NEXT', () => {
+    // Engine/board sync: the reading belongs to the position it was computed
+    // for, and must never survive onto the next one.
+    let s = started()
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, {
+      type: 'GRADE_RESULT',
+      graded: withWdl([900, 90, 10], [200, 500, 300]),
+      lines: [],
+      whitePct: 80,
+    })
+    expect(sessionReducer(s, { type: 'NEXT' }).result).toBeNull()
+  })
+})

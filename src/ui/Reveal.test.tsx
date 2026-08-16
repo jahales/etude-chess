@@ -136,3 +136,53 @@ describe('what the reveal calls the game’s own move', () => {
     ])
   })
 })
+
+// ---------- the result either side of your move (#161) ----------
+
+describe('the win/draw/loss line at the reveal', () => {
+  const shift = (
+    before: [number, number, number],
+    after: [number, number, number],
+  ) => ({
+    before: { win: before[0], draw: before[1], loss: before[2] },
+    after: { win: after[0], draw: after[1], loss: after[2] },
+  })
+
+  it('says the result held when a big win% swing changed nothing', () => {
+    // The `game-review` skill §4 case, at the screen it is about: the badge says
+    // "Inaccuracy" and the game was already over. Without this line the reveal
+    // implied the game hung on a move that risked nothing.
+    const c = reveal({ resultShift: shift([1000, 0, 0], [1000, 0, 0]) })
+    expect(c.textContent).toContain('The likely result did not change')
+    expect(c.textContent).toContain('White wins')
+    expect(c.querySelector('.result-shift')!.className).toContain('held')
+  })
+
+  it('says the result changed when a small swing lost the game', () => {
+    const c = reveal({ resultShift: shift([600, 350, 50], [50, 350, 600]) })
+    expect(c.textContent).toContain('Your move changed the likely result')
+    expect(c.textContent).toContain('from White wins to Black wins')
+    expect(c.querySelector('.result-shift')!.className).toContain('changed')
+  })
+
+  it('shows both readings as percentages, before then after', () => {
+    const c = reveal({ resultShift: shift([820, 150, 30], [410, 500, 90]) })
+    const numbers = c.querySelector('.result-numbers')!.textContent!
+    expect(numbers).toContain('82/15/3')
+    expect(numbers).toContain('41/50/9')
+    expect(numbers).toContain('win/draw/loss for White')
+  })
+
+  it('names it as the engine’s expectancy, not a prediction', () => {
+    // Constitution §12: no number on this screen may imply we know how the game
+    // would actually have gone.
+    const c = reveal({ resultShift: shift([1000, 0, 0], [1000, 0, 0]) })
+    expect(c.querySelector('.result-caveat')!.textContent).toContain('not a prediction')
+  })
+
+  it('renders exactly the reveal it always did when there is no WDL', () => {
+    const c = reveal()
+    expect(c.querySelector('.result-shift')).toBeNull()
+    expect(c.textContent).toContain(explain(fb))
+  })
+})

@@ -769,6 +769,7 @@ function Play({
               fb={result.fb}
               item={item}
               note={annotationAt(session.game, item.ply)}
+              {...(result.resultShift ? { resultShift: result.resultShift } : {})}
               onNext={onNext}
               last={isLast(state)}
             />

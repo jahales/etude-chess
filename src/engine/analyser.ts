@@ -1,4 +1,4 @@
-import type { EngineEvaluation, Score } from '../domain/types'
+import type { EngineEvaluation, Score, Wdl } from '../domain/types'
 
 // The engine abstraction (docs/decisions/0010): grading logic depends only on
 // this interface, never on the Worker. StockfishAnalyser (stockfish.ts) is the
@@ -18,6 +18,11 @@ export interface AnalysisLine {
   score: Score
   /** Principal variation as UCI moves. */
   pv: string[]
+  /**
+   * Win/draw/loss for this line, side-to-move's perspective — same terms as
+   * `EngineEvaluation.wdl`: optional, and absent means "not reported".
+   */
+  wdl?: Wdl
 }
 
 export interface Analyser {
