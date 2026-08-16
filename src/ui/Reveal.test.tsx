@@ -3,6 +3,7 @@ import { render } from '@testing-library/react'
 import { Reveal } from './Reveal'
 import { buildFactBundle } from '../domain/factBundle'
 import { explain } from '../domain/factBundle'
+import type { MoveSource } from '../domain/moveSource'
 import type { QuizItem } from '../domain/harness'
 
 /**
@@ -13,13 +14,18 @@ import type { QuizItem } from '../domain/harness'
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
-const fb = buildFactBundle({
-  fen: START,
-  userMoveSan: 'e4',
-  bestMoveUci: 'd2d4',
-  masterMoveSan: 'd4',
-  grade: { bestWinPercent: 55, playedWinPercent: 52, swing: 3, tier: 'B' },
-})
+const bundle = (moveSource: MoveSource = { kind: 'master' }, over: Partial<Parameters<typeof buildFactBundle>[0]> = {}) =>
+  buildFactBundle({
+    fen: START,
+    userMoveSan: 'e4',
+    bestMoveUci: 'd2d4',
+    gameMoveSan: 'd4',
+    moveSource,
+    grade: { bestWinPercent: 55, playedWinPercent: 52, swing: 3, tier: 'B' },
+    ...over,
+  })
+
+const fb = bundle()
 
 const item: QuizItem = {
   fen: START,
@@ -78,5 +84,55 @@ describe('the reveal with an imported game’s annotation', () => {
     // `annotationAt` hands back null for an unannotated ply; the reveal must
     // then look like any other.
     expect(reveal({ note: undefined }).querySelector('.source-note')).toBeNull()
+  })
+})
+
+/**
+ * #158: the same honesty rule, applied to the *moves* rather than to the prose.
+ * The screen shows two moves and used to call the second one the master's
+ * whatever the game was — including on the owner's own ~1100 blitz game, where
+ * both of them were his.
+ */
+describe('what the reveal calls the game’s own move', () => {
+  const header = (c: HTMLElement) => c.querySelector('.your-move')!.textContent
+  const legend = (c: HTMLElement) => c.querySelector('.arrow-key')!.textContent!
+
+  it('says master for the curated pack, which is the one place it is true', () => {
+    const c = reveal()
+    expect(header(c)).toBe('you played e4 · master d4')
+    expect(legend(c)).toContain('master’s move')
+  })
+
+  it('tells your two moves apart in a game you played', () => {
+    // Both moves are yours here, so "you played … · your move" named neither.
+    const c = reveal({ fb: bundle({ kind: 'you' }) })
+    expect(header(c)).toBe('you chose e4 · in the game you played d4')
+    expect(legend(c)).toContain('the move you played in the game')
+    expect(legend(c)).toContain('the move you just chose')
+    expect(c.textContent!.toLowerCase()).not.toContain('master')
+  })
+
+  it('names the player whose game it is when the file named one', () => {
+    const c = reveal({ fb: bundle({ kind: 'player', name: 'other_player' }) })
+    expect(header(c)).toBe('you played e4 · other_player played d4')
+    expect(legend(c)).toContain('other_player’s move')
+    expect(c.textContent!.toLowerCase()).not.toContain('master')
+  })
+
+  it('falls back to the game, never to a person, when the file named nobody', () => {
+    const c = reveal({ fb: bundle({ kind: 'unnamed' }) })
+    expect(header(c)).toBe('you played e4 · in the game d4')
+    expect(legend(c)).toContain('the move played in the game')
+    expect(c.textContent!.toLowerCase()).not.toContain('master')
+  })
+
+  it('keeps the arrow legend’s three entries and their swatches', () => {
+    // Only the words changed: the colours, and which move each names, did not.
+    const c = reveal({ fb: bundle({ kind: 'you' }, { bestMoveUci: 'b1c3' }) })
+    expect([...c.querySelectorAll('.arrow-key .swatch')].map((s) => s.className)).toEqual([
+      'swatch master',
+      'swatch engine',
+      'swatch user',
+    ])
   })
 })

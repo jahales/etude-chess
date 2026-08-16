@@ -382,6 +382,34 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
   don't know it exists.
 
 ### Fixed
+- **Review mode no longer calls your own move "the master's" (#158).** Reviewing a ~1100 blitz
+  game of his own, the owner was told "you played Qa5+ · **master** e4" and "Solid — as strong
+  as the master's choice" — about a move *he* had played, in a game with no master in it. The
+  field was right and the word was not: `planStudy` fills the game's move from whatever the
+  record holds, and every screen called it a master's. **"Master" is now true only of the
+  curated pack** (`content/games.ts`), which declares it as a literal; a `StudyGame` carries a
+  `MoveSource` (`domain/moveSource.ts`) decided where the game is built, and nothing downstream
+  re-derives provenance.
+  - **Three cases, three vocabularies.** The pack reads exactly as it did: "you played Qa5+ ·
+    master e4". A game you played reads "you chose Qa5+ · **in the game you played** e4" — both
+    moves are yours there, so naming only one of them "you" said nothing, and the arrow legend
+    separates "the move you played in the game" from "the move you just chose". Anyone else's
+    game is attributed to the player the file named ("other_player played e4"), falling back to
+    the game itself, never to an invented person, when the file named nobody.
+  - **The LLM clipboard mattered most**, because nobody proofreads it between the button and the
+    model. It said `Master's move: e4` about club blitz and closed by asking the model to
+    "explain why e4 is better than Qa5+" — a comparison **nothing in this app has ever made**.
+    Grading is your move against **Stockfish's** (`engine/grading.ts`), never against the move
+    played in the game. So the bundle now labels that move by who played it, asks its question
+    about the engine's move, says outright which of the two produced the tier, and asks what a
+    move *achieves* when there is nothing better to compare it against — "why X is better than
+    X" is an invitation to invent, which ADR 0012 forbids.
+  - **The verdicts say what actually measured you.** "Solid — as strong as the master's choice"
+    is now "Solid — the engine rates it as strong as its own top choice", which is both true and
+    the mechanism. Matching your own past move is reported as agreement rather than as a grade,
+    and a move you played twice is no longer announced twice under two names.
+  - This is constitution §9/§12 rather than copy: the discipline is not claiming authority a
+    number or a move does not have. **Arrow colours did not move** — only words changed.
 - **The board is sized to the window now, height included (#150).** On a 1920×1080 screen it
   rendered at 560px — 29% of the width, the smallest thing on the screen, on the surface where
   the whole product happens. Three caps stacked to produce that: a 960px page shell, a 560px

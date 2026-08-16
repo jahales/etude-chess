@@ -248,12 +248,15 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
 
     case 'GRADE_RESULT': {
       const item = currentItem(state)
-      if (!item || !state.pending) return state
+      if (!item || !state.pending || !state.session) return state
       const fb = buildFactBundle({
         fen: item.fen,
         userMoveSan: state.pending.san,
         bestMoveUci: action.graded.bestMoveUci,
-        masterMoveSan: item.masterMoveSan,
+        gameMoveSan: item.masterMoveSan,
+        // Read off the game, never re-derived here or in the reveal: the game
+        // knows whose moves it holds and the session does not (#158).
+        moveSource: state.session.game.moveSource,
         grade: action.graded.grade,
       })
       const attempt: Attempt = {

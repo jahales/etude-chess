@@ -1,8 +1,10 @@
 import { Chess } from 'chess.js'
 import type { Color } from './types'
 
-// The guess-the-move harness: turn a master game into a sequence of quiz
-// positions (the hero side's non-trivial moves). See docs/v0.1.0-plan.md.
+// The guess-the-move harness: turn a game into a sequence of quiz positions (the
+// hero side's non-trivial moves). See docs/v0.1.0-plan.md. It was a *master*
+// game until #55 made the attached database a source too, and the naming below
+// still reads that way — see `QuizItem.masterMoveSan`.
 
 export interface ParsedGame {
   headers: Record<string, string>
@@ -30,9 +32,17 @@ export interface QuizItem {
   /** 1-based full-move number (for display). */
   moveNumber: number
   sideToMove: Color
-  /** The master's move, SAN. */
+  /**
+   * The move actually played in the game at this position, SAN.
+   *
+   * The *name* is v0.1.0's, when the pack of master games was the only thing a
+   * quiz could be built from; the field is right and the word is not. Since #55
+   * a quiz item is as likely to hold a club player's move, and since #158 what
+   * to *call* it travels separately, on `StudyGame.moveSource` — this is a
+   * quizzed position and knows nothing about whose game it came out of.
+   */
   masterMoveSan: string
-  /** The master's move, UCI/LAN (e.g. "e2e4"). */
+  /** The same move, UCI/LAN (e.g. "e2e4"). Same caveat about the name. */
   masterMoveUci: string
 }
 

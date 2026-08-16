@@ -26,6 +26,10 @@
  * - **Annotations belong to whoever wrote them.** The file's comments travel
  *   with the name of the file, in one value, so a reveal cannot show someone
  *   else's prose without saying whose it is (constitution §9, §12).
+ * - **So do the moves.** A `StudyGame` carries a `MoveSource` naming who played
+ *   the game's own moves, because "the master's move" is true of the curated
+ *   pack and of nothing that arrives through the database (#158). It is decided
+ *   here, where the source is known, and never re-derived downstream.
  *
  * The stored row is consumed **structurally** (`DatabaseGame`), the same trick
  * `pgnImport.ts` uses for its parse tree: `persist/dbGames.ts`'s `DbGame`
@@ -33,6 +37,7 @@
  */
 
 import type { Color } from './types'
+import type { MoveSource } from './moveSource'
 import { buildQuiz, heroColorFromResult, parseGame, DEFAULT_START_PLY } from './harness.ts'
 
 // ---------- the shapes ----------
@@ -67,6 +72,13 @@ export interface StudyGame {
    * curated pack relies on and what a game with no winner has no answer for.
    */
   heroColor?: Color
+  /**
+   * Who played this game's moves, and therefore what the reveal may call them
+   * (#158). Required, and a literal in the pack: a game that arrives without
+   * declaring its source is exactly how a club blitz move came to be credited
+   * to a master.
+   */
+  moveSource: MoveSource
   annotations?: Annotations
 }
 
@@ -261,6 +273,26 @@ function annotationsOf(game: DatabaseGame): Annotations | undefined {
 }
 
 /**
+ * Who played the moves on the side being studied (#158).
+ *
+ * **Nothing out of the database is a master's game as far as this code can
+ * know**, so the only two answers here are "you" and "whoever the file says" —
+ * `{ kind: 'master' }` is reachable only from the curated pack, which writes it
+ * as a literal. `yours` is #130's `yourSide`, and it is compared against the
+ * side actually being studied: study the other half of your own game and the
+ * moves belong to your opponent, who is named rather than called "you".
+ *
+ * A player the file never named falls back to the game rather than to a person.
+ * Import drops the `?` placeholder, so a blank name means the file was silent,
+ * and inventing "your opponent" for it would be a second guess about people.
+ */
+function moveSourceOf(game: DatabaseGame, heroColor: Color, yours?: Color | null): MoveSource {
+  if (yours && yours === heroColor) return { kind: 'you' }
+  const name = (heroColor === 'w' ? game.white : game.black).trim()
+  return name ? { kind: 'player', name } : { kind: 'unnamed' }
+}
+
+/**
  * A stored row + the side you take → a game the session can run, or the reason
  * it can't.
  *
@@ -268,8 +300,18 @@ function annotationsOf(game: DatabaseGame): Annotations | undefined {
  * the same pure function, so what this returns is a promise about what will
  * happen — how many positions, or that there would be none — made before a
  * session opens on an empty quiz or a reducer throws on illegal movetext.
+ *
+ * `yours` (#130's `yourSide`) is what tells a game you played from a game you
+ * imported. Omitting it is safe rather than silent: the game's moves are then
+ * attributed to the player the file names, which is true either way — it just
+ * says "test_player played e4" where it could have said "in the game you
+ * played e4".
  */
-export function planStudy(game: DatabaseGame, heroColor: Color): StudyPlan {
+export function planStudy(
+  game: DatabaseGame,
+  heroColor: Color,
+  yours?: Color | null,
+): StudyPlan {
   if (plies(game).length === 0) return { ok: false, reason: 'no-moves' }
 
   const studyGame: StudyGame = {
@@ -278,6 +320,7 @@ export function planStudy(game: DatabaseGame, heroColor: Color): StudyPlan {
     blurb: studyBlurb(game),
     pgn: studyPgn(game),
     heroColor,
+    moveSource: moveSourceOf(game, heroColor, yours),
     ...(annotationsOf(game) ? { annotations: annotationsOf(game)! } : {}),
   }
 

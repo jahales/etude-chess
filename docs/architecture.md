@@ -79,7 +79,9 @@ fast to test precisely because nothing in here can touch anything. TDD here.
 - **Position facts** — `material`, `see` (static exchange evaluation), `notation` (SAN + score
   formatting, incl. White-perspective labels), `replay` (rebuild every FEN of a game from SAN;
   positions are derived, never stored, so they can't drift from `sanHistory`).
-- **Explanation** — `factBundle` (guess-mode "why" + the LLM clipboard bundle; also home to
+- **Explanation** — `moveSource` (what the game's own move may be *called*, and the vocabulary
+  for each answer — #158, see [Studying an imported game](#studying-an-imported-game--domainstudygamets--uirevealtsx-55-plan-11)),
+  `factBundle` (guess-mode "why" + the LLM clipboard bundle; also home to
   `hangingAfterMove`, which nets a capture against the recapture so a normal trade stops reading
   as a hung piece), `coach` (play-mode, engine-based "why"), `mistakeKind` (labels a mistake the
   search already found as hung material / missed material / positional — **a label only**, never
@@ -317,6 +319,16 @@ domain still imports nothing.
   replay**. That last one is only reachable because #53 deliberately never replays a game at
   import (~12 games/sec would make a 100k import a two-hour job), so this is the first code that
   ever tries — and inside the reducer it would have thrown during render.
+- **Whose move the game's move is, is data** (#158). `StudyGame.moveSource` is a `MoveSource`
+  (`domain/moveSource.ts`) — master / you / a named player / unnamed — written as a **literal**
+  by the pack and derived by `planStudy` from the row and `yourSide` for everything else, since
+  nothing reachable through the database is a master game as far as this code can know. Every
+  phrase for a source lives in **one record** (`moveWording`) rather than being composed per
+  site, because in your own game *both* moves are yours and the header, the legend and the
+  clipboard are only distinguishable if they are written next to each other. It also fixed a
+  claim about the *mechanism*: grading is your move against Stockfish, never against the move
+  played in the game, so a Tier-A verdict cites the engine and the clipboard says which of the
+  two produced the tier. The arrow colours and `ARROW_MASTER`'s name are v0.1.0's and stayed.
 - **A note from the file and our "why" are two attributed blocks, never one paragraph**
   (constitution §9/§12). `Annotations` carries `byPly` *and* its `source` in one value, and
   `annotationAt` returns both or neither, so there is no way to get the prose onto the screen
