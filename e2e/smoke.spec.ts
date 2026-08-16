@@ -14,6 +14,22 @@ test('play the master move through to the graded analysis reveal', async ({ page
   await expect(page.getByText(/to move · position 1 of/)).toBeVisible()
   await expect(page.getByText('Philidor Defense')).toBeVisible() // detected opening (#5)
 
+  // How the position arrived (#160). The quiz opens at ply 8, so the very first
+  // item does have a move before it — Black's 4…Bxf3 — and it must be that move
+  // and not a stand-in. Asserted on the squares as well as in words because the
+  // mark is the part a reader actually uses, and it is the part a jsdom test
+  // cannot see: this is a real board, sized and painted.
+  await expect(page.getByText('4…Bxf3')).toBeVisible()
+  for (const square of ['g4', 'f3']) {
+    const mark = page.locator(`[data-square="${square}"] > *`).first()
+    await expect(mark).toHaveCSS('box-shadow', /inset/)
+  }
+  // …and only those two.
+  const marked = await page.locator('[data-square] > *').evaluateAll(
+    (els) => els.filter((el) => getComputedStyle(el).boxShadow.includes('inset')).length,
+  )
+  expect(marked).toBe(2)
+
   // Position 1 is White to move; play the master's move Qxf3 (d1 → f3) by
   // click-to-move. The picked move should read back before we commit.
   await page.locator('[data-square="d1"]').click()

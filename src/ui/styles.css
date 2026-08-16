@@ -1385,6 +1385,12 @@ button {
 .board-controls .flip {
   margin-left: auto;
 }
+/* The move that led into the quiz position (#160), named beside the turn line.
+   Quieter than the line it sits in: it is context for the question, not part
+   of the question — the board's ring is what the eye should catch. */
+.board-controls .last-move {
+  color: var(--ink-faint);
+}
 .replay-analysis {
   margin-top: 1rem;
   display: flex;

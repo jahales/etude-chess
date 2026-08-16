@@ -51,3 +51,53 @@ describe('BoardPanel off-game marker', () => {
     expect(onLeave).toHaveBeenCalled()
   })
 })
+
+/**
+ * The mark on the move that produced the position (#160).
+ *
+ * Asserted on the squares themselves because the two failures worth guarding
+ * are both invisible in a screenshot review that happens to start at item 2: a
+ * position with no move before it drawing an empty mark, and a mark landing on
+ * the wrong pair of squares.
+ */
+describe('BoardPanel last-move mark', () => {
+  // react-chessboard puts `customSquareStyles` on the square's inner element —
+  // the one sized to the square — not on the `[data-square]` wrapper.
+  const styleOf = (container: HTMLElement, square: string) =>
+    (container.querySelector(`[data-square="${square}"] > *`) as HTMLElement | null)?.style
+
+  it('marks both squares of the move that led here', () => {
+    const { container } = render(<BoardPanel id="t" fen={START} orientedFor="w" lastMove="g8f6" />)
+    expect(styleOf(container, 'g8')?.boxShadow).toBeTruthy()
+    expect(styleOf(container, 'f6')?.boxShadow).toBeTruthy()
+    expect(styleOf(container, 'e4')?.boxShadow).toBeFalsy()
+  })
+
+  it('marks nothing when there was no move before this position', () => {
+    for (const lastMove of [undefined, null, '']) {
+      const { container } = render(
+        <BoardPanel id="t" fen={START} orientedFor="w" lastMove={lastMove} />,
+      )
+      const marked = [...container.querySelectorAll('[data-square] > *')].filter(
+        (el) => (el as HTMLElement).style.boxShadow,
+      )
+      expect(marked).toHaveLength(0)
+    }
+  })
+
+  it('keeps a caller’s own highlight on a square the move also touched', () => {
+    const { container } = render(
+      <BoardPanel
+        id="t"
+        fen={START}
+        orientedFor="w"
+        lastMove="g8f6"
+        customSquareStyles={{ f6: { background: 'rgba(53, 96, 73, 0.35)' } }}
+      />,
+    )
+    expect(styleOf(container, 'f6')?.boxShadow).toBeTruthy()
+    expect(styleOf(container, 'f6')?.background).toContain('53, 96, 73')
+    // …and a square only the caller styled keeps working as it always did.
+    expect(styleOf(container, 'g8')?.background).toBeFalsy()
+  })
+})
