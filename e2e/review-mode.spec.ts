@@ -116,7 +116,10 @@ test.describe('review a game you played', () => {
 
     // #131's explorable lines, unchanged by this mode: click a move in a line and
     // the board walks into it, saying plainly that it is no longer the game.
-    await page.locator('.line-move').first().click()
+    // Scoped to `.lines` since #151 — the move you played is a walkable line too,
+    // and it comes first in the DOM, so an unscoped locator would quietly stop
+    // testing the engine's lines here and nothing would fail.
+    await page.locator('.lines .line-move').first().click()
     await expect(page.locator('.exploring')).toContainText('Exploring')
     // Scoped: the board ribbon, the transport and the exploring bar all offer a
     // way back, which is deliberate — this picks the one on the bar.

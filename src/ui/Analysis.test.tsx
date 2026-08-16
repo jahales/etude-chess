@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Chess } from 'chess.js'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
-import { EvalBar, ExplorationBar, LinesPanel, useExploration } from './Analysis'
+import { EvalBar, ExplorationBar, LinesPanel, PlayedLinePanel, useExploration } from './Analysis'
 import type { AnalysisLine } from '../engine/analyser'
 import type { AnalyserState } from '../app/useAnalyser'
 
@@ -73,6 +73,76 @@ describe('LinesPanel as a way into the line', () => {
     // The FEN travels with the click: it is what lets the reducer refuse to
     // walk a line against a position it was not computed for.
     expect(onPickMove).toHaveBeenCalledWith(WHITE_TO_MOVE, ['e4', 'e5', 'Nf3'], 2)
+  })
+})
+
+// ---------- The move you played (#151) ----------
+
+describe('PlayedLinePanel', () => {
+  const played = {
+    fen: WHITE_TO_MOVE,
+    san: 'a3',
+    // The engine hands this back on the *mover's* perspective; White is to move
+    // here, so it reaches the screen unchanged.
+    score: { type: 'cp' as const, value: -85 },
+    pv: ['e7e5', 'e2e4'],
+  }
+
+  it('leads with your move, then the engine’s answer to it', () => {
+    const { container } = render(<PlayedLinePanel {...played} />)
+    expect(container.querySelector('.line-pv')?.textContent).toBe('a3 e5 e4')
+    expect(container.querySelector('.line-score')?.textContent).toBe('−0.85')
+  })
+
+  it('negates when Black is to move, so it agrees with the bar beside it', () => {
+    // The trap in the whole feature: UCI is side-to-move relative, and a Black
+    // move's score reaches here with the opposite sign to the eval bar.
+    const { container } = render(
+      <PlayedLinePanel fen={BLACK_TO_MOVE} san="e5" score={{ type: 'cp', value: -85 }} pv={['g1f3']} />,
+    )
+    expect(container.querySelector('.line-score')?.textContent).toBe('+0.85')
+    expect(container.querySelector('.line-pv')?.textContent).toBe('e5 Nf3')
+  })
+
+  it('is a line like any other: each move walks the board, rooted at the game position', () => {
+    const onPickMove = vi.fn()
+    const { container } = render(<PlayedLinePanel {...played} onPickMove={onPickMove} />)
+    const moves = [...container.querySelectorAll<HTMLButtonElement>('.line-move')]
+    expect(moves.map((b) => b.textContent)).toEqual(['a3', 'e5', 'e4'])
+    act(() => moves[0]!.click())
+    // Same handler, same reducer, same root as an engine line — which is what
+    // lets one click move between your move and the engine's.
+    expect(onPickMove).toHaveBeenCalledWith(WHITE_TO_MOVE, ['a3', 'e5', 'e4'], 0)
+  })
+
+  it('cannot be read as one of the engine’s ranked lines', () => {
+    const { container } = render(<PlayedLinePanel {...played} />)
+    // Its own block with its own heading, and nothing wearing the "best line"
+    // class the engine's top line wears. One of the two panels on this screen is
+    // the mistake, and telling them apart must not require reading carefully.
+    expect(container.querySelector('.played-line')).not.toBeNull()
+    expect(container.querySelector('.lines')).toBeNull()
+    expect(container.querySelector('.line.best')).toBeNull()
+    expect(container.textContent).toContain('The move you played')
+    expect(container.textContent).toContain('not its advice')
+  })
+
+  it('says the tier is still the verdict, so two numbers cannot read as two grades', () => {
+    // ADR 0010 / constitution §9: the grade is win% swing. Centipawns are extra
+    // information the reader asked for, and they must not look like a rival score.
+    const { container } = render(<PlayedLinePanel {...played} />)
+    expect(container.querySelector('.played-note')?.textContent).toContain('win% swing')
+  })
+
+  it('shows the move alone, and says why, when it ended the game', () => {
+    const { container } = render(<PlayedLinePanel {...played} pv={[]} />)
+    expect(container.querySelector('.line-pv')?.textContent).toBe('a3')
+    expect(container.textContent).toContain('nothing to play on')
+  })
+
+  it('renders nothing rather than half a claim when the move does not replay', () => {
+    const { container } = render(<PlayedLinePanel {...played} san="Qxh7" />)
+    expect(container.querySelector('.played-line')).toBeNull()
   })
 })
 

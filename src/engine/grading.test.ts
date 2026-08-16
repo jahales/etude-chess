@@ -4,10 +4,12 @@ import { evaluateAndGrade } from './grading'
 import { limitString, DEFAULT_NODES, type Analyser } from './analyser'
 import type { EngineEvaluation } from '../domain/types'
 
-/** Scripted analyser: returns a canned evaluation per FEN. */
+/** Scripted analyser: returns a canned evaluation per FEN, counting the searches. */
 class FakeAnalyser implements Analyser {
+  searches: string[] = []
   constructor(private byFen: Record<string, EngineEvaluation>) {}
   evaluate(fen: string): Promise<EngineEvaluation> {
+    this.searches.push(fen)
     return Promise.resolve(this.byFen[fen] ?? { score: { type: 'cp', value: 0 }, bestMove: null })
   }
   analyseLines(): Promise<[]> {
@@ -73,5 +75,48 @@ describe('evaluateAndGrade', () => {
     expect(g.playedScoreMover).toEqual({ type: 'mate', value: 1 })
     expect(g.grade.tier).toBe('A')
     expect(g.grade.swing).toBe(0)
+  })
+})
+
+// ---------- the continuation after your move (#151) ----------
+
+describe('the line after the move you played', () => {
+  it('keeps the second search’s pv instead of dropping it, and adds no third search', async () => {
+    const fen = START
+    const after = afterFen(fen, 'a3')
+    const analyser = new FakeAnalyser({
+      [fen]: { score: { type: 'cp', value: 30 }, bestMove: 'g1f3', pv: ['g1f3', 'd7d5'] },
+      // Black to move after 1.a3, and the engine says how it punishes it.
+      [after]: { score: { type: 'cp', value: 280 }, bestMove: 'e7e5', pv: ['e7e5', 'e2e4', 'g8f6'] },
+    })
+    const g = await evaluateAndGrade(analyser, fen, 'a3')
+
+    expect(g.afterPv).toEqual(['e7e5', 'e2e4', 'g8f6'])
+    // The whole point of #151: the continuation is already paid for. Two
+    // searches — the position, then the position after the move — and a third
+    // would be a 50% cost increase on every committed move.
+    expect(analyser.searches).toEqual([fen, after])
+  })
+
+  it('falls back to the best move alone when the adapter reports no pv', async () => {
+    const fen = START
+    const analyser = new FakeAnalyser({
+      [fen]: { score: { type: 'cp', value: 30 }, bestMove: 'g1f3' },
+      [afterFen(fen, 'a3')]: { score: { type: 'cp', value: 280 }, bestMove: 'e7e5' },
+    })
+    const g = await evaluateAndGrade(analyser, fen, 'a3')
+    expect(g.afterPv).toEqual(['e7e5'])
+  })
+
+  it('has no continuation after a move that ended the game', async () => {
+    const chess = new Chess()
+    for (const m of ['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6']) chess.move(m)
+    const fen = chess.fen()
+    const analyser = new FakeAnalyser({
+      [fen]: { score: { type: 'cp', value: 900 }, bestMove: 'h5f7', pv: ['h5f7'] },
+    })
+    const g = await evaluateAndGrade(analyser, fen, 'Qxf7#')
+    expect(g.afterPv).toEqual([])
+    expect(analyser.searches).toEqual([fen]) // terminal: never asked at all
   })
 })

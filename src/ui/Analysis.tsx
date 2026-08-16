@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import type { AnalysisLine } from '../engine/analyser'
 import type { Material } from '../domain/material'
-import { pvToSan, whiteScoreLabel } from '../domain/notation'
+import { playedLineToSan, pvToSan, whiteScoreLabel } from '../domain/notation'
+import type { Score } from '../domain/types'
 import { sideToMoveOf } from '../domain/replay'
 import {
   explorationFen,
@@ -110,6 +111,83 @@ export function LinesPanel({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/**
+ * The move **you** played: what it leaves on the board, and how the engine says
+ * the game goes on from there (#151).
+ *
+ * Three things this has to get right, and each is a way of misleading a reader
+ * who is looking at the engine's ranked lines a centimetre below:
+ *
+ * 1. **It is not a recommendation.** It sits under its own heading, in your
+ *    colour — the amber the board already draws your move in — and never inside
+ *    "Engine lines". One of the two panels is the mistake, and which one must
+ *    never be a matter of reading carefully.
+ * 2. **It is not the grade.** The verdict is the tier above, from win% swing
+ *    (ADR 0010, constitution §9); this is a centipawn number, which is a
+ *    different question with a different scale. The caption says so, because two
+ *    numbers side by side otherwise read as two attempts at the same one.
+ * 3. **The score is White's**, like the bar, the chip and the lines. `score`
+ *    arrives normalised to the *mover*, so with Black to move it has the
+ *    opposite sign to what belongs on screen.
+ *
+ * It is a line like any other, so `onPickMove` walks it exactly as an engine
+ * line is walked: same handler, same reducer, rooted at the same position — the
+ * played move is simply its first ply.
+ */
+export function PlayedLinePanel({
+  fen,
+  san,
+  score,
+  pv,
+  onPickMove,
+}: {
+  /** The game position the move was played in — the line's root. */
+  fen: string
+  san: string
+  /** The eval after your move, from the mover's perspective. */
+  score: Score
+  /** The engine's continuation, UCI, from the position after your move. */
+  pv: string[]
+  onPickMove?: (fen: string, moves: string[], ply: number) => void
+}) {
+  const sideToMove = sideToMoveOf(fen)
+  const moves = playedLineToSan(fen, san, pv)
+  if (moves.length === 0) return null
+  return (
+    <div className="played-line">
+      <div className="lines-head played-head">
+        <span className="swatch user" /> The move you played
+      </div>
+      <div className="line played">
+        <span className="line-score mono">{whiteScoreLabel(score, sideToMove)}</span>
+        <span className="line-pv mono">
+          {onPickMove
+            ? moves.map((m, ply) => (
+                <button
+                  key={ply}
+                  type="button"
+                  className="line-move"
+                  onClick={() => onPickMove(fen, moves, ply)}
+                  title="Play your move out on the board"
+                >
+                  {m}
+                </button>
+              ))
+            : moves.join(' ')}
+        </span>
+      </div>
+      <p className="played-note">
+        {moves.length > 1
+          ? 'Where the engine says your move leads — its answer, not its advice.'
+          : 'Your move ended the game, so there is nothing to play on.'}{' '}
+        The score is the position your move leaves, read from White&apos;s side. It comes from its
+        own search, so it can sit a little apart from the same move inside an engine line. The
+        verdict is still the tier above — win% swing, not pawns.
+      </p>
     </div>
   )
 }

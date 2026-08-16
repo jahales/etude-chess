@@ -384,7 +384,10 @@ Orchestration: **pure reducers/derivations** plus the hooks that bind them to as
 - `src/engine/analyser.ts` — the **`Analyser` port**. Grading depends only on it.
 - `src/engine/stockfish.ts` — `StockfishAnalyser` adapter (WASM Worker, serialized UCI);
   `uci.ts` (pure parsers, also loaded by the Node scripts), `grading.ts` (evaluate best + played
-  → win%-swing), `evalTable.ts` (parses Stockfish's `eval` piece-value grid — the closest a
+  → win%-swing; **two searches, and it stays two** — `GradedMove.afterPv` is the second search's
+  own principal variation, which #151 kept instead of dropping, so the continuation after your
+  move costs nothing and a third search would be a 50% rise on every committed move),
+  `evalTable.ts` (parses Stockfish's `eval` piece-value grid — the closest a
   modern engine comes to explaining itself, and best read on a trade, where it prices both
   pieces).
 - `src/engine/maia/` — the **`MaiaOpponent` port** (`opponent.ts`) + the **`MaiaOnnxOpponent`**
@@ -434,7 +437,12 @@ the shared "who are you" fold (#130), used by review and by the study control.
 `Database.tsx` is the attach-a-PGN screen (#53): filters shown
 *before* the import runs, per-reason skip counts after it, what is attached, and the note that an
 import is never the only copy. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
-material strip and engine lines; `Library.tsx` is the stored-game table **and** the replay
+material strip, engine lines and — since #151 — `PlayedLinePanel`, **the move you played**: the
+score of the position it leaves and the engine's answer to it, which the second grading search had
+always computed and thrown away (see `engine/grading.ts` below). It lives beside `LinesPanel`
+rather than in `Reveal.tsx` on purpose: the two panels sit a centimetre apart, one of them is the
+mistake, and the styling that keeps them apart is only checkable if it is written in one file.
+`Library.tsx` is the stored-game table **and** the replay
 screen — replay reads stored data by default but can drive the engine on request (one position,
 or the whole-game pass). It also renders the **blunder rate** (#65) above the table, with its
 sample and caveats in the same block and a per-row count so the total is checkable rather than
