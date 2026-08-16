@@ -447,7 +447,14 @@ screen — replay reads stored data by default but can drive the engine on reque
 or the whole-game pass). It also renders the **blunder rate** (#65) above the table, with its
 sample and caveats in the same block and a per-row count so the total is checkable rather than
 asserted; ADR [0027](decisions/0027-blunder-rate-as-the-leading-indicator.md) governs the
-framing, and it is the feature. `format.ts` and `useBoardWidth.ts` are the shared trivia.
+framing, and it is the feature. `format.ts` is the shared trivia; `useBoardWidth.ts` is not —
+it is half of how the board is sized (#150). CSS caps the board against the viewport *height* as
+well as its column's width (`--board-cap` in `styles.css`), and the hook supplies the one term
+CSS cannot see — how far down the page the board starts — then reads back the pixel width the
+layout settled on, because `Chessboard` takes a number rather than a length. Sizing on width
+alone puts the board and its controls off the bottom of a short, wide window together. The
+invariants live in [`e2e/board-size.spec.ts`](../e2e/board-size.spec.ts); jsdom lays nothing out,
+so a unit test cannot tell a correctly sized board from a collapsed one.
 
 **Guess mode is almost the exception to that map: it has no file of its own.** Where every other
 mode names a component, guess-the-move lives *inline in `App.tsx`* — `GamePicker`, `Play` (board +
