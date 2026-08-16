@@ -7,6 +7,30 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **The move that led into the position, marked on the board (#160).** A quiz position arrived
+  with no indication of how it got there, so the first thing you did at every item was reconstruct
+  the opponent's last move from the board — work that teaches nothing and that every other chess
+  interface does for you. `QuizItem` now carries the SAN and UCI of the move played *into* each
+  position, recorded during the walk `buildQuiz` was already doing, and the board rings its two
+  squares. The turn line names it too ("· after 4…Bxf3"), since a ring says *which squares* and
+  cannot be read aloud by a screen reader.
+  - **It costs no engine call.** This is a display of something the game already knew; the
+    position, the move out and now the move in all come from the same replay.
+  - **A ring, not a fourth arrow, and not a colour** — decided by looking at a reveal with all
+    three arrows up. Green, blue and amber each already name a specific move there, so a fourth
+    hue would read as a fourth claim; a thin ink outline is a different *kind* of mark and settles
+    behind them. Lichess's and chess.com's yellow wash was tried first and does not survive this
+    board: the squares are warm brown, and on the destination square the piece covers most of what
+    the wash would tint.
+  - **Absent renders as nothing.** A position with no move before it — the first of a game, or of
+    a `[SetUp]`/`[FEN]` one (#128) — draws no ring and prints no label, rather than an empty
+    highlight or a blank move. A quiz that starts mid-game (the default is ply 8) shows the real
+    move from the game, since the replay passes through every earlier ply on its way.
+  - **The mark comes down when the board leaves the position**, the same rule the reveal's arrows
+    follow: with your move previewed on the board, or a line being walked (#131), those two
+    squares would be describing a position that is no longer on screen.
+  - It lives on `BoardPanel`, so "how did this position arrive" is a fact any screen with a board
+    can ask for rather than something the guess screen alone knows how to draw.
 - **The score and the continuation for the move *you* played, beside the engine's lines (#151).**
   The reveal could tell you a move cost you 10% of your winning chances and show you three lines
   that were not the one you played. What it could never show was the reply — and the reply is the

@@ -1,8 +1,9 @@
-import { useState, type ComponentProps, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ComponentProps, type ReactNode } from 'react'
 import { Chessboard } from 'react-chessboard'
 import { materialBalance } from '../domain/material'
 import type { Color } from '../domain/types'
 import { EvalBar, MaterialStrip } from './Analysis'
+import { lastMoveSquareStyles } from './format'
 import { useBoardWidth } from './useBoardWidth'
 
 type ChessboardProps = ComponentProps<typeof Chessboard>
@@ -28,6 +29,8 @@ export function BoardPanel({
   showEvalBar = true,
   showMaterial = true,
   offGame,
+  lastMove,
+  customSquareStyles,
   children,
   ...board
 }: {
@@ -47,12 +50,37 @@ export function BoardPanel({
    * actually occurred is the failure worth spending a ribbon on.
    */
   offGame?: { label: string; onLeave?: () => void }
+  /**
+   * UCI of the move that produced `fen`, marked on its two squares (#160).
+   *
+   * It lives here rather than on the guess screen for the reason the rest of
+   * this component exists: "how did this position arrive" is a fact about a
+   * board, and a board is shared. Absent — the first position of a game, or a
+   * screen that has not adopted it — draws nothing.
+   *
+   * The caller owns the *when*: pass it only while `fen` is the position that
+   * move actually led to, never against a line being walked or a move being
+   * previewed.
+   */
+  lastMove?: string | null
   /** Controls that belong under the board (turn line, replay transport). */
   children?: ReactNode
 } & Omit<ChessboardProps, 'id' | 'position' | 'boardWidth' | 'boardOrientation'>) {
   const { ref, width } = useBoardWidth()
   const [flipped, setFlipped] = useState(false)
   const whiteBottom = orientedFor === 'w' ? !flipped : flipped
+
+  // Merged per square, not replaced: a square can be both the one you just
+  // picked up and one the last move touched, and it should still say both.
+  // The caller's style wins on the properties it sets, since it is the live
+  // interaction and the mark is context.
+  const squareStyles = useMemo(() => {
+    const merged: Record<string, CSSProperties> = lastMoveSquareStyles(lastMove)
+    for (const [square, style] of Object.entries(customSquareStyles ?? {})) {
+      merged[square] = { ...merged[square], ...style }
+    }
+    return merged
+  }, [lastMove, customSquareStyles])
 
   return (
     <div className={`board-col ${offGame ? 'off-game' : ''}`}>
@@ -76,6 +104,7 @@ export function BoardPanel({
             boardWidth={width}
             boardOrientation={whiteBottom ? 'white' : 'black'}
             customBoardStyle={{ borderRadius: '6px' }}
+            customSquareStyles={squareStyles}
             {...board}
           />
         </div>

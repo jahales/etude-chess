@@ -44,6 +44,22 @@ export interface QuizItem {
   masterMoveSan: string
   /** The same move, UCI/LAN (e.g. "e2e4"). Same caveat about the name. */
   masterMoveUci: string
+  /**
+   * The move played *into* this position, SAN — at a quiz item always the
+   * opponent's, since a quizzed position is one where it is the hero's turn.
+   *
+   * **Absent means there was no move**: the position is the first one the game
+   * replays from, either its opening position or the `[SetUp]`/`[FEN]` one it
+   * declared (#128). Absent must therefore render as nothing at all — an empty
+   * highlight would claim a move that was never played (#160).
+   *
+   * Optional rather than nullable so a reader of a stored or hand-built item
+   * cannot tell "not recorded" from "no such move" — there is only one state
+   * here, and both mean the same thing: draw nothing.
+   */
+  priorMoveSan?: string
+  /** The same move, UCI/LAN — the from/to squares the board highlights. */
+  priorMoveUci?: string
 }
 
 export interface QuizOptions {
@@ -109,6 +125,10 @@ export function buildQuiz(sanMoves: string[], options: QuizOptions): QuizItem[] 
   const startPly = options.startPly ?? DEFAULT_START_PLY
   const chess = options.startFen ? new Chess(options.startFen) : new Chess()
   const items: QuizItem[] = []
+  // The move that led into the position now on the board — carried along the
+  // walk the loop is already doing, so recording it costs nothing (#160). It
+  // stays undefined for exactly one position: the one the replay starts from.
+  let prior: { san: string; uci: string } | undefined
   for (let ply = 0; ply < sanMoves.length; ply++) {
     const san = sanMoves[ply]!
     const sideToMove = chess.turn() as Color
@@ -123,8 +143,12 @@ export function buildQuiz(sanMoves: string[], options: QuizOptions): QuizItem[] 
         sideToMove,
         masterMoveSan: san,
         masterMoveUci: applied.lan,
+        // Spread rather than assigned, so an item with no move before it has no
+        // key at all instead of an `undefined` one pretending to be a value.
+        ...(prior ? { priorMoveSan: prior.san, priorMoveUci: prior.uci } : {}),
       })
     }
+    prior = { san, uci: applied.lan }
   }
   return items
 }

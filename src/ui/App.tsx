@@ -56,6 +56,7 @@ import {
   uciSquares,
   sideName,
   moveLabel,
+  priorMoveLabel,
 } from './format'
 
 const PROMO_GLYPH: Record<string, string> = { q: '♛', r: '♜', b: '♝', n: '♞' }
@@ -632,6 +633,13 @@ function Play({
   const picked = phase === 'reveal' ? explore.selected : selected
   const squareStyles = picked ? { [picked]: { background: 'rgba(53, 96, 73, 0.35)' } } : undefined
 
+  // How the position arrived (#160). Marked only while the board *is* that
+  // position: with your move previewed on it, or a line being walked, the two
+  // squares would be describing a position that is no longer on screen — the
+  // same reason the reveal's arrows come down when the exploration leaves.
+  const onGamePosition = boardFen === item.fen
+  const priorLabel = priorMoveLabel(item)
+
   const arrows: Arrows = useMemo(() => {
     // The reveal's arrows name squares in the *game* position. Left on screen
     // they would point at whatever now happens to sit there — engine output
@@ -672,6 +680,7 @@ function Play({
         onSquareClick={phase === 'reveal' ? explore.clickSquare : onClickSquare}
         customArrows={arrows}
         customSquareStyles={squareStyles}
+        lastMove={onGamePosition ? item.priorMoveUci : null}
       >
         {explore.exploration ? (
           <ExplorationControls explore={explore} />
@@ -679,6 +688,15 @@ function Play({
           <>
             <span className="mono">{moveLabel(item.moveNumber, item.sideToMove)}</span>{' '}
             {sideName(item.sideToMove)} to move · position {index + 1} of {session.quiz.length}
+            {/* The ring on the board says which squares; this says which move,
+                and is the only form of it a screen reader can read. Nothing at
+                all when nothing was played into this position. */}
+            {priorLabel && (
+              <>
+                {' · after '}
+                <span className="mono last-move">{priorLabel}</span>
+              </>
+            )}
           </>
         )}
       </BoardPanel>
