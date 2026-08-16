@@ -895,6 +895,23 @@ button {
   color: var(--ink-faint);
 }
 
+/* Skipping ahead to the next move that changed the result (#161). Below the
+   actions, quieter than either of them: it is a shortcut through the game, not
+   the way through it. The note carries the coverage caveat and is the only
+   thing rendered when there is nowhere to jump to. */
+.skip-ahead {
+  margin: 0.6rem 0 0;
+}
+.btn.skip {
+  font-size: 0.86rem;
+}
+.skip-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
 .source-note {
   margin: -0.7rem 0 1rem;
 }

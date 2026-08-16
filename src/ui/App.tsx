@@ -37,6 +37,8 @@ import {
   displayFen as selectDisplayFen,
   isLast,
   isPromotion,
+  nextImportant,
+  type SessionAnalysis,
   type SessionState,
 } from '../app/sessionMachine'
 import { BoardPanel, type Arrows } from './BoardPanel'
@@ -159,8 +161,12 @@ export function App() {
    * reveal, the grading and the explorable lines are identical either way: this
    * mode composes the existing session rather than adding a second one.
    */
-  const startGuess = (g: PackGame, focusPlies?: readonly number[]) => {
-    guess.startGame(g, focusPlies)
+  const startGuess = (
+    g: PackGame,
+    focusPlies?: readonly number[],
+    analysis?: SessionAnalysis,
+  ) => {
+    guess.startGame(g, focusPlies, analysis)
     setMode('guess')
   }
   const openReview = (game: DbGame) => {
@@ -312,6 +318,7 @@ export function App() {
             onReasonChange={guess.setReason}
             onCommit={guess.commit}
             onNext={guess.next}
+            onSkipToImportant={guess.skipToImportant}
           />
         )}
         {mode === 'guess' && gstate.screen === 'summary' && gstate.session && (
@@ -607,6 +614,7 @@ function Play({
   onReasonChange,
   onCommit,
   onNext,
+  onSkipToImportant,
 }: {
   state: SessionState
   engine: AnalyserState
@@ -618,6 +626,7 @@ function Play({
   onReasonChange: (r: string) => void
   onCommit: () => void
   onNext: () => void
+  onSkipToImportant: () => void
 }) {
   const session = state.session!
   const { phase, pending, reason, result, lines, positionWhitePct, selected, index } = state
@@ -764,12 +773,19 @@ function Play({
           <>
             {/* The source file's note on this move, when it wrote one (#55). It
                 renders below our "why" and clearly attributed — never merged
-                into it. A game with no note reveals exactly as it always has. */}
+                into it. A game with no note reveals exactly as it always has.
+
+                `skip` is null on the critical-positions path and on the curated
+                pack, where the control must not appear at all (#161): there is
+                nothing to skip past in a list that was selected for mattering,
+                and nothing to skip *by* in a game no pass has ever scored. */}
             <Reveal
               fb={result.fb}
               item={item}
               note={annotationAt(session.game, item.ply)}
               {...(result.resultShift ? { resultShift: result.resultShift } : {})}
+              skip={nextImportant(state)}
+              onSkip={onSkipToImportant}
               onNext={onNext}
               last={isLast(state)}
             />

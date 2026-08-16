@@ -7,7 +7,8 @@ import type { Attempt } from '../domain/session'
 import type { GradedMove } from '../engine/grading'
 import type { AnalysisLine } from '../engine/analyser'
 import type { Color, Score, Wdl } from '../domain/types'
-import { whiteWdl } from '../domain/resultCategory'
+import type { PositionEval } from '../domain/gameRecord'
+import { nextImportantMove, whiteWdl, type NextImportant } from '../domain/resultCategory'
 
 // The application layer (ADR 0015): a *pure* reducer for the guess→commit→grade→
 // reveal→next state machine. No engine calls, no I/O, no Date.now — the async
@@ -16,11 +17,37 @@ import { whiteWdl } from '../domain/resultCategory'
 
 export const OPENING_CUTOFF_PLY = 8
 
+/**
+ * What a completed pass over this game already knows (#161).
+ *
+ * Carried on the session so the reveal can offer to skip *forward* — which
+ * needs evaluations for positions the learner has not reached, and those exist
+ * only because #133's pass computed them. Optional, because the curated pack
+ * has no pass and never will.
+ */
+export interface SessionAnalysis {
+  /** `evalByPly[p]` is the evaluation after move `p`, White's. Sparse on purpose. */
+  evalByPly: readonly (PositionEval | undefined)[] | undefined
+  startEval?: PositionEval
+}
+
 export interface Session {
   game: PackGame
   quiz: QuizItem[]
   heroColor: Color
   opening: string | null
+  /**
+   * True when the caller chose the plies (#144's critical positions).
+   *
+   * Recorded rather than re-derived because the skip control must not appear on
+   * that path: every position in a focused session was selected *because* it
+   * cost win%, so "skip to the next important move" would be offering to skip
+   * past a list of important moves. Whole-game is the only session where some
+   * questions are worth more of your attention than others.
+   */
+  focused: boolean
+  /** The pass's evaluations, when this game has been analysed. */
+  analysis?: SessionAnalysis
 }
 export interface PendingMove {
   san: string
@@ -121,6 +148,11 @@ export type Action =
        * session drift apart with nothing to notice it.
        */
       focusPlies?: readonly number[]
+      /**
+       * What a completed pass already computed for this game (#161). Absent for
+       * the curated pack, and for a game nobody has analysed.
+       */
+      analysis?: SessionAnalysis
     }
   | { type: 'GO_HOME' }
   | { type: 'CLICK_SQUARE'; square: string }
@@ -133,6 +165,8 @@ export type Action =
   | { type: 'GRADING_FAILED' }
   | { type: 'SET_POSITION_EVAL'; whitePct: number | null }
   | { type: 'NEXT' }
+  /** Jump forward to the next question whose move changed the result (#161). */
+  | { type: 'SKIP_TO_IMPORTANT' }
 
 // ---------- selectors ----------
 
@@ -146,6 +180,45 @@ export function displayFen(state: SessionState): string {
 }
 export function isLast(state: SessionState): boolean {
   return !!state.session && state.index + 1 >= state.session.quiz.length
+}
+
+/**
+ * Where "skip to the next important move" would land, or **null when the
+ * control has no business existing** (#161).
+ *
+ * Two different nulls collapsed into one on purpose, because both mean "do not
+ * render this", and neither may be turned into a sentence:
+ *
+ * - a **focused** session — #144's critical positions, where every question was
+ *   already chosen for costing win%. Offering to skip ahead there implies some
+ *   of them are filler.
+ * - a session with **no pass behind it** — the curated pack. Nothing has ever
+ *   computed a WDL for those positions, so there is no question to answer.
+ *
+ * What it must never do is collapse the *third* case, which is a real answer and
+ * is returned rather than nulled: a game that was analysed, where the positions
+ * ahead have no recorded WDL. That is "we cannot tell", and `NextImportant`
+ * keeps the counts a screen needs to say so instead of saying "nothing left".
+ *
+ * **This is not the same reading as `Result.resultShift`, and the two are never
+ * differenced against each other.** They answer different questions about
+ * different moves: `resultShift` is the move *you* played, measured by the live
+ * grading searches, while this is the move played *in the game*, measured by the
+ * stored pass at the pass's budget. On a position where you matched the game
+ * they can still disagree, because the budgets differ — and comparing
+ * evaluations from two budgets manufactures swings out of nothing
+ * (docs/architecture.md). Each comparison stays inside the pass that produced
+ * both of its halves, which is what keeps that rule intact here.
+ */
+export function nextImportant(state: SessionState): NextImportant | null {
+  const session = state.session
+  if (!session || session.focused || !session.analysis) return null
+  return nextImportantMove({
+    plies: session.quiz.map((item) => item.ply),
+    fromIndex: state.index,
+    evalByPly: session.analysis.evalByPly,
+    ...(session.analysis.startEval ? { startEval: session.analysis.startEval } : {}),
+  })
 }
 
 // ---------- reducer ----------
@@ -220,7 +293,14 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       return {
         ...initialState,
         screen: 'play',
-        session: { game: action.game, quiz, heroColor, opening },
+        session: {
+          game: action.game,
+          quiz,
+          heroColor,
+          opening,
+          focused: !!focus,
+          ...(action.analysis ? { analysis: action.analysis } : {}),
+        },
         sessionId: action.sessionId,
       }
     }
@@ -334,6 +414,28 @@ export function sessionReducer(state: SessionState, action: Action): SessionStat
       const cleared = { ...state, pending: null, selected: null, reason: '', result: null, lines: [] }
       if (isLast(state)) return { ...cleared, screen: 'summary' }
       return { ...cleared, index: state.index + 1, phase: 'guess', positionWhitePct: null }
+    }
+
+    case 'SKIP_TO_IMPORTANT': {
+      const target = nextImportant(state)?.target
+      // No target is not an error and not a summary: the control is disabled in
+      // that case, and a stray dispatch must leave the learner exactly where
+      // they are rather than ending their session for them.
+      if (!target) return state
+      return {
+        ...state,
+        // The same clearing `NEXT` does, for the same reason — every one of
+        // these belongs to the position being left behind, and `positionWhitePct`
+        // in particular is an engine reading of a board that is about to change.
+        pending: null,
+        selected: null,
+        reason: '',
+        result: null,
+        lines: [],
+        positionWhitePct: null,
+        index: target.index,
+        phase: 'guess',
+      }
     }
 
     default:

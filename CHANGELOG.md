@@ -32,6 +32,36 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
     green "the result held" beside a Mistake badge would read as a kinder second opinion (ADR
     [0010](docs/decisions/0010-engine-architecture.md), constitution §9). And it is labelled as
     the engine's expectancy for the position, not a prediction about your game (§12).
+- **Skip to the next move that actually changed the result (#161).** A whole-game review asks
+  about every decision you had, and most of them were not decisions: on a real game the pass finds
+  roughly four moves that mattered among thirty questions. The reveal now offers to jump straight
+  to the next one — where "one that mattered" is the owner's criterion, *the win/draw/loss picture
+  changed*, not *the win% swing was large*. Driven end to end on a 14-move loss, it skipped four
+  positions that cost win% without changing anything and landed on move 10, the move the game
+  turned on.
+  - **The rule is `domain/resultCategory.ts`, pure and tested**, beside `keyMoments.ts` and
+    `grade.ts` where the other judgments live. A position's result is whichever outcome holds a
+    **majority** — more likely than the other two together, which needs no tuning constant and can
+    never name two results at once. The threshold's one real weakness is written down beside it: a
+    category change is a boundary crossing, not a distance.
+  - **It decides navigation and never a tier.** No second grading scale (ADR
+    [0010](docs/decisions/0010-engine-architecture.md), constitution §9) — which is why the rule
+    returns a boolean rather than a magnitude, so there is no "how much" to be tempted into
+    ranking by.
+  - **It never confuses "nothing left" with "we never looked".** The distinction #132 was careful
+    about: a position with no recorded WDL is *unmeasurable*, not *unchanged*. The control reports
+    what it could and could not measure, so a game whose pass predates WDL says "no win/draw/loss
+    recorded for the positions ahead — re-run the pass", not "no more important moves".
+  - **It does not appear on the critical-positions path** (#132/#144). Every position there was
+    selected for costing win%, so offering to skip past them would imply some are filler. Nor on
+    the curated pack, which has no pass behind it and so has no claim to make either way.
+  - **Real WDL is stored, not approximated from win%.** The issue offered both; a cp→win% sigmoid
+    has no term for draw likelihood, so opposite-coloured bishops at +2.0 would read as a win and
+    the approximation would fail in exactly the endgames the distinction exists for. It cost no
+    schema version: `dbAnalysis` is keyed on `key` alone and an evaluation is an unindexed value
+    inside the record, so a new optional field is read back by old and new code alike — the
+    forward-compatible-records rule doing its job, and why this needed no change to
+    `src/persist/**`.
 - **The move that led into the position, marked on the board (#160).** A quiz position arrived
   with no indication of how it got there, so the first thing you did at every item was reconstruct
   the opponent's last move from the board — work that teaches nothing and that every other chess

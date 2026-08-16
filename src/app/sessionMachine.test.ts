@@ -5,12 +5,15 @@ import {
   currentItem,
   displayFen,
   isLast,
+  nextImportant,
   resolveMove,
   OPENING_CUTOFF_PLY,
+  type SessionAnalysis,
   type SessionState,
 } from './sessionMachine'
 import { DEFAULT_START_PLY } from '../domain/harness'
 import { GAMES } from '../content/games'
+import type { PositionEval } from '../domain/gameRecord'
 import type { GradedMove } from '../engine/grading'
 
 const opera = GAMES.find((g) => g.id === 'opera-1858')!
@@ -153,7 +156,7 @@ describe('promotion', () => {
     const s0: SessionState = {
       ...initialState,
       screen: 'play',
-      session: { game: opera, quiz: [promoItem], heroColor: 'w', opening: null },
+      session: { game: opera, quiz: [promoItem], heroColor: 'w', opening: null, focused: false },
       sessionId: 's',
     }
     const s1 = sessionReducer(s0, { type: 'TRY_MOVE', from: 'a7', to: 'a8' })
@@ -306,5 +309,111 @@ describe('the result either side of your move', () => {
       whitePct: 80,
     })
     expect(sessionReducer(s, { type: 'NEXT' }).result).toBeNull()
+  })
+})
+
+// ---------- skipping to the next important move (#161) ----------
+
+describe('skipping ahead to the next move that changed the result', () => {
+  /**
+   * A pass over the opera game where exactly one of the hero's moves turns a
+   * win into a draw. Built off the real quiz so the plies are the ones the
+   * session actually asks about.
+   */
+  function analysed(target: number, opts: { wdl?: boolean } = {}) {
+    const base = started()
+    const plies = base.session!.quiz.map((q) => q.ply)
+    const last = plies[plies.length - 1]!
+    const evalByPly: (PositionEval | undefined)[] = []
+    for (let ply = 0; ply <= last; ply++) {
+      // Winning for White until the target move, a dead draw after it.
+      const won = ply < target
+      evalByPly[ply] = {
+        whitePct: won ? 92 : 50,
+        label: won ? '+4.0' : '0.0',
+        ...(opts.wdl === false
+          ? {}
+          : { wdl: won ? { win: 900, draw: 90, loss: 10 } : { win: 20, draw: 960, loss: 20 } }),
+      }
+    }
+    const startEval: PositionEval = {
+      whitePct: 92,
+      label: '+4.0',
+      ...(opts.wdl === false ? {} : { wdl: { win: 900, draw: 90, loss: 10 } }),
+    }
+    return { plies, analysis: { evalByPly, startEval } }
+  }
+
+  const sessionWith = (analysis: SessionAnalysis, focusPlies?: readonly number[]): SessionState =>
+    sessionReducer(initialState, {
+      type: 'START_GAME',
+      game: opera,
+      sessionId: 's',
+      analysis,
+      ...(focusPlies ? { focusPlies } : {}),
+    })
+
+  it('jumps to the question whose move changed the result', () => {
+    const quiz = started().session!.quiz
+    const { plies, analysis } = analysed(quiz[2]!.ply)
+    const s = sessionWith(analysis)
+    const jumped = sessionReducer(s, { type: 'SKIP_TO_IMPORTANT' })
+    // Straight past questions 1 and 2, which cost win% but left the result
+    // where it was — the whole point of the control.
+    expect(jumped.index).toBe(2)
+    expect(currentItem(jumped)!.ply).toBe(plies[2])
+    expect(jumped.phase).toBe('guess')
+  })
+
+  it('clears the reveal it is leaving behind', () => {
+    // Engine/board sync: every one of these was computed for the position being
+    // jumped away from, and `positionWhitePct` is an engine reading of a board
+    // that is about to change.
+    const quiz = started().session!.quiz
+    const { analysis } = analysed(quiz[2]!.ply)
+    let s = sessionWith(analysis)
+    s = sessionReducer(s, { type: 'TRY_MOVE', from: 'd1', to: 'f3' })
+    s = sessionReducer(s, { type: 'SET_REASON', reason: 'a thought' })
+    s = sessionReducer(s, { type: 'GRADE_RESULT', graded: gradeA, lines: [], whitePct: 80 })
+    const jumped = sessionReducer(s, { type: 'SKIP_TO_IMPORTANT' })
+    expect(jumped.result).toBeNull()
+    expect(jumped.pending).toBeNull()
+    expect(jumped.reason).toBe('')
+    expect(jumped.lines).toEqual([])
+    expect(jumped.positionWhitePct).toBeNull()
+  })
+
+  it('is not offered at all on the critical-positions path', () => {
+    // Every position there was selected for costing win%; offering to skip past
+    // them implies some are filler (#132, #144).
+    const quiz = started().session!.quiz
+    const { analysis } = analysed(quiz[2]!.ply)
+    const focused = sessionWith(analysis, [quiz[0]!.ply, quiz[2]!.ply])
+    expect(focused.session!.focused).toBe(true)
+    expect(nextImportant(focused)).toBeNull()
+  })
+
+  it('is not offered on a game with no pass behind it', () => {
+    // The curated pack. Nothing has ever computed a WDL for these positions, so
+    // there is no question to answer and no sentence to say.
+    expect(nextImportant(started())).toBeNull()
+  })
+
+  it('reports "we could not measure it" rather than "nothing left" for an old pass', () => {
+    // A stored analysis that predates WDL being recorded. The distinction #132
+    // was careful about: this is not a game where nothing changed the result.
+    const quiz = started().session!.quiz
+    const { analysis } = analysed(quiz[2]!.ply, { wdl: false })
+    const s = sessionWith(analysis)
+    const next = nextImportant(s)!
+    expect(next.target).toBeNull()
+    expect(next.measured).toBe(0)
+    expect(next.unmeasured).toBeGreaterThan(0)
+  })
+
+  it('leaves the learner where they are when there is nowhere to jump', () => {
+    // A stray dispatch must not end the session or move the board.
+    const s = started()
+    expect(sessionReducer(s, { type: 'SKIP_TO_IMPORTANT' })).toBe(s)
   })
 })

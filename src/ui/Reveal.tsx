@@ -21,7 +21,12 @@ import { explain, factBundleToText, type FactBundle } from '../domain/factBundle
 import { moveWording } from '../domain/moveSource'
 import type { QuizItem } from '../domain/harness'
 import type { ResultShift } from '../app/sessionMachine'
-import { changedResultCategory, resultCategory, type ResultCategory } from '../domain/resultCategory'
+import {
+  changedResultCategory,
+  resultCategory,
+  type NextImportant,
+  type ResultCategory,
+} from '../domain/resultCategory'
 import { TIER_TEXT, TIER_CLASS } from './format'
 
 /** A note from the source file, and the file it came from. Never one without the other. */
@@ -35,7 +40,9 @@ export function Reveal({
   item,
   note,
   resultShift,
+  skip,
   onNext,
+  onSkip,
   last,
 }: {
   fb: FactBundle
@@ -44,7 +51,14 @@ export function Reveal({
   note?: SourceNote | null
   /** Win/draw/loss either side of your move, when the engine reported it (#161). */
   resultShift?: ResultShift
+  /**
+   * Where skipping ahead would land, and what could not be looked at (#161).
+   * Absent means the control has no business here — a critical-positions
+   * session, or a game with no pass behind it.
+   */
+  skip?: NextImportant | null
   onNext: () => void
+  onSkip?: () => void
   last: boolean
 }) {
   // What this game's own moves may be called (#158) — decided when the game was
@@ -97,6 +111,69 @@ export function Reveal({
           {last ? 'See summary' : 'Next position →'}
         </button>
       </div>
+      {skip && onSkip && <SkipAhead skip={skip} onSkip={onSkip} />}
+    </div>
+  )
+}
+
+/**
+ * "Skip to the next move that changed the result" (#161), and the three
+ * different reasons it might not be offered.
+ *
+ * The button is the easy half. The hard half is what to say when there is
+ * nowhere to jump to, because #132 established the distinction this has to
+ * preserve: **"no later move changed the result" is a claim, and "we could not
+ * measure the rest" is not the same sentence.** A game whose pass was
+ * interrupted, or whose stored evaluations predate WDL being recorded at all,
+ * has no answer to give — and quietly reporting "nothing more to skip to" would
+ * tell the reader they played a clean second half of a game nobody looked at.
+ * So the copy is driven off `measured`/`unmeasured`, never off the empty target
+ * alone.
+ *
+ * The wording never grades. It says which *positions* are ahead, not how bad
+ * any move was — the tier is the badge above, on the one scale this app has
+ * (ADR 0010, constitution §9).
+ */
+function SkipAhead({ skip, onSkip }: { skip: NextImportant; onSkip: () => void }) {
+  const { target, measured, unmeasured } = skip
+  // Nothing ahead at all — this is the last question, and `Next` already says
+  // "See summary". A note about skipping would be noise.
+  if (measured === 0 && unmeasured === 0) return null
+
+  if (target) {
+    return (
+      <div className="skip-ahead">
+        <button className="btn ghost skip" type="button" onClick={onSkip}>
+          Skip to the next move that changed the result →
+        </button>
+        {unmeasured > 0 && (
+          <p className="skip-note">
+            {unmeasured} of the {measured + unmeasured} positions ahead have no win/draw/loss
+            recorded, so this jumps to the next one we could measure — not necessarily the next
+            one there is.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="skip-ahead">
+      <p className="skip-note">
+        {measured === 0 ? (
+          <>
+            No win/draw/loss recorded for the {unmeasured} positions ahead, so there is nothing to
+            skip by. Re-run the analysis pass to record it.
+          </>
+        ) : unmeasured === 0 ? (
+          <>No later move in this game changed the result.</>
+        ) : (
+          <>
+            No later move changed the result, of the {measured} positions ahead we could measure.
+            The other {unmeasured} have no win/draw/loss recorded.
+          </>
+        )}
+      </p>
     </div>
   )
 }
