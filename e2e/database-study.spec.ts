@@ -29,7 +29,7 @@ test.describe('study a game from the attached database', () => {
   }) => {
     await page.goto('/')
     await page.getByRole('button', { name: /Your game database/ }).click()
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
     await expect(page.getByText(/Attached 2 games from sample\.pgn/)).toBeVisible({
       timeout: 30_000,
     })
@@ -75,7 +75,7 @@ test.describe('study a game from the attached database', () => {
   test('a game the file left unannotated reveals with no note at all', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('button', { name: /Your game database/ }).click()
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
     await expect(page.getByText(/Attached 2 games from sample\.pgn/)).toBeVisible({
       timeout: 30_000,
     })

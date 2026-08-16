@@ -25,7 +25,7 @@ test.describe('attach your own game database', () => {
     await page.getByRole('button', { name: /Your game database/ }).click()
     await expect(page.getByRole('heading', { name: 'Your game database' })).toBeVisible()
 
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
 
     // Two of the fixture's games are classical with a known-or-unknown clock;
     // the rest are blitz, a stub, or not games at all.
@@ -45,13 +45,13 @@ test.describe('attach your own game database', () => {
     await page.goto('/')
     await page.getByRole('button', { name: /Your game database/ }).click()
 
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
     await expect(page.getByText(/Attached 2 games/)).toBeVisible({ timeout: 30_000 })
 
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
     // The picker is disabled while an import runs, so this waits for the second
     // one to finish before counting.
-    await expect(page.locator('input[type="file"]')).toBeEnabled({ timeout: 30_000 })
+    await expect(page.locator('#pgn-file')).toBeEnabled({ timeout: 30_000 })
     await expect(page.getByRole('heading', { name: /^Attached \(2 games\)$/ })).toBeVisible()
 
     // Home reports the same count: importing twice is idempotent by the dedup
@@ -63,7 +63,7 @@ test.describe('attach your own game database', () => {
   test('detaching a database removes its games', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('button', { name: /Your game database/ }).click()
-    await page.locator('input[type="file"]').setInputFiles(FIXTURE)
+    await page.locator('#pgn-file').setInputFiles(FIXTURE)
     await expect(page.getByText(/Attached 2 games/)).toBeVisible({ timeout: 30_000 })
 
     page.once('dialog', (d) => void d.accept())
