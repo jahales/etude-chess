@@ -286,6 +286,37 @@ and `alekhine` share no prefix, so no prefix index can connect them.
 Opening a game goes through `App.tsx` (`openDbGame`), not through the database screen, because
 that is the seam #55 hangs off: studying an imported game is building a `PackGame` from the row.
 
+### Moving your history between profiles — `domain/historyArchive.ts` + `persist/historyArchive.ts` + `app/useHistoryTransfer.ts` (#152)
+Same split again, and the same reason `persist/storage.ts` is *not* where this went: that module
+is durability **within** a profile (it asks for persistent storage after you have made something
+worth keeping). This is **portability**, which nothing addressed — IndexedDB is per-origin and
+per-profile, so `localhost:5173` and `127.0.0.1:5173` do not share a byte.
+
+**The games are the cheap part**, and the module's shape follows from that. Since #145 a re-sync is
+one click; the analysis (#133) is minutes of engine per game and the **attempts** — answers, tiers,
+and the reason typed before each reveal — have no source to be re-derived from at all. So the
+attached database is behind its own switch, and its *analyses* travel whether or not it does.
+
+- **The format is JSON Lines** — a header, a record per row, a footer — because `JSON.stringify`
+  over 100k games builds the whole file as one string first, which is `content/pgnImport.ts`'s
+  whole-file-in-memory mistake in the other direction. Both ends stream; the export folds lines
+  into `Blob` parts so a large one leaves the JS heap.
+- **An import reads the file twice.** Pass one validates the version, every record type and the
+  footer's counts; pass two writes. That is what makes "refused whole, or applied whole" true
+  rather than aspirational — a training history missing an unknown fraction of itself is worse
+  than one that never arrived. Storage running out is the one exception and is reported as itself.
+- **Idempotency is per-table and each answer is different.** `dbGames` gets it free from the dedup
+  key (#128). An **attempt has no key at all**, so it is identified by its whole content
+  canonically serialised — the only records that collapse are byte-identical ones, which errs
+  towards keeping both. A played game's `gameId` is `m${Date.now()}`, unique on one machine and not
+  across two, so a clash with a *different* game lands at `~1` deterministically instead of
+  overwriting it.
+- **Two fields on an analysis are load-bearing and must survive the trip.** `startFen`, because the
+  dedup key hashes movetext but not the `[FEN]` tag, so an analysis is checked against the game now
+  under its key and dropped on a mismatch — the same answer `getDbAnalysis` gives. And
+  `analysisNodes`, because `gameAnalysis.supersedes` (#144) reads it: an import that lost the budget
+  would make a 4M pass look like a 400k one.
+
 ### Studying an imported game — `domain/studyGame.ts` + `ui/Reveal.tsx` (#55, plan §11)
 A mapping, not a mode. The guess session already runs on a `StudyGame` (which is what `PackGame`
 now *is* — the pack stopped being the only source of one), so `domain/studyGame.ts` turns a
@@ -433,7 +464,9 @@ plies `reviewPlan` selected or the whole game. Both go through the ordinary `sta
 the shared "who are you" fold (#130), used by review and by the study control.
 `Database.tsx` is the attach-a-PGN screen (#53): filters shown
 *before* the import runs, per-reason skip counts after it, what is attached, and the note that an
-import is never the only copy. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
+import is never the only copy. It also holds `HistoryTransferPanel` (#152) — export and import the
+history that cannot be re-fetched, with the size stated before a file is written and what a merge
+did stated after. `MaiaMode.tsx` is the play screen + coach; `Analysis.tsx` holds the eval bar,
 material strip and engine lines; `Library.tsx` is the stored-game table **and** the replay
 screen — replay reads stored data by default but can drive the engine on request (one position,
 or the whole-game pass). It also renders the **blunder rate** (#65) above the table, with its

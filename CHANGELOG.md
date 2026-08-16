@@ -7,6 +7,53 @@ this project uses [Semantic Versioning](https://semver.org). Updated as part of 
 ## [Unreleased]
 
 ### Added
+- **Export and import your history — the part that cannot be re-fetched (#152).** IndexedDB is
+  per-origin and per-profile, so nothing travelled: sync your games in one browser and the review
+  screen was empty in another, and `localhost:5173` and `127.0.0.1:5173` are two origins besides.
+  Durability *within* a profile was already handled (#78 asks for persistent storage); this is
+  portability, which nothing addressed. **Export** writes a file, **Import** merges it back, and
+  no backend is involved in either (ADR 0009): a download from the tab to your disk and a file
+  picker back.
+  - **The games are the cheap part, and the framing is the feature.** Since #145 a full re-sync
+    from chess.com is one click. What an export is *for* is the whole-game analysis (#133 —
+    minutes of Stockfish per game) and your **attempts**: the moves you committed, the tiers they
+    earned, and the free-text reason you typed before each reveal. There is no source anywhere to
+    re-derive an attempt from. The attached database rides along for convenience and offline use,
+    behind its own switch because it is the only part that can be gigabytes.
+  - **Merging, never replacing.** There is no path in the import that removes a row or replaces a
+    field with a worse one, and the summary says so in as many words. A completed analysis pass
+    only ever loses to a *completed deeper* one — the rule `gameAnalysis.supersedes` (#144)
+    already used to decide reuse, applied to two records instead of a record and a budget, with a
+    test pinning the two together.
+  - **Idempotent, with a test that proves it rather than assuming it.** Importing the same file
+    twice leaves one copy and reports "everything in that file was already here". Games in the
+    database get this free from the dedup key (#128); **attempts are identified by their whole
+    content**, canonically serialised, so the only records that collapse are byte-identical ones
+    and two attempts differing by one character of the typed reason both survive. A played game
+    whose `gameId` (`m${Date.now()}`) is already taken *by a different game* lands at `~1` rather
+    than on top of it, deterministically, so the second import finds its own row.
+  - **Versioned, and refused whole rather than half-applied.** An import reads the file **twice**:
+    pass one checks the header's format version, that every record is one we know how to file, and
+    that the footer is present and agrees with the body; only then does pass two write anything. A
+    file from a newer étude, a file that is not ours, a record type this build does not know, and
+    a truncated file are each refused with a sentence saying what happened and that nothing was
+    imported — because a training history missing an unknown fraction of itself is worse than one
+    that never arrived. The one thing that can still land part-way is storage running out, and
+    that is reported as itself, the same line `dbGames.ts` draws.
+  - **The size is on screen before the file is written.** Measured on a sample of your own rows
+    rather than assumed from a per-record constant, per section, with the attached database
+    separated out — 200 kB and 2 GB are both plausible exports and the difference is entirely how
+    many games are attached. The exact figure then goes on the control that saves it.
+  - **An analysis keeps both things that make it worth anything.** `startFen` travels, because the
+    dedup key hashes movetext but *not* the `[FEN]` tag (#133) — so an analysis is checked against
+    the game now stored under its key and filed as "not applicable" on a mismatch instead of
+    attaching minutes of engine work to a row it was never computed for. `analysisNodes` travels
+    because #144 hangs `supersedes` off it, and an import that lost it would make a 4M off-app
+    pass look like a 400k one and invite the app to redo it.
+  - **JSON Lines, not one JSON document.** `JSON.stringify` over 100k games builds the whole file
+    as a single string first — the same whole-file-in-memory mistake `content/pgnImport.ts` exists
+    to avoid, in the other direction. One JSON value per line streams at both ends, gives the
+    footer somewhere to live, and stays a file you can open in a text editor.
 - **Import your own chess.com games from inside the app (#145).** Reviewing your own games meant
   exporting a PGN from chess.com by hand and attaching it. Now you type your handle, tick which
   time controls to bring in, and press Sync. `api.chess.com` sends
