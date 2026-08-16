@@ -4,6 +4,7 @@ import type { MoveGrade } from './grade'
 // Extension deliberate — see the note in grade.ts. mistakeKind.ts pulls this in,
 // and the review script loads that under Node's type stripping.
 import { seeCaptureGain } from './see.ts'
+import { moveWording, AS_STRONG_AS_ENGINE, type MoveSource } from './moveSource.ts'
 
 // The "fact bundle": everything the coach knows about a move, computed in code.
 // v0.1.0 renders it as a rules-based "why"; later the same bundle is what an LLM
@@ -85,11 +86,19 @@ export interface FactBundle {
   sideToMove: Color
   userMoveSan: string
   bestMoveSan: string | null
-  masterMoveSan: string
+  /**
+   * The move actually played in the game at this position — by a master, by you,
+   * or by whoever else's game this is. `moveSource` is what says which, and
+   * nothing here may call it a master's without asking (#158).
+   */
+  gameMoveSan: string
+  /** Who played `gameMoveSan`, and so what every sentence below may call it. */
+  moveSource: MoveSource
   grade: MoveGrade
   /** The mover's pieces left hanging after the played move (heuristic). */
   hangingAfterMove: HangingPiece[]
-  matchedMaster: boolean
+  /** Your move *was* the game's move. Agreement, not a grade — the tier is the grade. */
+  matchedGameMove: boolean
 }
 
 export interface FactBundleInput {
@@ -99,7 +108,10 @@ export interface FactBundleInput {
   userMoveSan: string
   /** Engine best move (UCI/LAN), or null if unavailable. */
   bestMoveUci: string | null
-  masterMoveSan: string
+  /** The move played in the game (SAN) — `QuizItem.masterMoveSan`, historically named. */
+  gameMoveSan: string
+  /** Carried on the `StudyGame`, decided where the game was built (#158). */
+  moveSource: MoveSource
   grade: MoveGrade
 }
 
@@ -112,23 +124,29 @@ export function buildFactBundle(input: FactBundleInput): FactBundle {
     sideToMove,
     userMoveSan: applied.san,
     bestMoveSan: input.bestMoveUci ? uciToSan(input.fen, input.bestMoveUci) : null,
-    masterMoveSan: input.masterMoveSan,
+    gameMoveSan: input.gameMoveSan,
+    moveSource: input.moveSource,
     grade: input.grade,
     hangingAfterMove: hangingAfterMove(chess, sideToMove, applied),
-    matchedMaster: applied.san === input.masterMoveSan,
+    matchedGameMove: applied.san === input.gameMoveSan,
   }
 }
 
-/** A short, rules-based plain-language "why" for the reveal. */
+/**
+ * A short, rules-based plain-language "why" for the reveal.
+ *
+ * Two things here are claims rather than phrasing, and #158 got both wrong:
+ * **who played the game's move** (`moveWording`, never "the master" unless it
+ * was one) and **what graded yours** (Stockfish, never the game's move). So the
+ * Tier-A verdict for a move that differs from the game's is about the engine —
+ * "as strong as the master's choice" was measured against nothing of the sort.
+ */
 export function explain(b: FactBundle): string {
+  const w = moveWording(b.moveSource)
   const parts: string[] = []
 
   if (b.grade.tier === 'A') {
-    parts.push(
-      b.matchedMaster
-        ? "That's the move — you matched the master."
-        : "Solid — as strong as the master's choice.",
-    )
+    parts.push(b.matchedGameMove ? w.matched : AS_STRONG_AS_ENGINE)
   } else if (b.grade.tier === 'B') {
     parts.push('Playable, but it gives something back.')
   } else {
@@ -142,11 +160,20 @@ export function explain(b: FactBundle): string {
   }
 
   if (b.grade.tier !== 'A') {
-    const engineNote =
-      b.bestMoveSan && b.bestMoveSan !== b.masterMoveSan
-        ? ` (the engine prefers ${b.bestMoveSan})`
-        : ''
-    parts.push(`The master played ${b.masterMoveSan}${engineNote}.`)
+    if (b.matchedGameMove) {
+      // You already played this move once and it is still a mistake. Repeating
+      // "in the game you played Qa5+" under a line that just said you played
+      // Qa5+ reads as two different moves; the engine's is the only new fact.
+      if (b.bestMoveSan && b.bestMoveSan !== b.userMoveSan) {
+        parts.push(`The engine prefers ${b.bestMoveSan}.`)
+      }
+    } else {
+      const engineNote =
+        b.bestMoveSan && b.bestMoveSan !== b.gameMoveSan
+          ? ` (the engine prefers ${b.bestMoveSan})`
+          : ''
+      parts.push(`${w.sentence} ${b.gameMoveSan}${engineNote}.`)
+    }
     parts.push(`That's about ${Math.round(b.grade.swing)}% of your winning chances.`)
   }
 
@@ -156,6 +183,15 @@ export function explain(b: FactBundle): string {
 /**
  * Grounded facts as plain text for the ADR-0012 "clipboard handoff": the learner
  * pastes this into their own ChatGPT/Claude. Contains only computed facts.
+ *
+ * **This is the text #158 was worst in**, and the reason is that nobody reads it
+ * before it is pasted. `Master's move: e4` about a 1100-rated blitz move hands
+ * an LLM a false premise it will then reason confidently from, and the closing
+ * instruction — "explain why <the game's move> is better than <mine>" — asserted
+ * something no part of this app has measured: grading compares your move with
+ * **Stockfish's**, never with the move played in the game (`engine/grading.ts`).
+ * So the game's move is labelled by who played it, the comparison is asked
+ * against the engine, and the bundle says outright which of the two graded you.
  */
 export function factBundleToText(b: FactBundle): string {
   const side = b.sideToMove === 'w' ? 'White' : 'Black'
@@ -165,14 +201,22 @@ export function factBundleToText(b: FactBundle): string {
           .map((h) => `${PIECE_NAME[h.piece] ?? h.piece} on ${h.square} (loses ~${h.loss})`)
           .join(', ')
       : 'none detected'
+  // Comparing my move with a better one is the useful question, and only the
+  // engine supplies one. With no engine move, or with mine already the engine's,
+  // there is nothing to be "better than" and asking for it invites an invention.
+  const better = b.bestMoveSan && b.bestMoveSan !== b.userMoveSan ? b.bestMoveSan : null
+  const ask = better
+    ? `explain why ${better} is better than ${b.userMoveSan} here`
+    : `explain what ${b.userMoveSan} achieves here`
   return [
     `Position (FEN): ${b.fen}`,
     `Side to move: ${side}`,
     `My move: ${b.userMoveSan} (tier ${b.grade.tier}, gave up ~${Math.round(b.grade.swing)}% winning chances)`,
-    `Master's move: ${b.masterMoveSan}`,
+    `${moveWording(b.moveSource).field}: ${b.gameMoveSan}`,
     `Engine's best: ${b.bestMoveSan ?? 'n/a'}`,
     `Pieces hanging after my move: ${hanging}`,
     '',
-    `In 1–2 sentences a ~1200-rated player would understand, explain why ${b.masterMoveSan} is better than ${b.userMoveSan} here. Do not invent moves; use only the facts above.`,
+    'The tier came from comparing my move with the engine\'s best. The move played in the game is context, not the standard I was graded against.',
+    `In 1–2 sentences a ~1200-rated player would understand, ${ask}. Do not invent moves; use only the facts above.`,
   ].join('\n')
 }

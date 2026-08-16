@@ -184,6 +184,46 @@ describe('planning a study session', () => {
   })
 })
 
+describe('who the game’s moves belong to (#158)', () => {
+  // Nothing reachable through the database is a master game as far as this code
+  // can know, so `{ kind: 'master' }` is unreachable from here by construction —
+  // only `content/games.ts` may write it, and it writes it as a literal.
+  const mine = row({ white: 'test_player', black: 'other_player' })
+
+  it('calls them yours when you played that side', () => {
+    const plan = planStudy(mine, 'w', 'w')
+    expect(plan.ok && plan.game.moveSource).toEqual({ kind: 'you' })
+  })
+
+  it('names the player on the side being studied', () => {
+    expect(planStudy(row(), 'w')).toMatchObject({
+      game: { moveSource: { kind: 'player', name: 'Paul Morphy' } },
+    })
+    expect(planStudy(row(), 'b')).toMatchObject({
+      game: { moveSource: { kind: 'player', name: 'Duke Karl / Count Isouard' } },
+    })
+  })
+
+  it('names your opponent when you study the other side of your own game', () => {
+    // You played White; asking to be quizzed as Black means guessing your
+    // opponent's moves, and those are his even though the game is yours.
+    const plan = planStudy(mine, 'b', 'w')
+    expect(plan.ok && plan.game.moveSource).toEqual({ kind: 'player', name: 'other_player' })
+  })
+
+  it('falls back to the game itself when the file named nobody', () => {
+    const plan = planStudy(row({ white: '  ' }), 'w')
+    expect(plan.ok && plan.game.moveSource).toEqual({ kind: 'unnamed' })
+  })
+
+  it('attributes to the named player when the caller says nothing about you', () => {
+    // A safe default rather than a silent one: `yours` omitted still produces a
+    // true statement, just a less useful one than "in the game you played".
+    const plan = planStudy(mine, 'w')
+    expect(plan.ok && plan.game.moveSource).toEqual({ kind: 'player', name: 'test_player' })
+  })
+})
+
 describe('games that cannot be studied', () => {
   it('refuses a record with no moves', () => {
     expect(planStudy(row({ movetext: '' }), 'w')).toEqual({ ok: false, reason: 'no-moves' })

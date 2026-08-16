@@ -8,10 +8,17 @@
  * reading (constitution §9, §12). A game with no note renders exactly what it
  * rendered before: both captions are part of the note, so nothing appears for a
  * game that has nothing to attribute.
+ *
+ * The same rule reaches the *moves* since #158: this screen shows two of them
+ * and used to call the game's one "master" whatever the game was. The words now
+ * come from the game's own `MoveSource` (`domain/moveSource.ts`), which is why
+ * there is no provenance test anywhere in this file — deciding it here is the
+ * bug, not the fix.
  */
 
 import { useState } from 'react'
 import { explain, factBundleToText, type FactBundle } from '../domain/factBundle'
+import { moveWording } from '../domain/moveSource'
 import type { QuizItem } from '../domain/harness'
 import { TIER_TEXT, TIER_CLASS } from './format'
 
@@ -35,6 +42,10 @@ export function Reveal({
   onNext: () => void
   last: boolean
 }) {
+  // What this game's own moves may be called (#158) — decided when the game was
+  // built and carried on the fact bundle, so this screen never has to guess
+  // whether it is showing a master, a stranger, or the reader's own blitz game.
+  const wording = moveWording(fb.moveSource)
   const [copied, setCopied] = useState(false)
   const copyFacts = async () => {
     try {
@@ -50,23 +61,25 @@ export function Reveal({
       <div className={`verdict ${TIER_CLASS[fb.grade.tier]}`}>
         <span className="tier-badge">{TIER_TEXT[fb.grade.tier]}</span>
         <span className="your-move mono">
-          you played {fb.userMoveSan} · master {item.masterMoveSan}
+          {wording.yourVerb} {fb.userMoveSan} · {wording.tag} {item.masterMoveSan}
         </span>
       </div>
       <p className="why">{explain(fb)}</p>
       {note && <SourceAnnotation note={note} />}
+      {/* The swatch classes are colours and stay put: #158 changed the words on
+          the legend, never which arrow is which. */}
       <ul className="arrow-key">
         <li>
-          <span className="swatch master" /> master&apos;s move
+          <span className="swatch master" /> {wording.legend}
         </li>
         {fb.bestMoveSan && fb.bestMoveSan !== item.masterMoveSan && (
           <li>
-            <span className="swatch engine" /> engine&apos;s pick ({fb.bestMoveSan})
+            <span className="swatch engine" /> engine’s pick ({fb.bestMoveSan})
           </li>
         )}
-        {!fb.matchedMaster && (
+        {!fb.matchedGameMove && (
           <li>
-            <span className="swatch user" /> your move
+            <span className="swatch user" /> {wording.yourLegend}
           </li>
         )}
       </ul>

@@ -9,6 +9,7 @@ import {
   type StudyGame,
 } from '../domain/studyGame'
 import { summarize, type Attempt } from '../domain/session'
+import { moveWording } from '../domain/moveSource'
 import type { Color } from '../domain/types'
 import { useGuessSession } from '../app/useGuessSession'
 import { usePlaySession } from '../app/usePlaySession'
@@ -567,8 +568,9 @@ function GamePicker({
     <>
       <p className="lede">
         Take the winner&apos;s side of a classic. At each move, commit your choice and a one-line
-        reason <em>before</em> the answer appears — then see how the engine grades it. A move as
-        good as the master&apos;s earns full marks.
+        reason <em>before</em> the answer appears — then see how the engine grades it. Full marks
+        are the engine&apos;s to give: a move it rates level with its own best earns them, whether
+        or not the master found the same one.
       </p>
       {engineError && <p className="banner error">{engineError}</p>}
       {!engineReady && !engineError && (
@@ -816,7 +818,14 @@ function StudyThisGame({
 }) {
   const yours = useMemo(() => yourSide(game, names), [game, names])
   const plans = useMemo(
-    () => studySides(game.result, yours).map((color) => ({ color, plan: planStudy(game, color) })),
+    () =>
+      studySides(game.result, yours).map((color) => ({
+        color,
+        // `yours` decides whether the reveal says "master", a player's name, or
+        // "in the game you played" — a game you played is not a master game and
+        // must never claim to be (#158).
+        plan: planStudy(game, color, yours),
+      })),
     [game, yours],
   )
   const playable = plans.flatMap((p) => (p.plan.ok ? [{ color: p.color, ...p.plan }] : []))
@@ -907,6 +916,10 @@ function Summary({
   onHome: () => void
 }) {
   const s = summarize(attempts)
+  // "Worth a second look" prints the game's move beside yours, so it needs the
+  // same honesty the reveal does: on your own game the second move is also
+  // yours, and calling it the master's was #158 in its last hiding place.
+  const wording = moveWording(game.moveSource)
   return (
     <section className="summary">
       <h1>Session complete</h1>
@@ -927,8 +940,8 @@ function Summary({
           <ul>
             {s.biggestMisses.map((m) => (
               <li key={m.itemIndex}>
-                <span className="mono">{moveLabel(m.moveNumber, m.sideToMove)}</span> you played{' '}
-                <b className="mono">{m.userMoveSan}</b>, the master played{' '}
+                <span className="mono">{moveLabel(m.moveNumber, m.sideToMove)}</span>{' '}
+                {wording.yourVerb} <b className="mono">{m.userMoveSan}</b>, {wording.tag}{' '}
                 <b className="mono">{m.masterMoveSan}</b>{' '}
                 <span className="lost">(−{Math.round(m.swing)}%)</span>
               </li>

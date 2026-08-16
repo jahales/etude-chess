@@ -312,7 +312,9 @@ export function ReviewGame({
   // A different game is a different set of sides; never carry a choice across.
   useEffect(() => setSide(null), [game.key])
 
-  const plan = useMemo(() => planStudy(game, heroColor), [game, heroColor])
+  // `yours` again, not only for the side: it is what stops review mode calling
+  // your own move "the master's" at the reveal (#158).
+  const plan = useMemo(() => planStudy(game, heroColor, yours), [game, heroColor, yours])
   const studyGame = plan.ok ? plan.game : null
 
   const sanHistory = useMemo(

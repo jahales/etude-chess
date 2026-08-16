@@ -115,6 +115,9 @@ const studyGame = (over: Partial<StudyGame> = {}): StudyGame => ({
   blurb: 'White won',
   pgn: OPERA_PGN,
   heroColor: 'w',
+  // A row out of the database, so its moves are the named player's — never a
+  // master's, which only the curated pack may claim (#158).
+  moveSource: { kind: 'player', name: 'Paul Morphy' },
   ...over,
 })
 
